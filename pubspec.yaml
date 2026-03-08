@@ -1,0 +1,36 @@
+name: laidani_repair
+description: Système ERP/POS pour atelier de réparation téléphonique - LaidaniRepair
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.3.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Backend
+  supabase_flutter: ^2.5.0
+
+  # State Management
+  flutter_riverpod: ^2.5.1
+
+  # Routing
+  go_router: ^13.2.4
+
+  # Fonts & UI
+  google_fonts: ^6.2.1
+
+  # QR Code Generation (Step C - Repairs)
+  qr_flutter: ^4.1.0
+
+  cupertino_icons: ^1.0.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
