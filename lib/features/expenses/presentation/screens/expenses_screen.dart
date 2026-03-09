@@ -167,16 +167,39 @@ void _showAddExpense(BuildContext context, WidgetRef ref) {
         TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Annuler')),
         ElevatedButton(
           onPressed: () async {
-            final client = ref.read(supabaseClientProvider);
-            final user = Supabase.instance.client.auth.currentUser;
-            await client.from('expenses').insert({
-              'worker_id': user?.id,
-              'expense_type': typeCtrl.text.trim(),
-              'amount': double.tryParse(amountCtrl.text) ?? 0,
-              'notes': notesCtrl.text.trim().isEmpty ? null : notesCtrl.text.trim(),
-            });
-            ref.invalidate(_expensesProvider);
-            if (ctx.mounted) Navigator.pop(ctx);
+            final type = typeCtrl.text.trim();
+            final amountText = amountCtrl.text.trim();
+            final amount = double.tryParse(amountText) ?? 0;
+            
+            if (type.isEmpty || amount <= 0) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Veuillez entrer un type de dépense et un montant valide'), backgroundColor: Colors.redAccent),
+              );
+              return;
+            }
+
+            final messenger = ScaffoldMessenger.of(context);
+            final container = ProviderScope.containerOf(context);
+            Navigator.pop(ctx);
+            
+            try {
+              final client = container.read(supabaseClientProvider);
+              final user = Supabase.instance.client.auth.currentUser;
+              await client.from('expenses').insert({
+                'worker_id': user?.id,
+                'expense_type': type,
+                'amount': amount,
+                'notes': notesCtrl.text.trim().isEmpty ? null : notesCtrl.text.trim(),
+              });
+              container.invalidate(_expensesProvider);
+              messenger.showSnackBar(
+                const SnackBar(content: Text('Dépense enregistrée avec succès'), backgroundColor: Colors.green),
+              );
+            } catch (e) {
+              messenger.showSnackBar(
+                const SnackBar(content: Text('Erreur lors de l\'enregistrement de la dépense.'), backgroundColor: Colors.redAccent),
+              );
+            }
           },
           child: const Text('Enregistrer'),
         ),

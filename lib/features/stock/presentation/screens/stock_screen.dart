@@ -309,21 +309,43 @@ void _showProductDialog(BuildContext context, WidgetRef ref, {Map<String, dynami
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Annuler')),
           ElevatedButton(
             onPressed: () async {
-              final client = ref.read(supabaseClientProvider);
-              final data = {
-                'product_name': nameCtrl.text.trim(),
-                'barcode': barcodeCtrl.text.trim().isEmpty ? null : barcodeCtrl.text.trim(),
-                'reference_price': double.tryParse(priceCtrl.text) ?? 0,
-                'stock_quantity': int.tryParse(qtyCtrl.text) ?? 0,
-                'category_id': catId,
-              };
-              if (isEdit) {
-                await client.from('products').update(data).eq('id', existing['id']);
-              } else {
-                await client.from('products').insert(data);
+              final name = nameCtrl.text.trim();
+              final price = double.tryParse(priceCtrl.text) ?? 0;
+              final qty = int.tryParse(qtyCtrl.text) ?? 0;
+
+              if (name.isEmpty || catId == null) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Veuillez remplir les champs obligatoires (Nom, Catégorie)'), backgroundColor: Colors.redAccent),
+                );
+                return;
               }
-              ref.invalidate(_productsProvider);
-              if (ctx.mounted) Navigator.pop(ctx);
+              final messenger = ScaffoldMessenger.of(context);
+              final container = ProviderScope.containerOf(context);
+              Navigator.pop(ctx);
+              
+              try {
+                final client = container.read(supabaseClientProvider);
+                final data = {
+                  'product_name': name,
+                  'barcode': barcodeCtrl.text.trim().isEmpty ? null : barcodeCtrl.text.trim(),
+                  'reference_price': price,
+                  'stock_quantity': qty,
+                  'category_id': catId,
+                };
+                if (isEdit) {
+                  await client.from('products').update(data).eq('id', existing!['id']);
+                } else {
+                  await client.from('products').insert(data);
+                }
+                container.invalidate(_productsProvider);
+                messenger.showSnackBar(
+                  SnackBar(content: Text(isEdit ? 'Produit mis à jour avec succès' : 'Produit ajouté avec succès'), backgroundColor: Colors.green),
+                );
+              } catch (e) {
+                messenger.showSnackBar(
+                  const SnackBar(content: Text('Erreur lors de l\'enregistrement du produit.'), backgroundColor: Colors.redAccent),
+                );
+              }
             },
             child: Text(isEdit ? 'Enregistrer' : 'Ajouter'),
           ),
@@ -359,13 +381,32 @@ void _showSupplierDialog(BuildContext context, WidgetRef ref) {
         TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Annuler')),
         ElevatedButton(
           onPressed: () async {
-            final client = ref.read(supabaseClientProvider);
-            await client.from('suppliers').insert({
-              'supplier_name': nameCtrl.text.trim(),
-              'phone_number': phoneCtrl.text.trim().isEmpty ? null : phoneCtrl.text.trim(),
-            });
-            ref.invalidate(_suppliersProvider);
-            if (ctx.mounted) Navigator.pop(ctx);
+            final name = nameCtrl.text.trim();
+            if (name.isEmpty) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Le nom du fournisseur est obligatoire'), backgroundColor: Colors.redAccent),
+              );
+              return;
+            }
+            final messenger = ScaffoldMessenger.of(context);
+            final container = ProviderScope.containerOf(context);
+            Navigator.pop(ctx);
+            
+            try {
+              final client = container.read(supabaseClientProvider);
+              await client.from('suppliers').insert({
+                'supplier_name': name,
+                'phone_number': phoneCtrl.text.trim().isEmpty ? null : phoneCtrl.text.trim(),
+              });
+              container.invalidate(_suppliersProvider);
+              messenger.showSnackBar(
+                const SnackBar(content: Text('Fournisseur ajouté avec succès'), backgroundColor: Colors.green),
+              );
+            } catch (e) {
+              messenger.showSnackBar(
+                const SnackBar(content: Text('Erreur: impossible d\'ajouter le fournisseur.'), backgroundColor: Colors.redAccent),
+              );
+            }
           },
           child: const Text('Ajouter'),
         ),
@@ -417,20 +458,40 @@ void _showPurchaseDialog(BuildContext context, WidgetRef ref) {
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Annuler')),
           ElevatedButton(
             onPressed: () async {
-              final client = ref.read(supabaseClientProvider);
+            final amountText = amountCtrl.text.trim();
+            final amount = double.tryParse(amountText) ?? 0;
+            if (selectedSupplierId == null || amount <= 0) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Veuillez sélectionner un fournisseur et entrer un montant valide'), backgroundColor: Colors.redAccent),
+              );
+              return;
+            }
+            final messenger = ScaffoldMessenger.of(context);
+            final container = ProviderScope.containerOf(context);
+            Navigator.pop(ctx);
+            
+            try {
+              final client = container.read(supabaseClientProvider);
               final user = Supabase.instance.client.auth.currentUser;
               await client.from('purchase_invoices').insert({
                 'supplier_id': selectedSupplierId,
                 'worker_id': user?.id,
-                'total_amount': double.tryParse(amountCtrl.text) ?? 0,
+                'total_amount': amount,
               });
-              ref.invalidate(_purchasesProvider);
-              if (ctx.mounted) Navigator.pop(ctx);
-            },
-            child: const Text('Enregistrer'),
-          ),
-        ],
-      );
-    },
-  );
+              container.invalidate(_purchasesProvider);
+              messenger.showSnackBar(
+                const SnackBar(content: Text('Achat enregistré avec succès'), backgroundColor: Colors.green),
+              );
+            } catch (e) {
+              messenger.showSnackBar(
+                const SnackBar(content: Text('Erreur lors de l\'enregistrement de l\'achat.'), backgroundColor: Colors.redAccent),
+              );
+            }
+          },
+          child: const Text('Enregistrer'),
+        ),
+      ],
+    );
+  },
+);
 }

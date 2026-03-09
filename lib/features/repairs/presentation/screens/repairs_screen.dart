@@ -310,21 +310,44 @@ void _showNewTicketDialog(BuildContext context, WidgetRef ref) {
         TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Annuler')),
         ElevatedButton(
           onPressed: () async {
-            final client = ref.read(supabaseClientProvider);
-            final user = Supabase.instance.client.auth.currentUser;
-            // Generate a unique QR hash
-            final qrHash = 'LR-${DateTime.now().millisecondsSinceEpoch}-${Random().nextInt(9999).toString().padLeft(4, '0')}';
-            await client.from('repair_tickets').insert({
-              'customer_id': selectedCustomerId,
-              'worker_id': user?.id,
-              'device_name': deviceCtrl.text.trim(),
-              'issue_description': issueCtrl.text.trim(),
-              'estimated_cost': double.tryParse(costCtrl.text) ?? 0,
-              'qr_code_hash': qrHash,
-              'status': 'En attente',
-            });
-            ref.invalidate(_ticketsProvider);
-            if (ctx.mounted) Navigator.pop(ctx);
+            final device = deviceCtrl.text.trim();
+            final issue = issueCtrl.text.trim();
+            final cost = double.tryParse(costCtrl.text) ?? 0;
+            
+            if (selectedCustomerId == null || device.isEmpty || issue.isEmpty) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Veuillez remplir les champs obligatoires (Client, Appareil, Description)'), backgroundColor: Colors.redAccent),
+              );
+              return;
+            }
+            
+            final messenger = ScaffoldMessenger.of(context);
+            final container = ProviderScope.containerOf(context);
+            Navigator.pop(ctx);
+            
+            try {
+              final client = container.read(supabaseClientProvider);
+              final user = Supabase.instance.client.auth.currentUser;
+              // Generate a unique QR hash
+              final qrHash = 'LR-${DateTime.now().millisecondsSinceEpoch}-${Random().nextInt(9999).toString().padLeft(4, '0')}';
+              await client.from('repair_tickets').insert({
+                'customer_id': selectedCustomerId,
+                'worker_id': user?.id,
+                'device_name': device,
+                'issue_description': issue,
+                'estimated_cost': cost,
+                'qr_code_hash': qrHash,
+                'status': 'En attente',
+              });
+              container.invalidate(_ticketsProvider);
+              messenger.showSnackBar(
+                const SnackBar(content: Text('Ticket de réparation créé avec succès'), backgroundColor: Colors.green),
+              );
+            } catch (e) {
+              messenger.showSnackBar(
+                const SnackBar(content: Text('Erreur lors de la création du ticket.'), backgroundColor: Colors.redAccent),
+              );
+            }
           },
           child: const Text('Créer le ticket'),
         ),

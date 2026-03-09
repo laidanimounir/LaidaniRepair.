@@ -260,14 +260,33 @@ void _showAddCustomerDialog(BuildContext context, WidgetRef ref) {
         TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Annuler')),
         ElevatedButton(
           onPressed: () async {
-            final client = ref.read(supabaseClientProvider);
-            await client.from('customers').insert({
-              'full_name': nameCtrl.text.trim(),
-              'phone_number': phoneCtrl.text.trim().isEmpty ? null : phoneCtrl.text.trim(),
-              'is_registered': true,
-            });
-            ref.invalidate(_customersProvider);
-            if (ctx.mounted) Navigator.pop(ctx);
+            final name = nameCtrl.text.trim();
+            if (name.isEmpty) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Le nom complet est obligatoire'), backgroundColor: Colors.redAccent),
+              );
+              return;
+            }
+            final messenger = ScaffoldMessenger.of(context);
+            final container = ProviderScope.containerOf(context);
+            Navigator.pop(ctx);
+            
+            try {
+              final client = container.read(supabaseClientProvider);
+              await client.from('customers').insert({
+                'full_name': name,
+                'phone_number': phoneCtrl.text.trim().isEmpty ? null : phoneCtrl.text.trim(),
+                'is_registered': true,
+              });
+              container.invalidate(_customersProvider);
+              messenger.showSnackBar(
+                const SnackBar(content: Text('Client ajouté avec succès'), backgroundColor: Colors.green),
+              );
+            } catch (e) {
+              messenger.showSnackBar(
+                const SnackBar(content: Text('Erreur: impossible d\'ajouter le client. Veuillez vérifier vos entrées.'), backgroundColor: Colors.redAccent),
+              );
+            }
           },
           child: const Text('Ajouter'),
         ),
@@ -310,17 +329,37 @@ void _showPayDebtDialog(BuildContext context, WidgetRef ref, Map<String, dynamic
         TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Annuler')),
         ElevatedButton(
           onPressed: () async {
-            final client = ref.read(supabaseClientProvider);
-            final user = Supabase.instance.client.auth.currentUser;
-            await client.from('customer_payments').insert({
-              'customer_id': customer['id'],
-              'worker_id': user?.id,
-              'amount_paid': double.tryParse(amountCtrl.text) ?? 0,
-            });
-            ref.invalidate(_customersProvider);
-            ref.invalidate(_paymentsProvider(customer['id'] as String));
-            if (ctx.mounted) Navigator.pop(ctx);
-            if (ctx.mounted) Navigator.pop(ctx); // close bottom sheet too
+            final amountText = amountCtrl.text.trim();
+            final amount = double.tryParse(amountText) ?? 0;
+            if (amount <= 0 || amount > debt) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Veuillez entrer un montant valide (supérieur à 0 et inférieur ou égal à la dette)'), backgroundColor: Colors.redAccent),
+              );
+              return;
+            }
+            final messenger = ScaffoldMessenger.of(context);
+            final container = ProviderScope.containerOf(context);
+            Navigator.pop(ctx); // pop dialog
+            Navigator.pop(context); // pop bottom sheet
+            
+            try {
+              final client = container.read(supabaseClientProvider);
+              final user = Supabase.instance.client.auth.currentUser;
+              await client.from('customer_payments').insert({
+                'customer_id': customer['id'],
+                'worker_id': user?.id,
+                'amount_paid': amount,
+              });
+              container.invalidate(_customersProvider);
+              container.invalidate(_paymentsProvider(customer['id'] as String));
+              messenger.showSnackBar(
+                const SnackBar(content: Text('Paiement enregistré avec succès'), backgroundColor: Colors.green),
+              );
+            } catch (e) {
+              messenger.showSnackBar(
+                const SnackBar(content: Text('Erreur lors de l\'enregistrement du paiement.'), backgroundColor: Colors.redAccent),
+              );
+            }
           },
           child: const Text('Confirmer le paiement'),
         ),
