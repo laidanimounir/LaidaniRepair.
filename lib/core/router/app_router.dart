@@ -1,5 +1,4 @@
 import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -16,18 +15,13 @@ import 'package:laidani_repair/features/stock/presentation/screens/stock_screen.
 import 'package:laidani_repair/features/expenses/presentation/screens/expenses_screen.dart';
 import 'package:laidani_repair/features/audit/presentation/screens/audit_screen.dart';
 import 'package:laidani_repair/core/constants/app_constants.dart';
-
-
+// تأكد من وجود هذا السطر تحديداً
+import 'package:laidani_repair/features/repairs/presentation/screens/ticket_details_screen.dart';
 
 class _GoRouterRefreshNotifier extends ChangeNotifier {
   late final StreamSubscription<AuthState> _sub;
-
- 
   bool _isAnimating = false;
-
-  
   void lockForAnimation() => _isAnimating = true;
-
 
   void unlockAndNotify() {
     _isAnimating = false;
@@ -36,21 +30,15 @@ class _GoRouterRefreshNotifier extends ChangeNotifier {
 
   _GoRouterRefreshNotifier() {
     _sub = Supabase.instance.client.auth.onAuthStateChange.listen((event) {
-
-   
       if (event.event == AuthChangeEvent.initialSession) {
         Future.delayed(const Duration(milliseconds: 2000), notifyListeners);
         return;
       }
-
- 
       if (event.event == AuthChangeEvent.signedIn) {
         if (_isAnimating) return; 
         notifyListeners();
         return;
       }
-
-      
       notifyListeners();
     });
   }
@@ -62,14 +50,11 @@ class _GoRouterRefreshNotifier extends ChangeNotifier {
   }
 }
 
-
 final routerRefreshProvider = Provider<_GoRouterRefreshNotifier>((ref) {
   final n = _GoRouterRefreshNotifier();
   ref.onDispose(n.dispose);
   return n;
 });
-
-
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   final refreshNotifier = ref.watch(routerRefreshProvider);
@@ -79,7 +64,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     refreshListenable: refreshNotifier,
     debugLogDiagnostics: false,
 
-    // !! NE PAS MODIFIER — redirect logic !!
     redirect: (context, state) {
       final user = Supabase.instance.client.auth.currentUser;
       final isLoggedIn = user != null;
@@ -104,10 +88,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           return AppConstants.routePos;
         }
       }
-
       return null;
     },
-
 
     routes: [
       GoRoute(
@@ -144,6 +126,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: AppConstants.routeAudit,
             builder: (_, __) => const AuditScreen(),
+          ),
+          // المسار الجديد مضاف هنا بشكل صحيح
+          GoRoute(
+            path: '/repair-details/:id', 
+            builder: (context, state) {
+              final id = state.pathParameters['id']!;
+              return TicketDetailsScreen(ticketId: id);
+            },
           ),
         ],
       ),

@@ -2,6 +2,7 @@ import 'dart:math';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -307,14 +308,14 @@ class _CyberTableRow extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   // زر إدارة التذكرة (سيربط لاحقاً بنافذة لوحة التحكم)
-                  IconButton(
-                    icon: const Icon(Icons.dashboard_customize_outlined, color: _neonCyan, size: 20),
-                    tooltip: 'Gérer le ticket',
-                    onPressed: () {
-                      // TODO: سيتم برمجته لاحقاً لفتح نافذة إدارة التذكرة الشاملة
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Ouverture du tableau de bord du ticket... (À venir)'), backgroundColor: _neonCyan));
-                    },
-                  ),
+                IconButton(
+  icon: const Icon(Icons.dashboard_customize_outlined, color: _neonCyan, size: 20),
+  tooltip: 'Gérer le ticket',
+  onPressed: () {
+    // الانتقال السلس إلى شاشة تفاصيل التذكرة باستخدام الـ ID
+    context.push('/repair-details/${ticket['id']}');
+  },
+),
                   // التغيير السريع للحالة
                   PopupMenuButton<String>(
                     icon: const Icon(Icons.more_vert, color: _textMuted, size: 20),
