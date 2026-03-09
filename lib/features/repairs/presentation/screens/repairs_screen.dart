@@ -28,7 +28,7 @@ final _ticketsProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async 
 
 final _statusFilter = StateProvider<String?>((ref) => null);
 
-// ─── Repairs Screen (Cyber Table View) ────────────────────────────────────────
+// ─── Repairs Screen (Responsive) ────────────────────────────────────────
 
 class RepairsScreen extends ConsumerWidget {
   const RepairsScreen({super.key});
@@ -37,14 +37,24 @@ class RepairsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final ticketsAsync = ref.watch(_ticketsProvider);
     final statusF = ref.watch(_statusFilter);
+    
+    // تحديد نوع الجهاز (حاسوب أم هاتف)
+    final isDesktop = MediaQuery.of(context).size.width >= 850;
 
     return Scaffold(
       backgroundColor: _bgCarbon,
+      // 🌟 إضافة الزر العائم للهاتف فقط 🌟
+      floatingActionButton: isDesktop ? null : FloatingActionButton(
+        backgroundColor: _neonCyan,
+        foregroundColor: _bgCarbon,
+        onPressed: () => _showNewTicketDialog(context, ref),
+        child: const Icon(Icons.add),
+      ),
       body: Column(
         children: [
           // 1. Header & Filters
           Container(
-            padding: const EdgeInsets.all(24),
+            padding: EdgeInsets.all(isDesktop ? 24 : 16),
             decoration: const BoxDecoration(
               color: _panelDark,
               border: Border(bottom: BorderSide(color: _glassBorder, width: 1)),
@@ -64,30 +74,35 @@ class RepairsScreen extends ConsumerWidget {
                       child: const Icon(Icons.build_circle_outlined, color: _neonCyan, size: 24),
                     ),
                     const SizedBox(width: 16),
-                    const Text(
-                      'GESTION DES RÉPARATIONS',
-                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 18, letterSpacing: 1.5),
+                    Expanded(
+                      child: Text(
+                        isDesktop ? 'GESTION DES RÉPARATIONS' : 'RÉPARATIONS',
+                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: isDesktop ? 18 : 16, letterSpacing: 1.5),
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
-                    const Spacer(),
                     IconButton(
                       icon: const Icon(Icons.refresh, color: _textMuted),
                       onPressed: () => ref.invalidate(_ticketsProvider),
                       tooltip: 'Rafraîchir',
                     ),
-                    const SizedBox(width: 16),
-                    ElevatedButton.icon(
-                      onPressed: () => _showNewTicketDialog(context, ref),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: _neonCyan.withOpacity(0.1),
-                        foregroundColor: _neonCyan,
-                        elevation: 0,
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                        side: BorderSide(color: _neonCyan.withOpacity(0.5)),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    // 🌟 إخفاء زر الإضافة من الأعلى في الهاتف 🌟
+                    if (isDesktop) ...[
+                      const SizedBox(width: 16),
+                      ElevatedButton.icon(
+                        onPressed: () => _showNewTicketDialog(context, ref),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: _neonCyan.withOpacity(0.1),
+                          foregroundColor: _neonCyan,
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                          side: BorderSide(color: _neonCyan.withOpacity(0.5)),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                        icon: const Icon(Icons.add_box_outlined),
+                        label: const Text('NOUVEAU TICKET', style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1)),
                       ),
-                      icon: const Icon(Icons.add_box_outlined),
-                      label: const Text('NOUVEAU TICKET', style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1)),
-                    ),
+                    ]
                   ],
                 ),
                 const SizedBox(height: 24),
@@ -107,7 +122,7 @@ class RepairsScreen extends ConsumerWidget {
             ),
           ),
 
-          // 2. Custom Cyber Data Table
+          // 2. Custom Cyber Data Table (Responsive)
           Expanded(
             child: ticketsAsync.when(
               loading: () => const Center(child: CircularProgressIndicator(color: _neonCyan)),
@@ -119,25 +134,30 @@ class RepairsScreen extends ConsumerWidget {
 
                 return Column(
                   children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                      decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: _glassBorder, width: 1))),
-                      child: Row(
-                        children: [
-                          _buildTableHead('TICKET / DATE', flex: 2),
-                          _buildTableHead('CLIENT', flex: 2),
-                          _buildTableHead('APPAREIL & PROBLÈME', flex: 3),
-                          _buildTableHead('STATUT', flex: 2),
-                          _buildTableHead('FINANCES', flex: 2),
-                          _buildTableHead('ACTIONS', flex: 1, alignRight: true),
-                        ],
+                    // 🌟 إظهار رأس الجدول للحاسوب فقط 🌟
+                    if (isDesktop)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                        decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: _glassBorder, width: 1))),
+                        child: Row(
+                          children: [
+                            _buildTableHead('TICKET / DATE', flex: 2),
+                            _buildTableHead('CLIENT', flex: 2),
+                            _buildTableHead('APPAREIL & PROBLÈME', flex: 3),
+                            _buildTableHead('STATUT', flex: 2),
+                            _buildTableHead('FINANCES', flex: 2),
+                            _buildTableHead('ACTIONS', flex: 1, alignRight: true),
+                          ],
+                        ),
                       ),
-                    ),
                     Expanded(
                       child: ListView.builder(
                         itemCount: filtered.length,
                         itemBuilder: (context, index) {
-                          return _CyberTableRow(ticket: filtered[index], ref: ref);
+                          // 🌟 اختيار طريقة العرض المناسبة 🌟
+                          return isDesktop 
+                              ? _CyberTableRow(ticket: filtered[index], ref: ref)
+                              : _MobileTicketCard(ticket: filtered[index], ref: ref);
                         },
                       ),
                     ),
@@ -176,7 +196,7 @@ class RepairsScreen extends ConsumerWidget {
   }
 }
 
-// ─── Table Row (Cyber Style) ──────────────────────────────────────────────────
+// ─── Table Row (Cyber Style) - للحاسوب فقط ──────────────────────────────────
 
 class _CyberTableRow extends StatelessWidget {
   final Map<String, dynamic> ticket;
@@ -315,6 +335,131 @@ class _CyberTableRow extends StatelessWidget {
   }
 }
 
+// ─── Mobile Ticket Card - للهاتف فقط 🌟 ───────────────────────────────────────
+class _MobileTicketCard extends StatelessWidget {
+  final Map<String, dynamic> ticket;
+  final WidgetRef ref;
+
+  const _MobileTicketCard({required this.ticket, required this.ref});
+
+  @override
+  Widget build(BuildContext context) {
+    final status = ticket['status'] as String? ?? 'En attente';
+    final isAnon = ticket['customer_id'] == null;
+    final customerName = isAnon ? (ticket['client_name_temp'] ?? 'Client Anonyme') : (ticket['customers']?['full_name'] ?? 'Inconnu');
+    final device = ticket['device_name'] ?? '';
+    final issue = ticket['issue_description'] ?? '';
+    final date = DateTime.tryParse(ticket['created_at'] ?? '')?.toString().substring(0, 16) ?? '';
+    final qrHash = ticket['qr_code_hash']?.toString().substring(0, 8) ?? '';
+    
+    final estimated = (ticket['estimated_cost'] as num?)?.toDouble() ?? 0;
+    final advance = (ticket['advance_payment'] as num?)?.toDouble() ?? 0;
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: _panelDark.withOpacity(0.5),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _glassBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('#$qrHash', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontFamily: 'monospace')),
+                  const SizedBox(height: 2),
+                  Text(date, style: const TextStyle(color: _textMuted, fontSize: 11)),
+                ]
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: _statusColor(status).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: _statusColor(status).withOpacity(0.3)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(_statusIcon(status), color: _statusColor(status), size: 10),
+                    const SizedBox(width: 4),
+                    Text(status, style: TextStyle(color: _statusColor(status), fontSize: 10, fontWeight: FontWeight.bold)),
+                  ],
+                ),
+              ),
+            ]
+          ),
+          const Divider(color: _glassBorder, height: 24),
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(children: [
+                      Icon(isAnon ? Icons.person_outline : Icons.person, size: 14, color: _neonCyan),
+                      const SizedBox(width: 6),
+                      Expanded(child: Text(customerName, style: const TextStyle(color: Colors.white, fontSize: 13), overflow: TextOverflow.ellipsis)),
+                    ]),
+                    const SizedBox(height: 8),
+                    Row(children: [
+                      const Icon(Icons.phone_android, size: 14, color: _textMuted),
+                      const SizedBox(width: 6),
+                      Expanded(child: Text(device, style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
+                    ]),
+                  ]
+                )
+              ),
+              Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.dashboard_customize_outlined, color: _neonCyan),
+                    onPressed: () => context.push('/repair-details/${ticket['id']}'),
+                  ),
+                  PopupMenuButton<String>(
+                    icon: const Icon(Icons.more_vert, color: _textMuted, size: 20),
+                    color: _panelDark,
+                    itemBuilder: (_) => ['En attente', 'En cours', 'Terminé', 'Livré']
+                        .map((s) => PopupMenuItem(value: s, child: Text(s, style: const TextStyle(color: Colors.white))))
+                        .toList(),
+                    onSelected: (newStatus) async {
+                      final client = ref.read(supabaseClientProvider);
+                      final updates = <String, dynamic>{'status': newStatus};
+                      if (newStatus == 'Livré') updates['delivered_at'] = DateTime.now().toIso8601String();
+                      await client.from('repair_tickets').update(updates).eq('id', ticket['id']);
+                      ref.invalidate(_ticketsProvider);
+                    },
+                  ),
+                ]
+              )
+            ]
+          ),
+          const SizedBox(height: 12),
+          Text('Problème: $issue', style: const TextStyle(color: _textMuted, fontSize: 12), maxLines: 2, overflow: TextOverflow.ellipsis),
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(color: Colors.black12, borderRadius: BorderRadius.circular(8)),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('Est: ${estimated.toStringAsFixed(0)} DA', style: const TextStyle(color: _textMuted, fontSize: 12)),
+                Text('Avance: ${advance.toStringAsFixed(0)} DA', style: const TextStyle(color: Colors.greenAccent, fontSize: 12, fontWeight: FontWeight.bold)),
+              ]
+            )
+          )
+        ],
+      ),
+    );
+  }
+}
+
 // ─── Status Chip & Helpers ────────────────────────────────────────────────────
 
 class _StatusChip extends StatelessWidget {
@@ -369,7 +514,7 @@ IconData _statusIcon(String? status) {
   }
 }
 
-// ─── New Ticket Dialog (Two-Column Cyber Layout) ─────────────────────────────
+// ─── New Ticket Dialog (Two-Column Cyber Layout - Responsive) ─────────────────────────────
 
 void _showNewTicketDialog(BuildContext context, WidgetRef ref) {
   showDialog(
@@ -405,17 +550,21 @@ class _NewTicketFormState extends State<_NewTicketForm> {
   
   final _costCtrl = TextEditingController();
   final _advanceCtrl = TextEditingController();
-  final _laborCtrl = TextEditingController(); // حقل اليد العاملة الجديد
+  final _laborCtrl = TextEditingController(); 
 
   bool _isLoading = false;
 
   @override
   Widget build(BuildContext context) {
+    // 🌟 التجاوب في نافذة الإضافة 🌟
+    final isDesktop = MediaQuery.of(context).size.width >= 850;
+
     return Dialog(
       backgroundColor: Colors.transparent,
+      insetPadding: EdgeInsets.all(isDesktop ? 24 : 12),
       child: Container(
-        width: 900, // تصميم عريض جداً لاستيعاب عمودين
-        constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.85),
+        width: isDesktop ? 900 : double.infinity,
+        constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.9),
         decoration: BoxDecoration(
           color: _panelDark.withOpacity(0.95),
           borderRadius: BorderRadius.circular(16),
@@ -428,116 +577,39 @@ class _NewTicketFormState extends State<_NewTicketForm> {
             Container(
               padding: const EdgeInsets.all(20),
               decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: _glassBorder))),
-              child: const Row(
+              child: Row(
                 children: [
-                  Icon(Icons.receipt_long, color: _neonCyan),
-                  SizedBox(width: 12),
-                  Text('NOUVEAU DOSSIER DE RÉPARATION', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold, letterSpacing: 1)),
+                  const Icon(Icons.receipt_long, color: _neonCyan),
+                  const SizedBox(width: 12),
+                  Expanded(child: Text('NOUVEAU DOSSIER DE RÉPARATION', style: TextStyle(color: Colors.white, fontSize: isDesktop ? 18 : 14, fontWeight: FontWeight.bold, letterSpacing: 1), overflow: TextOverflow.ellipsis)),
                 ],
               ),
             ),
             
-            // Form Body (Two Columns)
+            // Form Body
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // === COLONNE GAUCHE (Client & Appareil) ===
-                    Expanded(
-                      flex: 5,
-                      child: SingleChildScrollView(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _buildSectionTitle('1. Informations Client', Icons.person_outline),
-                            SwitchListTile(
-                              title: const Text('Client de passage (Anonyme)', style: TextStyle(color: Colors.white, fontSize: 14)),
-                              subtitle: const Text('Ne pas enregistrer ce client dans la base', style: TextStyle(color: _textMuted, fontSize: 12)),
-                              value: _isAnonymous,
-                              activeColor: _neonCyan,
-                              contentPadding: EdgeInsets.zero,
-                              onChanged: (v) => setState(() => _isAnonymous = v),
-                            ),
-                            const SizedBox(height: 12),
-                            if (_isAnonymous) ...[
-                              Row(
-                                children: [
-                                  Expanded(child: _buildTextField(_anonNameCtrl, 'Nom (Optionnel)', icon: Icons.person)),
-                                  const SizedBox(width: 16),
-                                  Expanded(child: _buildTextField(_anonPhoneCtrl, 'Téléphone (Optionnel)', icon: Icons.phone)),
-                                ],
-                              ),
-                            ] else ...[
-                              FutureBuilder(
-                                future: widget.ref.read(supabaseClientProvider).from('customers').select('id, full_name, phone_number').eq('is_registered', true).order('full_name'),
-                                builder: (ctx, snap) {
-                                  if (!snap.hasData) return const CircularProgressIndicator(color: _neonCyan);
-                                  final custs = snap.data as List;
-                                  return DropdownButtonFormField<String>(
-                                    value: _selectedCustomerId,
-                                    dropdownColor: _panelDark,
-                                    style: const TextStyle(color: Colors.white),
-                                    decoration: _inputDecoration('Sélectionner un client *', Icons.people),
-                                    items: custs.map((c) => DropdownMenuItem<String>(
-                                      value: c['id'] as String,
-                                      child: Text('${c['full_name']} — ${c['phone_number'] ?? ''}'),
-                                    )).toList(),
-                                    onChanged: (v) => setState(() => _selectedCustomerId = v),
-                                  );
-                                },
-                              ),
-                            ],
-                            
-                            const SizedBox(height: 32),
-                            _buildSectionTitle('2. L\'appareil', Icons.smartphone),
-                            _buildTextField(_deviceCtrl, 'Modèle de l\'appareil * (ex: Samsung S23)', icon: Icons.phone_android),
-                            const SizedBox(height: 16),
-                            _buildTextField(_issueCtrl, 'Problème signalé par le client *', icon: Icons.warning_amber_rounded, maxLines: 2),
-                          ],
-                        ),
+                padding: EdgeInsets.all(isDesktop ? 24 : 16),
+                child: isDesktop 
+                  ? Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(flex: 5, child: _buildLeftColumn()),
+                        Container(width: 1, color: _glassBorder, margin: const EdgeInsets.symmetric(horizontal: 24)),
+                        Expanded(flex: 4, child: _buildRightColumn()),
+                      ],
+                    )
+                  : SingleChildScrollView(
+                      child: Column(
+                        children: [
+                          _buildLeftColumn(),
+                          const SizedBox(height: 24),
+                          const Divider(color: _glassBorder),
+                          const SizedBox(height: 24),
+                          _buildRightColumn(),
+                        ],
                       ),
                     ),
-                    
-                    // فاصل زجاجي بين العمودين
-                    Container(width: 1, color: _glassBorder, margin: const EdgeInsets.symmetric(horizontal: 24)),
-                    
-                    // === COLONNE DROITE (Détails & Finances) ===
-                    Expanded(
-                      flex: 4,
-                      child: SingleChildScrollView(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _buildSectionTitle('3. Diagnostic & Sécurité (Optionnel)', Icons.security),
-                            Row(
-                              children: [
-                                Expanded(child: _buildTextField(_imeiCtrl, 'IMEI / Série', icon: Icons.qr_code)),
-                                const SizedBox(width: 16),
-                                Expanded(child: _buildTextField(_passwordCtrl, 'Code / Schéma', icon: Icons.lock_open)),
-                              ],
-                            ),
-                            const SizedBox(height: 16),
-                            _buildTextField(_diagCtrl, 'Bilan visuel / État initial (ex: écran déjà fissuré)', icon: Icons.visibility_outlined, maxLines: 2),
-
-                            const SizedBox(height: 32),
-                            _buildSectionTitle('4. Finances initiales', Icons.attach_money),
-                            _buildTextField(_costCtrl, 'Coût estimé (Pièces incluses)', icon: Icons.calculate, isNumber: true, suffix: 'DA'),
-                            const SizedBox(height: 16),
-                            Row(
-                              children: [
-                                Expanded(child: _buildTextField(_advanceCtrl, 'Acompte (Avance)', icon: Icons.payments_outlined, isNumber: true, suffix: 'DA')),
-                                const SizedBox(width: 16),
-                                Expanded(child: _buildTextField(_laborCtrl, 'Main d\'œuvre (M.O)', icon: Icons.handyman_outlined, isNumber: true, suffix: 'DA')),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
               ),
             ),
             
@@ -558,18 +630,106 @@ class _NewTicketFormState extends State<_NewTicketForm> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: _neonCyan,
                       foregroundColor: _bgCarbon,
-                      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                     ),
                     child: _isLoading 
                       ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: _bgCarbon, strokeWidth: 2))
-                      : const Text('GÉNÉRER LE DOSSIER', style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1)),
+                      : const Text('GÉNÉRER', style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1)),
                   ),
                 ],
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  // --- Left Column ---
+  Widget _buildLeftColumn() {
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildSectionTitle('1. Informations Client', Icons.person_outline),
+          SwitchListTile(
+            title: const Text('Client de passage (Anonyme)', style: TextStyle(color: Colors.white, fontSize: 14)),
+            subtitle: const Text('Ne pas enregistrer ce client dans la base', style: TextStyle(color: _textMuted, fontSize: 12)),
+            value: _isAnonymous,
+            activeColor: _neonCyan,
+            contentPadding: EdgeInsets.zero,
+            onChanged: (v) => setState(() => _isAnonymous = v),
+          ),
+          const SizedBox(height: 12),
+          if (_isAnonymous) ...[
+            Row(
+              children: [
+                Expanded(child: _buildTextField(_anonNameCtrl, 'Nom (Optionnel)', icon: Icons.person)),
+                const SizedBox(width: 16),
+                Expanded(child: _buildTextField(_anonPhoneCtrl, 'Téléphone (Optionnel)', icon: Icons.phone)),
+              ],
+            ),
+          ] else ...[
+            FutureBuilder(
+              future: widget.ref.read(supabaseClientProvider).from('customers').select('id, full_name, phone_number').eq('is_registered', true).order('full_name'),
+              builder: (ctx, snap) {
+                if (!snap.hasData) return const CircularProgressIndicator(color: _neonCyan);
+                final custs = snap.data as List;
+                return DropdownButtonFormField<String>(
+                  value: _selectedCustomerId,
+                  dropdownColor: _panelDark,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: _inputDecoration('Sélectionner un client *', Icons.people),
+                  items: custs.map((c) => DropdownMenuItem<String>(
+                    value: c['id'] as String,
+                    child: Text('${c['full_name']} — ${c['phone_number'] ?? ''}'),
+                  )).toList(),
+                  onChanged: (v) => setState(() => _selectedCustomerId = v),
+                );
+              },
+            ),
+          ],
+          
+          const SizedBox(height: 32),
+          _buildSectionTitle('2. L\'appareil', Icons.smartphone),
+          _buildTextField(_deviceCtrl, 'Modèle de l\'appareil * (ex: Samsung S23)', icon: Icons.phone_android),
+          const SizedBox(height: 16),
+          _buildTextField(_issueCtrl, 'Problème signalé par le client *', icon: Icons.warning_amber_rounded, maxLines: 2),
+        ],
+      ),
+    );
+  }
+
+  // --- Right Column ---
+  Widget _buildRightColumn() {
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildSectionTitle('3. Diagnostic & Sécurité (Optionnel)', Icons.security),
+          Row(
+            children: [
+              Expanded(child: _buildTextField(_imeiCtrl, 'IMEI / Série', icon: Icons.qr_code)),
+              const SizedBox(width: 16),
+              Expanded(child: _buildTextField(_passwordCtrl, 'Code / Schéma', icon: Icons.lock_open)),
+            ],
+          ),
+          const SizedBox(height: 16),
+          _buildTextField(_diagCtrl, 'Bilan visuel / État initial (ex: écran déjà fissuré)', icon: Icons.visibility_outlined, maxLines: 2),
+
+          const SizedBox(height: 32),
+          _buildSectionTitle('4. Finances initiales', Icons.attach_money),
+          _buildTextField(_costCtrl, 'Coût estimé (Pièces incluses)', icon: Icons.calculate, isNumber: true, suffix: 'DA'),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(child: _buildTextField(_advanceCtrl, 'Acompte (Avance)', icon: Icons.payments_outlined, isNumber: true, suffix: 'DA')),
+              const SizedBox(width: 16),
+              Expanded(child: _buildTextField(_laborCtrl, 'Main d\'œuvre (M.O)', icon: Icons.handyman_outlined, isNumber: true, suffix: 'DA')),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -631,7 +791,7 @@ class _NewTicketFormState extends State<_NewTicketForm> {
       
       final cost = double.tryParse(_costCtrl.text) ?? 0;
       final advance = double.tryParse(_advanceCtrl.text) ?? 0;
-      final labor = double.tryParse(_laborCtrl.text) ?? 0; // تسجيل اليد العاملة
+      final labor = double.tryParse(_laborCtrl.text) ?? 0;
 
       await client.from('repair_tickets').insert({
         'customer_id': _isAnonymous ? null : _selectedCustomerId,
@@ -645,7 +805,7 @@ class _NewTicketFormState extends State<_NewTicketForm> {
         'pre_diagnostic': _diagCtrl.text.trim(),
         'estimated_cost': cost,
         'advance_payment': advance,
-        'labor_cost': labor, // تمرير اليد العاملة لقاعدة البيانات
+        'labor_cost': labor,
         'qr_code_hash': qrHash,
         'status': 'En attente',
       });
