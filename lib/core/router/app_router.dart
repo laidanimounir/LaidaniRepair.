@@ -17,14 +17,40 @@ import 'package:laidani_repair/features/expenses/presentation/screens/expenses_s
 import 'package:laidani_repair/features/audit/presentation/screens/audit_screen.dart';
 import 'package:laidani_repair/core/constants/app_constants.dart';
 
-// ─── Router Refresh Notifier ───────────────────────────────────────────────
 
-/// Bridges Supabase auth stream → GoRouter refresh mechanism.
+
 class _GoRouterRefreshNotifier extends ChangeNotifier {
   late final StreamSubscription<AuthState> _sub;
 
+ 
+  bool _isAnimating = false;
+
+  
+  void lockForAnimation() => _isAnimating = true;
+
+
+  void unlockAndNotify() {
+    _isAnimating = false;
+    notifyListeners();
+  }
+
   _GoRouterRefreshNotifier() {
-    _sub = Supabase.instance.client.auth.onAuthStateChange.listen((_) {
+    _sub = Supabase.instance.client.auth.onAuthStateChange.listen((event) {
+
+   
+      if (event.event == AuthChangeEvent.initialSession) {
+        Future.delayed(const Duration(milliseconds: 2000), notifyListeners);
+        return;
+      }
+
+ 
+      if (event.event == AuthChangeEvent.signedIn) {
+        if (_isAnimating) return; 
+        notifyListeners();
+        return;
+      }
+
+      
       notifyListeners();
     });
   }
@@ -36,47 +62,44 @@ class _GoRouterRefreshNotifier extends ChangeNotifier {
   }
 }
 
-final _routerRefreshProvider = Provider<_GoRouterRefreshNotifier>((ref) {
+
+final routerRefreshProvider = Provider<_GoRouterRefreshNotifier>((ref) {
   final n = _GoRouterRefreshNotifier();
   ref.onDispose(n.dispose);
   return n;
 });
 
-// ─── App Router ────────────────────────────────────────────────────────────
+
 
 final appRouterProvider = Provider<GoRouter>((ref) {
-  final refreshNotifier = ref.watch(_routerRefreshProvider);
+  final refreshNotifier = ref.watch(routerRefreshProvider);
 
   return GoRouter(
     initialLocation: AppConstants.routeSplash,
     refreshListenable: refreshNotifier,
     debugLogDiagnostics: false,
 
+    // !! NE PAS MODIFIER — redirect logic !!
     redirect: (context, state) {
       final user = Supabase.instance.client.auth.currentUser;
       final isLoggedIn = user != null;
       final location = state.matchedLocation;
 
-      // Always allow splash to load first
       if (location == AppConstants.routeSplash) return null;
 
-      // Not logged in → go to login
       if (!isLoggedIn) {
         return location == AppConstants.routeLogin
             ? null
             : AppConstants.routeLogin;
       }
 
-      // Logged in but on login/splash → go to POS
       if (location == AppConstants.routeLogin ||
           location == AppConstants.routeSplash) {
         return AppConstants.routePos;
       }
 
-      // RBAC: owner-only routes
       if (AppConstants.ownerOnlyRoutes.contains(location)) {
         final profile = ref.read(profileProvider).valueOrNull;
-        // If profile is still loading, let it through (shell will guard visually)
         if (profile != null && !profile.isOwner) {
           return AppConstants.routePos;
         }
@@ -84,6 +107,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
       return null;
     },
+
 
     routes: [
       GoRoute(
