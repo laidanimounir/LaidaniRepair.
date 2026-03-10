@@ -65,8 +65,6 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
         'charged_price': product['reference_price'],
         'part_status': 'Utilisé'
       });
-      final int currentStock = product['stock_quantity'] ?? 0;
-      await client.from('products').update({'stock_quantity': currentStock - 1}).eq('id', product['id']);
       _fetchFullData();
       _showToast('Pièce ajoutée et stock mis à jour !', _neonEmerald);
     } catch (e) {
@@ -79,12 +77,7 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
     final client = ref.read(supabaseClientProvider);
     setState(() => _isLoading = true);
     try {
-      // إرجاع المخزون فقط إذا كانت القطعة مستخدمة (ليست تالفة)
-      if (part['part_status'] == 'Utilisé') {
-        final productRes = await client.from('products').select('stock_quantity').eq('id', part['product_id']).single();
-        int currentStock = productRes['stock_quantity'] ?? 0;
-        await client.from('products').update({'stock_quantity': currentStock + 1}).eq('id', part['product_id']);
-      }
+      // الحذف من الفاتورة (قاعدة البيانات ستعالج المخزون عبر Trigger)
       await client.from('repair_parts').delete().eq('id', part['id']);
       _fetchFullData();
       _showToast('Pièce supprimée et retournée au stock.', Colors.orangeAccent);
@@ -171,10 +164,7 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
       // إرجاع كل القطع السليمة للمخزون
       for (var p in _parts) {
         if (p['part_status'] == 'Utilisé') {
-          final productRes = await client.from('products').select('stock_quantity').eq('id', p['product_id']).single();
-          int currentStock = productRes['stock_quantity'] ?? 0;
-          await client.from('products').update({'stock_quantity': currentStock + 1}).eq('id', p['product_id']);
-          // تغيير حالة القطعة في التذكرة لكي لا تحسب مرة أخرى
+          // تغيير حالة القطعة في التذكرة لكي لا تحسب مرة أخرى (قاعدة البيانات مسؤولة عن المخزون إن كان لها Trigger)
           await client.from('repair_parts').update({'part_status': 'Retourné'}).eq('id', p['id']);
         }
       }

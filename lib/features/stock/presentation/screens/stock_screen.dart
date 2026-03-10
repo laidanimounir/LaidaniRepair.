@@ -582,7 +582,7 @@ class _PurchaseFormDialogState extends State<_PurchaseFormDialog> {
       
       final invoiceId = invResponse['id'];
 
-      // 2. إدخال المنتجات + تحديث المخزون والسعر
+      // 2. إدخال المنتجات (التحديث يتم تلقائياً عبر Triggers في قاعدة البيانات)
       for (var item in _cart) {
         await client.from('purchase_items').insert({
           'invoice_id': invoiceId,
@@ -590,23 +590,6 @@ class _PurchaseFormDialogState extends State<_PurchaseFormDialog> {
           'quantity': item.qty,
           'buy_price': item.buyPrice,
         });
-
-        // جلب المخزون الحالي
-        final pData = await client.from('products').select('stock_quantity').eq('id', item.productId).single();
-        int currentStock = pData['stock_quantity'] ?? 0;
-        
-        // التحديث
-        await client.from('products').update({
-          'stock_quantity': currentStock + item.qty,
-          'purchase_price': item.buyPrice, // تحديث سعر الشراء لآخر سعر
-        }).eq('id', item.productId);
-      }
-
-      // 3. تحديث ديون المورد (هنا تم إصلاح الخطأ بإضافة !)
-      if (debt > 0) {
-        final sData = await client.from('suppliers').select('total_due').eq('id', _selectedSupplierId!).single();
-        double currentDue = (sData['total_due'] as num?)?.toDouble() ?? 0.0;
-        await client.from('suppliers').update({'total_due': currentDue + debt}).eq('id', _selectedSupplierId!);
       }
 
       // 4. تحديث الواجهة
