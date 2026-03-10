@@ -1,10 +1,17 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-
-import 'package:laidani_repair/core/theme/app_theme.dart';
 import 'package:laidani_repair/core/providers/supabase_provider.dart';
+
+// --- Cyber Glass Theme Constants ---
+const Color _bgCarbon = Color(0xFF050914);
+const Color _panelDark = Color(0xFF0A0F1A);
+const Color _glassBorder = Color(0x1AFFFFFF);
+const Color _textMuted = Color(0xFF8A9BB4);
+const Color _neonPurple = Color(0xFFB000FF); // لون مميز لقسم المخزون
+const Color _neonCyan = Color(0xFF00E5FF);
 
 // ─── Providers ────────────────────────────────────────────────────────────────
 
@@ -12,8 +19,8 @@ final _productsProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async
   final client = ref.watch(supabaseClientProvider);
   return await client
       .from('products')
-      .select('id, product_name, barcode, stock_quantity, reference_price, category_id, categories(category_name)')
-      .order('product_name');
+      .select('id, product_name, barcode, stock_quantity, reference_price, purchase_price, min_stock, category_id, categories(category_name)')
+      .order('created_at', ascending: false);
 });
 
 final _categoriesProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
@@ -44,14 +51,15 @@ class StockScreen extends ConsumerStatefulWidget {
   ConsumerState<StockScreen> createState() => _StockScreenState();
 }
 
-class _StockScreenState extends ConsumerState<StockScreen>
-    with SingleTickerProviderStateMixin {
+class _StockScreenState extends ConsumerState<StockScreen> with SingleTickerProviderStateMixin {
   late final TabController _tabController;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
+    // تحديث زر الإضافة عند تغيير التبويبة
+    _tabController.addListener(() => setState(() {})); 
   }
 
   @override
@@ -62,19 +70,67 @@ class _StockScreenState extends ConsumerState<StockScreen>
 
   @override
   Widget build(BuildContext context) {
+    final isDesktop = MediaQuery.of(context).size.width >= 850;
+
     return Scaffold(
-      backgroundColor: AppTheme.background,
+      backgroundColor: _bgCarbon,
+      floatingActionButton: isDesktop ? null : _buildFloatingActionButton(context),
       body: Column(
         children: [
-          // Tab Bar
+          // Header & Tabs
           Container(
-            color: AppTheme.surfaceContainer,
-            child: TabBar(
-              controller: _tabController,
-              tabs: const [
-                Tab(icon: Icon(Icons.inventory_2), text: 'Produits'),
-                Tab(icon: Icon(Icons.local_shipping), text: 'Achats'),
-                Tab(icon: Icon(Icons.store), text: 'Fournisseurs'),
+            decoration: const BoxDecoration(
+              color: _panelDark,
+              border: Border(bottom: BorderSide(color: _glassBorder, width: 1)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (isDesktop)
+                  Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: _neonPurple.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: _neonPurple.withOpacity(0.3)),
+                          ),
+                          child: const Icon(Icons.inventory_2_outlined, color: _neonPurple, size: 24),
+                        ),
+                        const SizedBox(width: 16),
+                        const Text('STOCK & ACHATS', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 18, letterSpacing: 1.5)),
+                        const Spacer(),
+                        ElevatedButton.icon(
+                          onPressed: () => _showAddDialog(context),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: _neonPurple.withOpacity(0.1),
+                            foregroundColor: _neonPurple,
+                            elevation: 0,
+                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                            side: BorderSide(color: _neonPurple.withOpacity(0.5)),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
+                          icon: const Icon(Icons.add_box_outlined),
+                          label: Text(_getAddButtonLabel(), style: const TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1)),
+                        ),
+                      ],
+                    ),
+                  ),
+                TabBar(
+                  controller: _tabController,
+                  indicatorColor: _neonPurple,
+                  labelColor: _neonPurple,
+                  unselectedLabelColor: _textMuted,
+                  dividerColor: Colors.transparent,
+                  tabs: const [
+                    Tab(icon: Icon(Icons.inventory_2), text: 'Produits'),
+                    Tab(icon: Icon(Icons.local_shipping), text: 'Achats'),
+                    Tab(icon: Icon(Icons.store), text: 'Fournisseurs'),
+                  ],
+                ),
               ],
             ),
           ),
@@ -82,34 +138,40 @@ class _StockScreenState extends ConsumerState<StockScreen>
             child: TabBarView(
               controller: _tabController,
               children: [
-                _ProductsTab(),
-                _PurchasesTab(),
-                _SuppliersTab(),
+                _ProductsTab(isDesktop: isDesktop),
+                _PurchasesTab(isDesktop: isDesktop),
+                _SuppliersTab(isDesktop: isDesktop),
               ],
             ),
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _showAddDialog(context),
-        backgroundColor: AppTheme.primary,
-        child: const Icon(Icons.add, color: Colors.white),
-      ),
+    );
+  }
+
+  String _getAddButtonLabel() {
+    switch (_tabController.index) {
+      case 0: return 'NOUVEAU PRODUIT';
+      case 1: return 'NOUVEL ACHAT';
+      case 2: return 'NOUVEAU FOURNISSEUR';
+      default: return 'AJOUTER';
+    }
+  }
+
+  Widget? _buildFloatingActionButton(BuildContext context) {
+    return FloatingActionButton(
+      onPressed: () => _showAddDialog(context),
+      backgroundColor: _neonPurple,
+      foregroundColor: Colors.white,
+      child: const Icon(Icons.add),
     );
   }
 
   void _showAddDialog(BuildContext context) {
-    final idx = _tabController.index;
-    switch (idx) {
-      case 0:
-        _showProductDialog(context, ref);
-        break;
-      case 1:
-        _showPurchaseDialog(context, ref);
-        break;
-      case 2:
-        _showSupplierDialog(context, ref);
-        break;
+    switch (_tabController.index) {
+      case 0: _showProductDialog(context, ref); break;
+      case 1: _showPurchaseDialog(context, ref); break; // سيتم تطويره في المرحلة 3
+      case 2: _showSupplierDialog(context, ref); break; // سيتم تطويره في المرحلة 2
     }
   }
 }
@@ -117,381 +179,318 @@ class _StockScreenState extends ConsumerState<StockScreen>
 // ─── Products Tab ─────────────────────────────────────────────────────────────
 
 class _ProductsTab extends ConsumerWidget {
+  final bool isDesktop;
+  const _ProductsTab({required this.isDesktop});
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final products = ref.watch(_productsProvider);
+    
     return products.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, _) => Center(child: Text('Erreur: $e', style: const TextStyle(color: AppTheme.error))),
+      loading: () => const Center(child: CircularProgressIndicator(color: _neonPurple)),
+      error: (e, _) => Center(child: Text('Erreur: $e', style: const TextStyle(color: Colors.redAccent))),
       data: (list) {
         if (list.isEmpty) {
-          return const Center(child: Text('Aucun produit', style: TextStyle(color: AppTheme.onSurfaceMuted)));
+          return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.inventory_2_outlined, size: 64, color: _textMuted.withOpacity(0.2)), const SizedBox(height: 16), const Text('Aucun produit en stock.', style: TextStyle(color: _textMuted))]));
         }
-        return ListView.separated(
-          padding: const EdgeInsets.all(12),
-          itemCount: list.length,
-          separatorBuilder: (_, __) => const Divider(height: 1),
-          itemBuilder: (_, i) {
-            final p = list[i];
-            final catName = p['categories']?['category_name'] ?? '—';
-            final qty = p['stock_quantity'] ?? 0;
-            return ListTile(
-              leading: Container(
-                width: 40, height: 40,
-                decoration: BoxDecoration(
-                  color: qty > 0 ? AppTheme.primary.withOpacity(0.15) : AppTheme.error.withOpacity(0.15),
-                  borderRadius: BorderRadius.circular(10),
+        return isDesktop ? _buildDesktopTable(context, ref, list) : _buildMobileList(context, ref, list);
+      },
+    );
+  }
+
+  Widget _buildDesktopTable(BuildContext context, WidgetRef ref, List<Map<String, dynamic>> products) {
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+          decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: _glassBorder, width: 1))),
+          child: const Row(
+            children: [
+              Expanded(flex: 3, child: Text('PRODUIT & CATÉGORIE', style: TextStyle(color: _textMuted, fontSize: 11, fontWeight: FontWeight.bold))),
+              Expanded(flex: 2, child: Text('CODE BARRES', style: TextStyle(color: _textMuted, fontSize: 11, fontWeight: FontWeight.bold))),
+              Expanded(flex: 2, child: Text('PRIX (ACHAT / VENTE)', style: TextStyle(color: _textMuted, fontSize: 11, fontWeight: FontWeight.bold))),
+              Expanded(flex: 1, child: Text('STOCK', textAlign: TextAlign.center, style: TextStyle(color: _textMuted, fontSize: 11, fontWeight: FontWeight.bold))),
+              Expanded(flex: 1, child: Text('ACTIONS', textAlign: TextAlign.right, style: TextStyle(color: _textMuted, fontSize: 11, fontWeight: FontWeight.bold))),
+            ],
+          ),
+        ),
+        Expanded(
+          child: ListView.builder(
+            itemCount: products.length,
+            itemBuilder: (ctx, i) {
+              final p = products[i];
+              final catName = p['categories']?['category_name'] ?? '—';
+              final qty = p['stock_quantity'] ?? 0;
+              final minStock = p['min_stock'] ?? 5;
+              final isLowStock = qty <= minStock;
+
+              return Container(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: _glassBorder, width: 0.5))),
+                child: Row(
+                  children: [
+                    Expanded(flex: 3, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(p['product_name'] ?? '', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)), const SizedBox(height: 4), Text(catName, style: const TextStyle(color: _neonPurple, fontSize: 11))])),
+                    Expanded(flex: 2, child: Text(p['barcode'] ?? '—', style: const TextStyle(color: _textMuted, fontFamily: 'monospace', fontSize: 12))),
+                    Expanded(flex: 2, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('A: ${p['purchase_price'] ?? 0} DA', style: const TextStyle(color: _textMuted, fontSize: 11)), const SizedBox(height: 2), Text('V: ${p['reference_price'] ?? 0} DA', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13))])),
+                    Expanded(flex: 1, child: Center(child: Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4), decoration: BoxDecoration(color: isLowStock ? Colors.redAccent.withOpacity(0.1) : Colors.greenAccent.withOpacity(0.1), borderRadius: BorderRadius.circular(6), border: Border.all(color: isLowStock ? Colors.redAccent.withOpacity(0.5) : Colors.greenAccent.withOpacity(0.3))), child: Text('$qty', style: TextStyle(color: isLowStock ? Colors.redAccent : Colors.greenAccent, fontWeight: FontWeight.bold))))),
+                    Expanded(flex: 1, child: Align(alignment: Alignment.centerRight, child: IconButton(icon: const Icon(Icons.edit_outlined, color: _textMuted, size: 20), onPressed: () => _showProductDialog(context, ref, existing: p)))),
+                  ],
                 ),
-                child: Icon(Icons.inventory_2, size: 20,
-                    color: qty > 0 ? AppTheme.primaryLight : AppTheme.error),
-              ),
-              title: Text(p['product_name'] ?? '', style: const TextStyle(fontWeight: FontWeight.w600, color: AppTheme.onBackground)),
-              subtitle: Text('$catName • Code: ${p['barcode'] ?? '—'}', style: const TextStyle(color: AppTheme.onSurfaceMuted, fontSize: 12)),
-              trailing: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text('${(p['reference_price'] as num?)?.toStringAsFixed(0) ?? '0'} DA',
-                      style: const TextStyle(color: AppTheme.secondary, fontWeight: FontWeight.w700)),
-                  Text('Qté: $qty',
-                      style: TextStyle(color: qty > 0 ? AppTheme.onSurfaceMuted : AppTheme.error, fontSize: 12)),
-                ],
-              ),
-              onTap: () => _showProductDialog(context, ref, existing: p),
-            );
-          },
-        );
-      },
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
-}
 
-// ─── Purchases Tab ────────────────────────────────────────────────────────────
+  Widget _buildMobileList(BuildContext context, WidgetRef ref, List<Map<String, dynamic>> products) {
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: products.length,
+      itemBuilder: (ctx, i) {
+        final p = products[i];
+        final catName = p['categories']?['category_name'] ?? '—';
+        final qty = p['stock_quantity'] ?? 0;
+        final minStock = p['min_stock'] ?? 5;
+        final isLowStock = qty <= minStock;
 
-class _PurchasesTab extends ConsumerWidget {
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final purchases = ref.watch(_purchasesProvider);
-    return purchases.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, _) => Center(child: Text('Erreur: $e', style: const TextStyle(color: AppTheme.error))),
-      data: (list) {
-        if (list.isEmpty) {
-          return const Center(child: Text('Aucun achat enregistré', style: TextStyle(color: AppTheme.onSurfaceMuted)));
-        }
-        return ListView.separated(
-          padding: const EdgeInsets.all(12),
-          itemCount: list.length,
-          separatorBuilder: (_, __) => const Divider(height: 1),
-          itemBuilder: (_, i) {
-            final inv = list[i];
-            final supplier = inv['suppliers']?['supplier_name'] ?? 'Inconnu';
-            final worker = inv['profiles']?['full_name'] ?? '';
-            final date = DateTime.tryParse(inv['invoice_date'] ?? '')?.toString().substring(0, 10) ?? '';
-            return ListTile(
-              leading: Container(
-                width: 40, height: 40,
-                decoration: BoxDecoration(color: AppTheme.secondary.withOpacity(0.15), borderRadius: BorderRadius.circular(10)),
-                child: const Icon(Icons.receipt_long, size: 20, color: AppTheme.secondary),
-              ),
-              title: Text('Achat — $supplier', style: const TextStyle(fontWeight: FontWeight.w600, color: AppTheme.onBackground)),
-              subtitle: Text('$date • Par: $worker', style: const TextStyle(color: AppTheme.onSurfaceMuted, fontSize: 12)),
-              trailing: Text('${(inv['total_amount'] as num?)?.toStringAsFixed(0) ?? '0'} DA',
-                  style: const TextStyle(color: AppTheme.secondary, fontWeight: FontWeight.w700)),
-            );
-          },
-        );
-      },
-    );
-  }
-}
-
-// ─── Suppliers Tab ────────────────────────────────────────────────────────────
-
-class _SuppliersTab extends ConsumerWidget {
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final suppliers = ref.watch(_suppliersProvider);
-    return suppliers.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, _) => Center(child: Text('Erreur: $e', style: const TextStyle(color: AppTheme.error))),
-      data: (list) {
-        if (list.isEmpty) {
-          return const Center(child: Text('Aucun fournisseur', style: TextStyle(color: AppTheme.onSurfaceMuted)));
-        }
-        return ListView.separated(
-          padding: const EdgeInsets.all(12),
-          itemCount: list.length,
-          separatorBuilder: (_, __) => const Divider(height: 1),
-          itemBuilder: (_, i) {
-            final s = list[i];
-            final due = (s['total_due'] as num?)?.toDouble() ?? 0.0;
-            return ListTile(
-              leading: CircleAvatar(
-                backgroundColor: AppTheme.primary.withOpacity(0.15),
-                child: Text((s['supplier_name'] ?? '?')[0].toUpperCase(),
-                    style: const TextStyle(color: AppTheme.primaryLight, fontWeight: FontWeight.w700)),
-              ),
-              title: Text(s['supplier_name'] ?? '', style: const TextStyle(fontWeight: FontWeight.w600, color: AppTheme.onBackground)),
-              subtitle: Text(s['phone_number'] ?? '—', style: const TextStyle(color: AppTheme.onSurfaceMuted, fontSize: 12)),
-              trailing: due > 0
-                  ? Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(color: AppTheme.error.withOpacity(0.15), borderRadius: BorderRadius.circular(6)),
-                      child: Text('Dû: ${due.toStringAsFixed(0)} DA',
-                          style: const TextStyle(color: AppTheme.error, fontSize: 11, fontWeight: FontWeight.w600)),
-                    )
-                  : const Text('0 DA', style: TextStyle(color: AppTheme.onSurfaceMuted, fontSize: 12)),
-            );
-          },
-        );
-      },
-    );
-  }
-}
-
-// ─── Add/Edit Product Dialog ──────────────────────────────────────────────────
-
-void _showProductDialog(BuildContext context, WidgetRef ref, {Map<String, dynamic>? existing}) {
-  final isEdit = existing != null;
-  final nameCtrl = TextEditingController(text: existing?['product_name'] ?? '');
-  final barcodeCtrl = TextEditingController(text: existing?['barcode'] ?? '');
-  final priceCtrl = TextEditingController(text: (existing?['reference_price'] as num?)?.toString() ?? '');
-  final qtyCtrl = TextEditingController(text: (existing?['stock_quantity'] ?? 0).toString());
-  int? catId = existing?['category_id'];
-
-  showDialog(
-    context: context,
-    builder: (ctx) {
-      final cats = ref.read(_categoriesProvider);
-      return AlertDialog(
-        title: Text(isEdit ? 'Modifier le produit' : 'Nouveau produit'),
-        content: SizedBox(
-          width: 400,
-          child: SingleChildScrollView(
+        return InkWell(
+          onTap: () => _showProductDialog(context, ref, existing: p),
+          child: Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(color: _panelDark.withOpacity(0.5), borderRadius: BorderRadius.circular(12), border: Border.all(color: _glassBorder)),
             child: Column(
-              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'Nom du produit')),
-                const SizedBox(height: 12),
-                TextField(controller: barcodeCtrl, decoration: const InputDecoration(labelText: 'Code-barres')),
-                const SizedBox(height: 12),
-                TextField(controller: priceCtrl, keyboardType: TextInputType.number,
-                    inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[\d.]'))],
-                    decoration: const InputDecoration(labelText: 'Prix de référence (DA)', suffixText: 'DA')),
-                const SizedBox(height: 12),
-                TextField(controller: qtyCtrl, keyboardType: TextInputType.number,
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                    decoration: const InputDecoration(labelText: 'Quantité en stock')),
-                const SizedBox(height: 12),
-                cats.when(
-                  loading: () => const SizedBox.shrink(),
-                  error: (_, __) => const SizedBox.shrink(),
-                  data: (categories) {
-                    return StatefulBuilder(
-                      builder: (ctx2, setDialogState) {
-                        return DropdownButtonFormField<int>(
-                          value: catId,
-                          decoration: const InputDecoration(labelText: 'Catégorie'),
-                          items: categories.map((c) => DropdownMenuItem<int>(
-                            value: c['id'] as int, child: Text(c['category_name'] as String))).toList(),
-                          onChanged: (v) => setDialogState(() => catId = v),
-                        );
-                      },
-                    );
-                  },
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(child: Text(p['product_name'] ?? '', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
+                    Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2), decoration: BoxDecoration(color: isLowStock ? Colors.redAccent.withOpacity(0.1) : Colors.greenAccent.withOpacity(0.1), borderRadius: BorderRadius.circular(4)), child: Text('Qté: $qty', style: TextStyle(color: isLowStock ? Colors.redAccent : Colors.greenAccent, fontSize: 11, fontWeight: FontWeight.bold))),
+                  ],
                 ),
+                const SizedBox(height: 4),
+                Text(catName, style: const TextStyle(color: _neonPurple, fontSize: 11)),
+                const Divider(color: _glassBorder, height: 24),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('Achat: ${p['purchase_price'] ?? 0} DA', style: const TextStyle(color: _textMuted, fontSize: 12)),
+                    Text('Vente: ${p['reference_price'] ?? 0} DA', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+                  ],
+                )
               ],
             ),
           ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Annuler')),
-          ElevatedButton(
-            onPressed: () async {
-              final name = nameCtrl.text.trim();
-              final price = double.tryParse(priceCtrl.text) ?? 0;
-              final qty = int.tryParse(qtyCtrl.text) ?? 0;
-
-              if (name.isEmpty || catId == null) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Veuillez remplir les champs obligatoires (Nom, Catégorie)'), backgroundColor: Colors.redAccent),
-                );
-                return;
-              }
-              final messenger = ScaffoldMessenger.of(context);
-              final container = ProviderScope.containerOf(context);
-              Navigator.pop(ctx);
-              
-              try {
-                final client = container.read(supabaseClientProvider);
-                final data = {
-                  'product_name': name,
-                  'barcode': barcodeCtrl.text.trim().isEmpty ? null : barcodeCtrl.text.trim(),
-                  'reference_price': price,
-                  'stock_quantity': qty,
-                  'category_id': catId,
-                };
-                if (isEdit) {
-                  await client.from('products').update(data).eq('id', existing!['id']);
-                } else {
-                  await client.from('products').insert(data);
-                }
-                container.invalidate(_productsProvider);
-                messenger.showSnackBar(
-                  SnackBar(content: Text(isEdit ? 'Produit mis à jour avec succès' : 'Produit ajouté avec succès'), backgroundColor: Colors.green),
-                );
-              } catch (e) {
-                messenger.showSnackBar(
-                  const SnackBar(content: Text('Erreur lors de l\'enregistrement du produit.'), backgroundColor: Colors.redAccent),
-                );
-              }
-            },
-            child: Text(isEdit ? 'Enregistrer' : 'Ajouter'),
-          ),
-        ],
-      );
-    },
-  );
+        );
+      },
+    );
+  }
 }
 
-// ─── Add Supplier Dialog ──────────────────────────────────────────────────────
+// ─── Add/Edit Product Dialog (Cyber Glass) ────────────────────────────────────
 
-void _showSupplierDialog(BuildContext context, WidgetRef ref) {
-  final nameCtrl = TextEditingController();
-  final phoneCtrl = TextEditingController();
-
+void _showProductDialog(BuildContext context, WidgetRef ref, {Map<String, dynamic>? existing}) {
   showDialog(
     context: context,
-    builder: (ctx) => AlertDialog(
-      title: const Text('Nouveau fournisseur'),
-      content: SizedBox(
-        width: 400,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'Nom du fournisseur')),
-            const SizedBox(height: 12),
-            TextField(controller: phoneCtrl, keyboardType: TextInputType.phone,
-                decoration: const InputDecoration(labelText: 'Téléphone')),
-          ],
-        ),
-      ),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Annuler')),
-        ElevatedButton(
-          onPressed: () async {
-            final name = nameCtrl.text.trim();
-            if (name.isEmpty) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Le nom du fournisseur est obligatoire'), backgroundColor: Colors.redAccent),
-              );
-              return;
-            }
-            final messenger = ScaffoldMessenger.of(context);
-            final container = ProviderScope.containerOf(context);
-            Navigator.pop(ctx);
-            
-            try {
-              final client = container.read(supabaseClientProvider);
-              await client.from('suppliers').insert({
-                'supplier_name': name,
-                'phone_number': phoneCtrl.text.trim().isEmpty ? null : phoneCtrl.text.trim(),
-              });
-              container.invalidate(_suppliersProvider);
-              messenger.showSnackBar(
-                const SnackBar(content: Text('Fournisseur ajouté avec succès'), backgroundColor: Colors.green),
-              );
-            } catch (e) {
-              messenger.showSnackBar(
-                const SnackBar(content: Text('Erreur: impossible d\'ajouter le fournisseur.'), backgroundColor: Colors.redAccent),
-              );
-            }
-          },
-          child: const Text('Ajouter'),
-        ),
-      ],
+    barrierColor: Colors.black87,
+    builder: (ctx) => BackdropFilter(
+      filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+      child: _ProductFormDialog(ref: ref, existing: existing),
     ),
   );
 }
 
-// ─── Add Purchase Dialog ──────────────────────────────────────────────────────
+class _ProductFormDialog extends StatefulWidget {
+  final WidgetRef ref;
+  final Map<String, dynamic>? existing;
+  const _ProductFormDialog({required this.ref, this.existing});
 
-void _showPurchaseDialog(BuildContext context, WidgetRef ref) {
-  final amountCtrl = TextEditingController();
-  String? selectedSupplierId;
+  @override
+  State<_ProductFormDialog> createState() => _ProductFormDialogState();
+}
 
-  showDialog(
-    context: context,
-    builder: (ctx) {
-      final suppliers = ref.read(_suppliersProvider);
-      return AlertDialog(
-        title: const Text('Nouvel achat'),
-        content: SizedBox(
-          width: 400,
+class _ProductFormDialogState extends State<_ProductFormDialog> {
+  late final TextEditingController _nameCtrl;
+  late final TextEditingController _barcodeCtrl;
+  late final TextEditingController _buyPriceCtrl;
+  late final TextEditingController _sellPriceCtrl;
+  late final TextEditingController _qtyCtrl;
+  late final TextEditingController _minStockCtrl;
+  
+  int? _selectedCatId;
+  bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final p = widget.existing;
+    _nameCtrl = TextEditingController(text: p?['product_name'] ?? '');
+    _barcodeCtrl = TextEditingController(text: p?['barcode'] ?? '');
+    _buyPriceCtrl = TextEditingController(text: (p?['purchase_price'] as num?)?.toString() ?? '');
+    _sellPriceCtrl = TextEditingController(text: (p?['reference_price'] as num?)?.toString() ?? '');
+    _qtyCtrl = TextEditingController(text: (p?['stock_quantity'] ?? 0).toString());
+    _minStockCtrl = TextEditingController(text: (p?['min_stock'] ?? 5).toString());
+    _selectedCatId = p?['category_id'];
+  }
+
+  InputDecoration _inputDeco(String label, IconData icon) => InputDecoration(
+    labelText: label,
+    labelStyle: const TextStyle(color: _textMuted, fontSize: 13),
+    prefixIcon: Icon(icon, color: _textMuted, size: 18),
+    filled: true,
+    fillColor: _bgCarbon.withOpacity(0.5),
+    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: _glassBorder)),
+    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: _glassBorder)),
+    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: _neonPurple)),
+  );
+
+  Future<void> _submit() async {
+    final name = _nameCtrl.text.trim();
+    if (name.isEmpty || _selectedCatId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Nom et Catégorie obligatoires'), backgroundColor: Colors.redAccent));
+      return;
+    }
+
+    setState(() => _isLoading = true);
+    try {
+      final client = widget.ref.read(supabaseClientProvider);
+      final data = {
+        'product_name': name,
+        'category_id': _selectedCatId,
+        'barcode': _barcodeCtrl.text.trim().isEmpty ? null : _barcodeCtrl.text.trim(),
+        'purchase_price': double.tryParse(_buyPriceCtrl.text) ?? 0,
+        'reference_price': double.tryParse(_sellPriceCtrl.text) ?? 0,
+        'stock_quantity': int.tryParse(_qtyCtrl.text) ?? 0,
+        'min_stock': int.tryParse(_minStockCtrl.text) ?? 5,
+      };
+
+      if (widget.existing != null) {
+        await client.from('products').update(data).eq('id', widget.existing!['id']);
+      } else {
+        await client.from('products').insert(data);
+      }
+      
+      widget.ref.invalidate(_productsProvider);
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(widget.existing != null ? 'Produit mis à jour' : 'Produit ajouté'), backgroundColor: Colors.green));
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur: $e'), backgroundColor: Colors.redAccent));
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isEdit = widget.existing != null;
+    return Dialog(
+      backgroundColor: _panelDark.withOpacity(0.95),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: _glassBorder, width: 1.5)),
+      child: Container(
+        width: 600,
+        padding: const EdgeInsets.all(24),
+        child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              suppliers.when(
-                loading: () => const CircularProgressIndicator(),
-                error: (_, __) => const Text('Erreur'),
-                data: (list) => StatefulBuilder(
-                  builder: (ctx2, setState2) => DropdownButtonFormField<String>(
-                    value: selectedSupplierId,
-                    decoration: const InputDecoration(labelText: 'Fournisseur'),
-                    items: list.map((s) => DropdownMenuItem<String>(
-                      value: s['id'] as String,
-                      child: Text(s['supplier_name'] as String),
-                    )).toList(),
-                    onChanged: (v) => setState2(() => selectedSupplierId = v),
-                  ),
-                ),
+              Row(
+                children: [
+                  const Icon(Icons.inventory_2, color: _neonPurple),
+                  const SizedBox(width: 12),
+                  Text(isEdit ? 'MODIFIER LE PRODUIT' : 'NOUVEAU PRODUIT', style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                ],
               ),
-              const SizedBox(height: 12),
-              TextField(controller: amountCtrl, keyboardType: TextInputType.number,
-                  inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[\d.]'))],
-                  decoration: const InputDecoration(labelText: 'Montant total (DA)', suffixText: 'DA')),
+              const SizedBox(height: 24),
+              TextField(controller: _nameCtrl, style: const TextStyle(color: Colors.white), decoration: _inputDeco('Nom du produit *', Icons.label)),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: FutureBuilder(
+                      future: widget.ref.read(supabaseClientProvider).from('categories').select(),
+                      builder: (ctx, snap) {
+                        if (!snap.hasData) return const CircularProgressIndicator(color: _neonPurple);
+                        final cats = snap.data as List;
+                        return DropdownButtonFormField<int>(
+                          value: _selectedCatId,
+                          dropdownColor: _panelDark,
+                          style: const TextStyle(color: Colors.white),
+                          decoration: _inputDeco('Catégorie *', Icons.category),
+                          items: cats.map((c) => DropdownMenuItem<int>(value: c['id'] as int, child: Text(c['category_name']))).toList(),
+                          onChanged: (v) => setState(() => _selectedCatId = v),
+                        );
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(child: TextField(controller: _barcodeCtrl, style: const TextStyle(color: Colors.white), decoration: _inputDeco('Code Barres', Icons.qr_code))),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(child: TextField(controller: _buyPriceCtrl, keyboardType: TextInputType.number, style: const TextStyle(color: Colors.white), decoration: _inputDeco('Prix d\'achat (DA)', Icons.shopping_cart))),
+                  const SizedBox(width: 16),
+                  Expanded(child: TextField(controller: _sellPriceCtrl, keyboardType: TextInputType.number, style: const TextStyle(color: Colors.white), decoration: _inputDeco('Prix de vente (DA)', Icons.sell))),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(child: TextField(controller: _qtyCtrl, keyboardType: TextInputType.number, style: const TextStyle(color: Colors.white), decoration: _inputDeco('Quantité en stock', Icons.layers))),
+                  const SizedBox(width: 16),
+                  Expanded(child: TextField(controller: _minStockCtrl, keyboardType: TextInputType.number, style: const TextStyle(color: Colors.white), decoration: _inputDeco('Seuil d\'alerte (Min)', Icons.warning_amber))),
+                ],
+              ),
+              const SizedBox(height: 32),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(onPressed: () => Navigator.pop(context), child: const Text('Annuler', style: TextStyle(color: _textMuted))),
+                  const SizedBox(width: 16),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(backgroundColor: _neonPurple, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
+                    onPressed: _isLoading ? null : _submit,
+                    child: _isLoading ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : Text(isEdit ? 'ENREGISTRER' : 'AJOUTER', style: const TextStyle(fontWeight: FontWeight.bold)),
+                  ),
+                ],
+              )
             ],
           ),
         ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Annuler')),
-          ElevatedButton(
-            onPressed: () async {
-            final amountText = amountCtrl.text.trim();
-            final amount = double.tryParse(amountText) ?? 0;
-            if (selectedSupplierId == null || amount <= 0) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Veuillez sélectionner un fournisseur et entrer un montant valide'), backgroundColor: Colors.redAccent),
-              );
-              return;
-            }
-            final messenger = ScaffoldMessenger.of(context);
-            final container = ProviderScope.containerOf(context);
-            Navigator.pop(ctx);
-            
-            try {
-              final client = container.read(supabaseClientProvider);
-              final user = Supabase.instance.client.auth.currentUser;
-              await client.from('purchase_invoices').insert({
-                'supplier_id': selectedSupplierId,
-                'worker_id': user?.id,
-                'total_amount': amount,
-              });
-              container.invalidate(_purchasesProvider);
-              messenger.showSnackBar(
-                const SnackBar(content: Text('Achat enregistré avec succès'), backgroundColor: Colors.green),
-              );
-            } catch (e) {
-              messenger.showSnackBar(
-                const SnackBar(content: Text('Erreur lors de l\'enregistrement de l\'achat.'), backgroundColor: Colors.redAccent),
-              );
-            }
-          },
-          child: const Text('Enregistrer'),
-        ),
-      ],
+      ),
     );
-  },
-);
+  }
 }
+
+// ─── Placeholder Tabs for Phase 2 & 3 (Styled Basic) ──────────────────────────
+
+class _PurchasesTab extends ConsumerWidget {
+  final bool isDesktop;
+  const _PurchasesTab({required this.isDesktop});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return const Center(child: Text('Achats - En attente de la phase 3...', style: TextStyle(color: _textMuted)));
+  }
+}
+
+class _SuppliersTab extends ConsumerWidget {
+  final bool isDesktop;
+  const _SuppliersTab({required this.isDesktop});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return const Center(child: Text('Fournisseurs - En attente de la phase 2...', style: TextStyle(color: _textMuted)));
+  }
+}
+
+// Dialogs Placeholders for Phase 2 & 3
+void _showSupplierDialog(BuildContext context, WidgetRef ref) {}
+void _showPurchaseDialog(BuildContext context, WidgetRef ref) {}

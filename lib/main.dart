@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:window_manager/window_manager.dart';        
 
 import 'package:laidani_repair/core/constants/app_constants.dart';
 import 'package:laidani_repair/core/router/app_router.dart';
@@ -9,6 +10,21 @@ import 'package:laidani_repair/core/theme/app_theme.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+ 
+  await windowManager.ensureInitialized();
+  const windowOptions = WindowOptions(
+    fullScreen: true,
+    backgroundColor: Color(0xFF050914),
+    skipTaskbar: false,
+    titleBarStyle: TitleBarStyle.normal,
+    title: 'LaidaniRepair ERP',
+  );
+  await windowManager.waitUntilReadyToShow(windowOptions, () async {
+    await windowManager.show();
+    await windowManager.focus();
+  });
+
+ 
   await Supabase.initialize(
     url: AppConstants.supabaseUrl,
     anonKey: AppConstants.supabaseAnonKey,

@@ -1,0 +1,27 @@
+{
+  "products": [
+    "id",
+    "category_id",
+    "product_name",
+    "barcode",
+    "stock_quantity",
+    "reference_price",
+    "created_at"
+  ],
+  "suppliers": [
+    "id",
+    "supplier_name",
+    "phone_number",
+    "total_due",
+    "created_at"
+  ],
+  "vendors": "DOES NOT EXIST",
+  "purchases": "DOES NOT EXIST",
+  "purchase_items": [
+    "id",
+    "invoice_id",
+    "product_id",
+    "quantity",
+    "buy_price"
+  ]
+}

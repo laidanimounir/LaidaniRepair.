@@ -27,6 +27,7 @@ dependencies:
 
   cupertino_icons: ^1.0.8
   intl: ^0.20.2
+  window_manager: ^0.5.1
 
 dev_dependencies:
   flutter_test:
