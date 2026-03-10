@@ -10,7 +10,7 @@ const Color _bgCarbon = Color(0xFF050914);
 const Color _panelDark = Color(0xFF0A0F1A);
 const Color _glassBorder = Color(0x1AFFFFFF);
 const Color _textMuted = Color(0xFF8A9BB4);
-const Color _neonPurple = Color(0xFFB000FF); // لون مميز لقسم المخزون
+const Color _neonPurple = Color(0xFFB000FF);
 const Color _neonCyan = Color(0xFF00E5FF);
 
 // ─── Providers ────────────────────────────────────────────────────────────────
@@ -58,7 +58,6 @@ class _StockScreenState extends ConsumerState<StockScreen> with SingleTickerProv
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
-    // تحديث زر الإضافة عند تغيير التبويبة
     _tabController.addListener(() => setState(() {})); 
   }
 
@@ -77,7 +76,6 @@ class _StockScreenState extends ConsumerState<StockScreen> with SingleTickerProv
       floatingActionButton: isDesktop ? null : _buildFloatingActionButton(context),
       body: Column(
         children: [
-          // Header & Tabs
           Container(
             decoration: const BoxDecoration(
               color: _panelDark,
@@ -170,8 +168,8 @@ class _StockScreenState extends ConsumerState<StockScreen> with SingleTickerProv
   void _showAddDialog(BuildContext context) {
     switch (_tabController.index) {
       case 0: _showProductDialog(context, ref); break;
-      case 1: _showPurchaseDialog(context, ref); break; // سيتم تطويره في المرحلة 3
-      case 2: _showSupplierDialog(context, ref); break; // سيتم تطويره في المرحلة 2
+      case 1: _showPurchaseDialog(context, ref); break; 
+      case 2: _showSupplierDialog(context, ref); break; 
     }
   }
 }
@@ -290,7 +288,7 @@ class _ProductsTab extends ConsumerWidget {
   }
 }
 
-// ─── Add/Edit Product Dialog (Cyber Glass) ────────────────────────────────────
+// ─── Add/Edit Product Dialog ──────────────────────────────────────────────────
 
 void _showProductDialog(BuildContext context, WidgetRef ref, {Map<String, dynamic>? existing}) {
   showDialog(
@@ -469,17 +467,7 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
   }
 }
 
-// ─── Placeholder Tabs for Phase 2 & 3 (Styled Basic) ──────────────────────────
-
-class _PurchasesTab extends ConsumerWidget {
-  final bool isDesktop;
-  const _PurchasesTab({required this.isDesktop});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return const Center(child: Text('Achats - En attente de la phase 3...', style: TextStyle(color: _textMuted)));
-  }
-}
+// ─── Suppliers Tab ────────────────────────────────────────────────────────────
 
 class _SuppliersTab extends ConsumerWidget {
   final bool isDesktop;
@@ -487,10 +475,230 @@ class _SuppliersTab extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return const Center(child: Text('Fournisseurs - En attente de la phase 2...', style: TextStyle(color: _textMuted)));
+    final suppliers = ref.watch(_suppliersProvider);
+    
+    return suppliers.when(
+      loading: () => const Center(child: CircularProgressIndicator(color: _neonPurple)),
+      error: (e, _) => Center(child: Text('Erreur: $e', style: const TextStyle(color: Colors.redAccent))),
+      data: (list) {
+        if (list.isEmpty) {
+          return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.store_outlined, size: 64, color: _textMuted.withOpacity(0.2)), const SizedBox(height: 16), const Text('Aucun fournisseur enregistré.', style: TextStyle(color: _textMuted))]));
+        }
+        return isDesktop ? _buildDesktopTable(list) : _buildMobileList(list);
+      },
+    );
+  }
+
+  Widget _buildDesktopTable(List<Map<String, dynamic>> suppliers) {
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+          decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: _glassBorder, width: 1))),
+          child: const Row(
+            children: [
+              Expanded(flex: 3, child: Text('FOURNISSEUR', style: TextStyle(color: _textMuted, fontSize: 11, fontWeight: FontWeight.bold))),
+              Expanded(flex: 2, child: Text('TÉLÉPHONE', style: TextStyle(color: _textMuted, fontSize: 11, fontWeight: FontWeight.bold))),
+              Expanded(flex: 2, child: Text('DÛ (DETTE)', textAlign: TextAlign.right, style: TextStyle(color: _textMuted, fontSize: 11, fontWeight: FontWeight.bold))),
+            ],
+          ),
+        ),
+        Expanded(
+          child: ListView.builder(
+            itemCount: suppliers.length,
+            itemBuilder: (ctx, i) {
+              final s = suppliers[i];
+              final due = (s['total_due'] as num?)?.toDouble() ?? 0.0;
+              final hasDebt = due > 0;
+
+              return Container(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: _glassBorder, width: 0.5))),
+                child: Row(
+                  children: [
+                    Expanded(flex: 3, child: Row(
+                      children: [
+                        CircleAvatar(backgroundColor: _neonPurple.withOpacity(0.15), child: Text((s['supplier_name'] ?? '?')[0].toUpperCase(), style: const TextStyle(color: _neonPurple, fontWeight: FontWeight.bold))),
+                        const SizedBox(width: 16),
+                        Text(s['supplier_name'] ?? '', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                      ],
+                    )),
+                    Expanded(flex: 2, child: Text(s['phone_number'] ?? '—', style: const TextStyle(color: _textMuted))),
+                    Expanded(flex: 2, child: Align(
+                      alignment: Alignment.centerRight,
+                      child: hasDebt 
+                        ? Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), decoration: BoxDecoration(color: Colors.redAccent.withOpacity(0.1), borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.redAccent.withOpacity(0.5))), child: Text('Dû: ${due.toStringAsFixed(0)} DA', style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold, fontSize: 12)))
+                        : const Text('0 DA', style: TextStyle(color: _textMuted)),
+                    )),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMobileList(List<Map<String, dynamic>> suppliers) {
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: suppliers.length,
+      itemBuilder: (ctx, i) {
+        final s = suppliers[i];
+        final due = (s['total_due'] as num?)?.toDouble() ?? 0.0;
+        final hasDebt = due > 0;
+
+        return Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(color: _panelDark.withOpacity(0.5), borderRadius: BorderRadius.circular(12), border: Border.all(color: _glassBorder)),
+          child: Row(
+            children: [
+              CircleAvatar(backgroundColor: _neonPurple.withOpacity(0.15), child: Text((s['supplier_name'] ?? '?')[0].toUpperCase(), style: const TextStyle(color: _neonPurple, fontWeight: FontWeight.bold))),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(s['supplier_name'] ?? '', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 4),
+                    Text(s['phone_number'] ?? '—', style: const TextStyle(color: _textMuted, fontSize: 12)),
+                  ],
+                ),
+              ),
+              if (hasDebt)
+                Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: Colors.redAccent.withOpacity(0.1), borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.redAccent.withOpacity(0.3))), child: Text('Dû: ${due.toStringAsFixed(0)} DA', style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold, fontSize: 11)))
+              else
+                const Text('0 DA', style: TextStyle(color: _textMuted, fontSize: 12)),
+            ],
+          ),
+        );
+      },
+    );
   }
 }
 
-// Dialogs Placeholders for Phase 2 & 3
-void _showSupplierDialog(BuildContext context, WidgetRef ref) {}
-void _showPurchaseDialog(BuildContext context, WidgetRef ref) {}
+// ─── Add Supplier Dialog ──────────────────────────────────────────────────────
+
+void _showSupplierDialog(BuildContext context, WidgetRef ref) {
+  showDialog(
+    context: context,
+    barrierColor: Colors.black87,
+    builder: (ctx) => BackdropFilter(
+      filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+      child: _SupplierFormDialog(ref: ref),
+    ),
+  );
+}
+
+class _SupplierFormDialog extends StatefulWidget {
+  final WidgetRef ref;
+  const _SupplierFormDialog({required this.ref});
+
+  @override
+  State<_SupplierFormDialog> createState() => _SupplierFormDialogState();
+}
+
+class _SupplierFormDialogState extends State<_SupplierFormDialog> {
+  final _nameCtrl = TextEditingController();
+  final _phoneCtrl = TextEditingController();
+  bool _isLoading = false;
+
+  InputDecoration _inputDeco(String label, IconData icon) => InputDecoration(
+    labelText: label,
+    labelStyle: const TextStyle(color: _textMuted, fontSize: 13),
+    prefixIcon: Icon(icon, color: _textMuted, size: 18),
+    filled: true,
+    fillColor: _bgCarbon.withOpacity(0.5),
+    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: _glassBorder)),
+    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: _glassBorder)),
+    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: _neonPurple)),
+  );
+
+  Future<void> _submit() async {
+    final name = _nameCtrl.text.trim();
+    if (name.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Nom du fournisseur obligatoire'), backgroundColor: Colors.redAccent));
+      return;
+    }
+
+    setState(() => _isLoading = true);
+    try {
+      final client = widget.ref.read(supabaseClientProvider);
+      await client.from('suppliers').insert({
+        'supplier_name': name,
+        'phone_number': _phoneCtrl.text.trim().isEmpty ? null : _phoneCtrl.text.trim(),
+      });
+      
+      widget.ref.invalidate(_suppliersProvider);
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Fournisseur ajouté !'), backgroundColor: Colors.green));
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur: $e'), backgroundColor: Colors.redAccent));
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: _panelDark.withOpacity(0.95),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: _glassBorder, width: 1.5)),
+      child: Container(
+        width: 450,
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Row(
+              children: [
+                Icon(Icons.store, color: _neonPurple),
+                SizedBox(width: 12),
+                Text('NOUVEAU FOURNISSEUR', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+              ],
+            ),
+            const SizedBox(height: 24),
+            TextField(controller: _nameCtrl, style: const TextStyle(color: Colors.white), decoration: _inputDeco('Nom du fournisseur *', Icons.person)),
+            const SizedBox(height: 16),
+            TextField(controller: _phoneCtrl, keyboardType: TextInputType.phone, style: const TextStyle(color: Colors.white), decoration: _inputDeco('Téléphone', Icons.phone)),
+            const SizedBox(height: 32),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(onPressed: () => Navigator.pop(context), child: const Text('Annuler', style: TextStyle(color: _textMuted))),
+                const SizedBox(width: 16),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(backgroundColor: _neonPurple, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
+                  onPressed: _isLoading ? null : _submit,
+                  child: _isLoading ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Text('AJOUTER', style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+              ],
+            )
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Purchases Tab (Placeholder for Phase 3) ──────────────────────────────────
+
+class _PurchasesTab extends ConsumerWidget {
+  final bool isDesktop;
+  const _PurchasesTab({required this.isDesktop});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return const Center(child: Text('Achats - En attente de la phase 3 (Système ERP)...', style: TextStyle(color: _textMuted)));
+  }
+}
+
+// 🌟 Placeholder to prevent undefined method error
+void _showPurchaseDialog(BuildContext context, WidgetRef ref) {
+  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Le système d\'achats complet sera bientôt disponible !'), backgroundColor: Colors.orangeAccent));
+}
