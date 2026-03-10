@@ -13,7 +13,9 @@ void main() async {
  
   await windowManager.ensureInitialized();
   const windowOptions = WindowOptions(
-    fullScreen: true,
+    size: Size(400, 600),
+    center: true,
+    fullScreen: false,
     backgroundColor: Color(0xFF050914),
     skipTaskbar: false,
     titleBarStyle: TitleBarStyle.normal,

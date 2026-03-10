@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:window_manager/window_manager.dart';
 
 import 'package:laidani_repair/features/auth/data/models/profile_model.dart';
 import 'package:laidani_repair/features/auth/presentation/providers/auth_provider.dart';
@@ -144,6 +145,19 @@ class _DesktopShell extends ConsumerStatefulWidget {
 
 class _DesktopShellState extends ConsumerState<_DesktopShell> {
   bool _isHovering = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _maximizeWindow();
+  }
+
+  Future<void> _maximizeWindow() async {
+    bool isMaximized = await windowManager.isMaximized();
+    if (!isMaximized) {
+      await windowManager.maximize();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
