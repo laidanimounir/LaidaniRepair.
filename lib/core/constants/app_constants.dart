@@ -19,13 +19,15 @@ class AppConstants {
   static const String routePos = '/shell/pos';
   static const String routeRepairs = '/shell/repairs';
   static const String routeClients = '/shell/clients';
-  static const String routeStock = '/shell/stock';
+  static const String routeInventory = '/shell/inventory';
+  static const String routePurchases = '/shell/purchases';
   static const String routeExpenses = '/shell/expenses';
   static const String routeAudit = '/shell/audit';
 
   /// Routes accessible only by 'owner' role
   static const List<String> ownerOnlyRoutes = [
-    routeStock,
+    routeInventory,
+    routePurchases,
     routeExpenses,
     routeAudit,
   ];

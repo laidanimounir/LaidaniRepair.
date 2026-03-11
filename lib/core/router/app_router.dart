@@ -11,7 +11,8 @@ import 'package:laidani_repair/features/shell/presentation/screens/app_shell.dar
 import 'package:laidani_repair/features/pos/presentation/screens/pos_screen.dart';
 import 'package:laidani_repair/features/repairs/presentation/screens/repairs_screen.dart';
 import 'package:laidani_repair/features/clients/presentation/screens/clients_screen.dart';
-import 'package:laidani_repair/features/stock/presentation/screens/stock_screen.dart';
+import 'package:laidani_repair/features/stock/presentation/screens/inventory_screen.dart';
+import 'package:laidani_repair/features/stock/presentation/screens/purchases_screen.dart';
 import 'package:laidani_repair/features/expenses/presentation/screens/expenses_screen.dart';
 import 'package:laidani_repair/features/audit/presentation/screens/audit_screen.dart';
 import 'package:laidani_repair/core/constants/app_constants.dart';
@@ -116,8 +117,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             builder: (_, __) => const ClientsScreen(),
           ),
           GoRoute(
-            path: AppConstants.routeStock,
-            builder: (_, __) => const StockScreen(),
+            path: AppConstants.routeInventory,
+            builder: (_, __) => const InventoryScreen(),
+          ),
+          GoRoute(
+            path: AppConstants.routePurchases,
+            builder: (_, __) => const PurchasesScreen(),
           ),
           GoRoute(
             path: AppConstants.routeExpenses,

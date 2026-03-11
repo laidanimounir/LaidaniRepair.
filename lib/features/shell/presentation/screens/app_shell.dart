@@ -49,10 +49,17 @@ const _navItems = <_NavItem>[
     route: AppConstants.routeClients,
   ),
   _NavItem(
-    label: 'Stock & Achats',
-    icon: Icons.inventory_2_outlined,
-    activeIcon: Icons.inventory_2,
-    route: AppConstants.routeStock,
+    label: 'Inventaire',
+    icon: Icons.inventory_outlined,
+    activeIcon: Icons.inventory,
+    route: AppConstants.routeInventory,
+    ownerOnly: true,
+  ),
+  _NavItem(
+    label: 'Achats & Fournisseurs',
+    icon: Icons.shopping_cart_outlined,
+    activeIcon: Icons.shopping_cart,
+    route: AppConstants.routePurchases,
     ownerOnly: true,
   ),
   _NavItem(
