@@ -173,8 +173,6 @@ class CheckoutNotifier extends StateNotifier<AsyncValue<String?>> {
 
     state = const AsyncValue.loading();
 
-    state = const AsyncValue.loading();
-
     try {
       final invoiceId = await _salesRepo.checkout(
         customerId: cart.selectedCustomer?.id,
