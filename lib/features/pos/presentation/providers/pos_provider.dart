@@ -5,6 +5,8 @@ import 'package:laidani_repair/features/pos/data/models/customer_model.dart';
 import 'package:laidani_repair/features/pos/data/models/product_model.dart';
 import 'package:laidani_repair/features/pos/data/repositories/sales_repository.dart';
 import 'package:laidani_repair/features/auth/presentation/providers/auth_provider.dart';
+import 'package:flutter/foundation.dart';
+import 'package:laidani_repair/core/providers/supabase_provider.dart';
 
 // ─── Cart State ───────────────────────────────────────────────────────────────
 
@@ -94,12 +96,33 @@ class CartNotifier extends StateNotifier<CartState> {
     }
   }
 
-  /// Update the sell price for a specific cart item.
+  /// Update the sell price for a specific cart item and recalculate item discount.
   void updateSellPrice(String productId, double price) {
     final idx = state.items.indexWhere((i) => i.product.id == productId);
     if (idx < 0) return;
     final updated = List<CartItem>.from(state.items);
-    updated[idx] = updated[idx].copyWith(sellPrice: price.clamp(0, double.infinity));
+    final item = updated[idx];
+    final validPrice = price.clamp(0, double.infinity).toDouble();
+    final newDiscount = item.product.referencePrice - validPrice;
+    updated[idx] = item.copyWith(
+      sellPrice: validPrice,
+      discountAmount: newDiscount,
+    );
+    state = state.copyWith(items: updated);
+  }
+
+  /// Update the discount amount for a specific item and recalculate its sell price.
+  void updateItemDiscount(String productId, double discount) {
+    final idx = state.items.indexWhere((i) => i.product.id == productId);
+    if (idx < 0) return;
+    final updated = List<CartItem>.from(state.items);
+    final item = updated[idx];
+    final validDiscount = discount.clamp(0, item.product.referencePrice).toDouble();
+    final newPrice = item.product.referencePrice - validDiscount;
+    updated[idx] = item.copyWith(
+      sellPrice: newPrice,
+      discountAmount: validDiscount,
+    );
     state = state.copyWith(items: updated);
   }
 
@@ -150,21 +173,27 @@ class CheckoutNotifier extends StateNotifier<AsyncValue<String?>> {
 
     state = const AsyncValue.loading();
 
-    final result = await AsyncValue.guard(() => _salesRepo.checkout(
-          customerId: cart.selectedCustomer?.id,
-          workerId: user.id,
-          items: cart.items,
-          discount: cart.discount,
-          amountPaid: amountPaid,
-        ));
+    state = const AsyncValue.loading();
 
-    state = result;
-
-    if (result.hasValue && result.value != null) {
+    try {
+      final invoiceId = await _salesRepo.checkout(
+        customerId: cart.selectedCustomer?.id,
+        workerId: user.id,
+        items: cart.items,
+        discount: cart.discount,
+        amountPaid: amountPaid,
+      );
+      
+      state = AsyncValue.data(invoiceId);
       _ref.read(cartProvider.notifier).clear();
       return true;
+    } catch (e, st) {
+      debugPrint('🚨 CRITICAL CHECKOUT ERROR 🚨');
+      debugPrint('Error Details: $e');
+      debugPrint('Stacktrace: $st');
+      state = AsyncValue.error(e, st);
+      return false;
     }
-    return false;
   }
 }
 
@@ -172,3 +201,38 @@ final checkoutProvider =
     StateNotifierProvider<CheckoutNotifier, AsyncValue<String?>>((ref) {
   return CheckoutNotifier(ref.watch(salesRepositoryProvider), ref);
 });
+
+// ─── Realtime Streams ─────────────────────────────────────────────────────────
+
+final recentSalesStreamProvider = StreamProvider<List<Map<String, dynamic>>>((ref) {
+  final client = ref.watch(supabaseClientProvider);
+  return client
+      .from('sales_invoices')
+      .stream(primaryKey: ['id'])
+      .order('created_at', ascending: false)
+      .limit(5);
+});
+
+final todayRevenueStreamProvider = StreamProvider<double>((ref) {
+  final client = ref.watch(supabaseClientProvider);
+  return client
+      .from('sales_invoices')
+      .stream(primaryKey: ['id'])
+      .map((invoices) {
+        final now = DateTime.now();
+        return invoices.where((inv) {
+          final date = DateTime.tryParse(inv['created_at']?.toString() ?? '');
+          if (date == null) return false;
+          final local = date.toLocal();
+          return local.year == now.year && local.month == now.month && local.day == now.day;
+        }).fold(0.0, (sum, inv) => sum + (double.tryParse(inv['final_amount']?.toString() ?? '0') ?? 0.0));
+      });
+});
+
+// ─── Keyboard Shortcut Providers ──────────────────────────────────────────────
+
+
+final searchFocusRequestProvider = StateProvider<int>((ref) => 0);
+final clientFocusRequestProvider = StateProvider<int>((ref) => 0);
+final checkoutRequestProvider = StateProvider<int>((ref) => 0);
+final helpDialogRequestProvider = StateProvider<int>((ref) => 0);

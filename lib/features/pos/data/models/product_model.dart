@@ -1,4 +1,3 @@
-/// Dart model for the `products` table.
 class ProductModel {
   final String id;
   final int? categoryId;
@@ -26,6 +25,24 @@ class ProductModel {
       barcode: json['barcode'] as String?,
       stockQuantity: json['stock_quantity'] as int? ?? 0,
       referencePrice: (json['reference_price'] as num?)?.toDouble() ?? 0.0,
+    );
+  }
+
+  ProductModel copyWith({
+    String? id,
+    int? categoryId,
+    String? productName,
+    String? barcode,
+    int? stockQuantity,
+    double? referencePrice,
+  }) {
+    return ProductModel(
+      id: id ?? this.id,
+      categoryId: categoryId ?? this.categoryId,
+      productName: productName ?? this.productName,
+      barcode: barcode ?? this.barcode,
+      stockQuantity: stockQuantity ?? this.stockQuantity,
+      referencePrice: referencePrice ?? this.referencePrice,
     );
   }
 

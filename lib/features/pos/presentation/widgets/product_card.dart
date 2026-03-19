@@ -44,25 +44,6 @@ class ProductCard extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Product icon
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: isOutOfStock
-                          ? const Color(0xFF2A2A50)
-                          : AppTheme.primary.withOpacity(0.15),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Icon(
-                      Icons.inventory_2_outlined,
-                      color: isOutOfStock
-                          ? AppTheme.onSurfaceMuted
-                          : AppTheme.primaryLight,
-                      size: 20,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
                   // Product name
                   Text(
                     product.productName,
@@ -70,8 +51,8 @@ class ProductCard extends ConsumerWidget {
                       color: isOutOfStock
                           ? AppTheme.onSurfaceMuted
                           : AppTheme.onBackground,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 14,
                     ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
@@ -83,34 +64,36 @@ class ProductCard extends ConsumerWidget {
                     style: TextStyle(
                       color: isOutOfStock
                           ? AppTheme.onSurfaceMuted
-                          : AppTheme.secondary,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 14,
+                          : Colors.greenAccent.shade400,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 16,
+                      letterSpacing: 0.5,
                     ),
                   ),
-                  const SizedBox(height: 2),
+                  const SizedBox(height: 4),
                   // Stock badge
                   Row(
                     children: [
                       Icon(
                         isOutOfStock
                             ? Icons.remove_circle_outline
-                            : Icons.check_circle_outline,
-                        size: 12,
+                            : Icons.inventory_2_outlined,
+                        size: 14,
                         color: isOutOfStock
                             ? AppTheme.error
-                            : Colors.greenAccent.shade400,
+                            : (product.stockQuantity <= 5 ? Colors.redAccent : AppTheme.onSurfaceMuted),
                       ),
                       const SizedBox(width: 4),
                       Text(
                         isOutOfStock
-                            ? 'Rupture de stock'
+                            ? 'Rupture'
                             : 'Qté: ${product.stockQuantity}',
                         style: TextStyle(
                           color: isOutOfStock
                               ? AppTheme.error
-                              : AppTheme.onSurfaceMuted,
-                          fontSize: 11,
+                              : (product.stockQuantity <= 5 ? Colors.redAccent : AppTheme.onSurfaceMuted),
+                          fontSize: 12,
+                          fontWeight: product.stockQuantity <= 5 ? FontWeight.bold : FontWeight.normal,
                         ),
                       ),
                     ],
@@ -129,13 +112,20 @@ class ProductCard extends ConsumerWidget {
                   decoration: BoxDecoration(
                     color: AppTheme.primary,
                     borderRadius: BorderRadius.circular(8),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppTheme.primary.withOpacity(0.3),
+                        blurRadius: 4,
+                        spreadRadius: 1,
+                      )
+                    ],
                   ),
                   child: Text(
                     '$cartQty',
                     style: const TextStyle(
                       color: Colors.white,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
                     ),
                   ),
                 ),

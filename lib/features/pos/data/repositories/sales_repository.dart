@@ -1,5 +1,4 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 import 'package:laidani_repair/core/providers/supabase_provider.dart';
 import 'package:laidani_repair/features/pos/data/models/cart_item_model.dart';
 
@@ -8,25 +7,18 @@ class SalesRepository {
 
   SalesRepository(this._client);
 
-  /// Inserts a complete sale:
-  ///   1. Creates a `sales_invoices` row.
-  ///   2. Bulk-inserts all `sales_items`.
-  ///   3. If [amountPaid] > 0 AND customer is identified, records a
-  ///      `customer_payments` row so the DB trigger can update `total_debt`.
-  ///
-  /// Returns the new invoice ID.
+  /// تنفيذ عملية البيع وخصم المخزون وتحديث المبيعات
   Future<String> checkout({
-    required String? customerId, // null → anonymous walk-in
+    required String? customerId,
     required String workerId,
     required List<CartItem> items,
     required double discount,
     required double amountPaid,
   }) async {
-    final totalAmount =
-        items.fold<double>(0.0, (sum, item) => sum + item.subtotal);
+    final totalAmount = items.fold<double>(0.0, (sum, item) => sum + item.subtotal);
     final finalAmount = (totalAmount - discount).clamp(0.0, double.infinity);
 
-    // 1. Create invoice
+    // 1. تسجيل الفاتورة
     final invoiceRow = await _client
         .from('sales_invoices')
         .insert({
@@ -41,21 +33,28 @@ class SalesRepository {
 
     final invoiceId = invoiceRow['id'] as String;
 
-    // 2. Bulk-insert line items
-    final itemsPayload = items
-        .map((item) => {
-              'invoice_id': invoiceId,
-              'product_id': item.product.id,
-              'quantity': item.quantity,
-              'sell_price': item.sellPrice,
-            })
-        .toList();
+    // 2. تسجيل عناصر الفاتورة
+    final itemsPayload = items.map((item) => {
+          'invoice_id': invoiceId,
+          'product_id': item.product.id,
+          'quantity': item.quantity,
+          'sell_price': item.sellPrice,
+        }).toList();
 
     await _client.from('sales_items').insert(itemsPayload);
 
-    // 3. Record the immediate (possibly partial) payment
-    //    Only meaningful for identified customers — anonymous walk-ins
-    //    don't have a debt account to update.
+    // 3. 🚀 تحديث المخزون (الجزء الذي كان مفقوداً) 🚀
+    for (var item in items) {
+      final currentStock = item.product.stockQuantity;
+      final newStock = currentStock - item.quantity;
+      
+      await _client
+          .from('products')
+          .update({'stock_quantity': newStock})
+          .eq('id', item.product.id);
+    }
+
+    // 4. تسجيل الدفعة المالية (للزبائن المعروفين)
     if (amountPaid > 0 && customerId != null) {
       await _client.from('customer_payments').insert({
         'customer_id': customerId,

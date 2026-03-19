@@ -4,21 +4,24 @@ import 'package:laidani_repair/features/pos/data/models/product_model.dart';
 class CartItem {
   final ProductModel product;
   final int quantity;
-  final double sellPrice; // editable per item (can differ from reference_price)
+  final double sellPrice; // editable custom price
+  final double discountAmount; // remise
 
   const CartItem({
     required this.product,
     required this.quantity,
     required this.sellPrice,
+    this.discountAmount = 0.0,
   });
 
   double get subtotal => quantity * sellPrice;
 
-  CartItem copyWith({int? quantity, double? sellPrice}) {
+  CartItem copyWith({int? quantity, double? sellPrice, double? discountAmount}) {
     return CartItem(
       product: product,
       quantity: quantity ?? this.quantity,
       sellPrice: sellPrice ?? this.sellPrice,
+      discountAmount: discountAmount ?? this.discountAmount,
     );
   }
 
