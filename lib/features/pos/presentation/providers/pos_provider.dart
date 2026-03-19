@@ -209,7 +209,7 @@ final recentSalesStreamProvider = StreamProvider<List<Map<String, dynamic>>>((re
   return client
       .from('sales_invoices')
       .stream(primaryKey: ['id'])
-      .order('created_at', ascending: false)
+      .order('invoice_date', ascending: false)
       .limit(5);
 });
 
@@ -221,7 +221,7 @@ final todayRevenueStreamProvider = StreamProvider<double>((ref) {
       .map((invoices) {
         final now = DateTime.now();
         return invoices.where((inv) {
-          final date = DateTime.tryParse(inv['created_at']?.toString() ?? '');
+          final date = DateTime.tryParse(inv['invoice_date']?.toString() ?? '');
           if (date == null) return false;
           final local = date.toLocal();
           return local.year == now.year && local.month == now.month && local.day == now.day;

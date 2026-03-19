@@ -7,7 +7,7 @@ class SalesRepository {
 
   SalesRepository(this._client);
 
-  /// تنفيذ عملية البيع وخصم المخزون وتحديث المبيعات
+ 
   Future<String> checkout({
     required String? customerId,
     required String workerId,
@@ -18,7 +18,7 @@ class SalesRepository {
     final totalAmount = items.fold<double>(0.0, (sum, item) => sum + item.subtotal);
     final finalAmount = (totalAmount - discount).clamp(0.0, double.infinity);
 
-    // 1. تسجيل الفاتورة
+    
     final invoiceRow = await _client
         .from('sales_invoices')
         .insert({
@@ -33,7 +33,7 @@ class SalesRepository {
 
     final invoiceId = invoiceRow['id'] as String;
 
-    // 2. تسجيل عناصر الفاتورة
+    
     final itemsPayload = items.map((item) => {
           'invoice_id': invoiceId,
           'product_id': item.product.id,
@@ -43,18 +43,8 @@ class SalesRepository {
 
     await _client.from('sales_items').insert(itemsPayload);
 
-    // 3. 🚀 تحديث المخزون (الجزء الذي كان مفقوداً) 🚀
-    for (var item in items) {
-      final currentStock = item.product.stockQuantity;
-      final newStock = currentStock - item.quantity;
-      
-      await _client
-          .from('products')
-          .update({'stock_quantity': newStock})
-          .eq('id', item.product.id);
-    }
 
-    // 4. تسجيل الدفعة المالية (للزبائن المعروفين)
+
     if (amountPaid > 0 && customerId != null) {
       await _client.from('customer_payments').insert({
         'customer_id': customerId,
