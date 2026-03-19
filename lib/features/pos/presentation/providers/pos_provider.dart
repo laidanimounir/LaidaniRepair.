@@ -24,7 +24,10 @@ class CartState {
   double get totalAmount =>
       items.fold(0.0, (sum, item) => sum + item.subtotal);
 
-  double get finalAmount => (totalAmount - discount).clamp(0.0, double.infinity);
+  double get totalDiscount =>
+      items.fold(0.0, (sum, item) => sum + item.discountAmount);
+
+  double get finalAmount => (totalAmount - totalDiscount).clamp(0.0, double.infinity);
 
   bool get isEmpty => items.isEmpty;
   int get itemCount => items.fold(0, (sum, item) => sum + item.quantity);
@@ -178,7 +181,7 @@ class CheckoutNotifier extends StateNotifier<AsyncValue<String?>> {
         customerId: cart.selectedCustomer?.id,
         workerId: user.id,
         items: cart.items,
-        discount: cart.discount,
+        discount: cart.totalDiscount,
         amountPaid: amountPaid,
       );
       
