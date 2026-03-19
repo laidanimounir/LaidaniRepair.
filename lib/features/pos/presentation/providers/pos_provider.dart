@@ -184,6 +184,7 @@ class CheckoutNotifier extends StateNotifier<AsyncValue<String?>> {
       
       state = AsyncValue.data(invoiceId);
       _ref.read(cartProvider.notifier).clear();
+      _ref.invalidate(productsStreamProvider);
       return true;
     } catch (e, st) {
       debugPrint('🚨 CRITICAL CHECKOUT ERROR 🚨');
