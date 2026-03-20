@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:laidani_repair/features/reports/data/repositories/reports_repository.dart';
 
 const _sentinel = Object();
+const _notProvided = Object();
 
 class ReportFilter {
   final DateTime startDate;
@@ -60,15 +61,15 @@ class ReportFilterNotifier extends StateNotifier<ReportFilter> {
   void updateFilter({
     DateTime? startDate,
     DateTime? endDate,
-    String? workerId,
-    String? customerId,
+    Object? workerId = _notProvided,
+    Object? customerId = _notProvided,
     String? periodLabel,
   }) {
     state = state.copyWith(
       startDate: startDate,
       endDate: endDate,
-      workerId: workerId,
-      customerId: customerId,
+      workerId: workerId == _notProvided ? _sentinel : workerId,
+      customerId: customerId == _notProvided ? _sentinel : customerId,
       periodLabel: periodLabel,
     );
   }
