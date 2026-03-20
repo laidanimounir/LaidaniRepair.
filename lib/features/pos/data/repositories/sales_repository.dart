@@ -16,7 +16,7 @@ class SalesRepository {
     required double amountPaid,
   }) async {
     final totalAmount = items.fold<double>(0.0, (sum, item) => sum + item.subtotal);
-    final finalAmount = (totalAmount - discount).clamp(0.0, double.infinity);
+    final finalAmount = totalAmount;
 
     
     final invoiceRow = await _client
