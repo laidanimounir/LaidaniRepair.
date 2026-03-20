@@ -15,8 +15,8 @@ class ReportsRepository {
     var query = _client
         .from('sales_invoices')
         .select('*, customers(full_name), profiles!worker_id(full_name), sales_items(quantity, sell_price, products(product_name))')
-        .gte('invoice_date', startDate.toIso8601String())
-        .lte('invoice_date', endDate.toIso8601String())
+        .gte('invoice_date', startDate.toUtc().toIso8601String())
+        .lte('invoice_date', endDate.toUtc().toIso8601String())
         .order('invoice_date', ascending: false);
 
     if (workerId != null && workerId.isNotEmpty) {

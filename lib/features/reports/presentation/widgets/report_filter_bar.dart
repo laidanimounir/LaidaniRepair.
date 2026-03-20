@@ -66,18 +66,18 @@ class ReportFilterBar extends ConsumerWidget {
   }
 
   void _applyPreset(WidgetRef ref, String period) {
-    final now = DateTime.now();
+    final nowUtc = DateTime.now().toUtc();
     DateTime start;
-    DateTime end = DateTime(now.year, now.month, now.day, 23, 59, 59);
+    DateTime end = DateTime.utc(nowUtc.year, nowUtc.month, nowUtc.day, 23, 59, 59);
 
     if (period == "Aujourd'hui") {
-      start = DateTime(now.year, now.month, now.day);
+      start = DateTime.utc(nowUtc.year, nowUtc.month, nowUtc.day);
     } else if (period == "Semaine") {
-      start = DateTime(now.year, now.month, now.day).subtract(Duration(days: now.weekday - 1));
+      start = DateTime.utc(nowUtc.year, nowUtc.month, nowUtc.day).subtract(Duration(days: nowUtc.weekday - 1));
     } else if (period == "Mois") {
-      start = DateTime(now.year, now.month, 1);
+      start = DateTime.utc(nowUtc.year, nowUtc.month, 1);
     } else { // Total
-      start = DateTime(2000); 
+      start = DateTime.utc(2000, 1, 1); 
     }
 
     ref.read(reportFilterProvider.notifier).updateFilter(
@@ -102,8 +102,8 @@ class ReportFilterBar extends ConsumerWidget {
 
     if (picked != null) {
       ref.read(reportFilterProvider.notifier).updateFilter(
-        startDate: picked.start,
-        endDate: DateTime(picked.end.year, picked.end.month, picked.end.day, 23, 59, 59),
+        startDate: DateTime.utc(picked.start.year, picked.start.month, picked.start.day),
+        endDate: DateTime.utc(picked.end.year, picked.end.month, picked.end.day, 23, 59, 59),
         periodLabel: "Personnalisé",
       );
     }

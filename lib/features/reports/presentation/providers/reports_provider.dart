@@ -52,8 +52,8 @@ class ReportSummary {
 class ReportFilterNotifier extends StateNotifier<ReportFilter> {
   ReportFilterNotifier()
       : super(ReportFilter(
-          startDate: DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day),
-          endDate: DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day, 23, 59, 59),
+          startDate: DateTime.utc(DateTime.now().toUtc().year, DateTime.now().toUtc().month, DateTime.now().toUtc().day),
+          endDate: DateTime.utc(DateTime.now().toUtc().year, DateTime.now().toUtc().month, DateTime.now().toUtc().day, 23, 59, 59),
           periodLabel: "Aujourd'hui",
         ));
 
