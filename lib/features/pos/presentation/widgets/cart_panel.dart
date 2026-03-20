@@ -29,30 +29,27 @@ class _CartPanelState extends ConsumerState<CartPanel> {
 
   Future<void> _handleCheckout() async {
     final cart = ref.read(cartProvider);
+    if (cart.isEmpty) return;
+
     final finalAmount = cart.finalAmount;
-    final paid = _isCredit ? (double.tryParse(_paidController.text) ?? 0.0) : finalAmount;
-    
-    // The checkout logic returns a string (invoiceId) or null
-    final success = await ref.read(checkoutProvider.notifier).checkout(amountPaid: paid);
-    
-    if (success) {
-      if (mounted) {
-        final currentCartData = ref.read(cartProvider);
-        Future.microtask(() async {
-          await showDialog(
-            context: context,
-            barrierDismissible: false,
-            builder: (_) => TicketDialog(cart: currentCartData, amountPaid: paid),
-          );
-          if (mounted) {
-            ref.read(cartProvider.notifier).clear();
-            setState(() {
-              _isCredit = false;
-              _paidController.clear();
-            });
-          }
-        });
-      }
+    final paid = _isCredit
+        ? (double.tryParse(_paidController.text) ?? 0.0)
+        : finalAmount;
+
+    final success = await ref.read(checkoutProvider.notifier).checkout(
+      amountPaid: paid,
+    );
+
+    if (success && mounted) {
+      await showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => TicketDialog(cart: cart, amountPaid: paid),
+      );
+      setState(() {
+        _isCredit = false;
+        _paidController.clear();
+      });
     }
   }
 
