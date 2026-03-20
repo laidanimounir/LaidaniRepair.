@@ -114,7 +114,31 @@ class ReportFilterBar extends ConsumerWidget {
     return FutureBuilder<List<dynamic>>(
       future: client.from('profiles').select('id, full_name'),
       builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting || snapshot.hasError) {
+          return Container(
+            height: 40,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(
+              color: AppTheme.surfaceContainerHigh,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0xFF2A2A50)),
+            ),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String?>(
+                value: null,
+                hint: const Text('Tous les employés', style: TextStyle(color: AppTheme.onSurfaceMuted, fontSize: 13)),
+                dropdownColor: AppTheme.surfaceContainerHigh,
+                items: const [
+                  DropdownMenuItem(value: null, child: Text("Tous les employés", style: TextStyle(color: AppTheme.onSurface, fontSize: 13))),
+                ],
+                onChanged: null,
+              ),
+            ),
+          );
+        }
         final workers = snapshot.data ?? [];
+        final workerIds = [null, ...workers.map((w) => w['id'] as String?)];
+        final safeWorkerId = workerIds.contains(filter.workerId) ? filter.workerId : null;
         return Container(
           height: 40,
           padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -125,7 +149,7 @@ class ReportFilterBar extends ConsumerWidget {
           ),
           child: DropdownButtonHideUnderline(
             child: DropdownButton<String?>(
-              value: filter.workerId,
+              value: safeWorkerId,
               hint: const Text('Tous les employés', style: TextStyle(color: AppTheme.onSurfaceMuted, fontSize: 13)),
               dropdownColor: AppTheme.surfaceContainerHigh,
               items: [
@@ -150,7 +174,31 @@ class ReportFilterBar extends ConsumerWidget {
     return FutureBuilder<List<dynamic>>(
       future: client.from('customers').select('id, full_name').order('full_name'),
       builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting || snapshot.hasError) {
+          return Container(
+            height: 40,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(
+              color: AppTheme.surfaceContainerHigh,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0xFF2A2A50)),
+            ),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String?>(
+                value: null,
+                hint: const Text('Tous les clients', style: TextStyle(color: AppTheme.onSurfaceMuted, fontSize: 13)),
+                dropdownColor: AppTheme.surfaceContainerHigh,
+                items: const [
+                  DropdownMenuItem(value: null, child: Text("Tous les clients", style: TextStyle(color: AppTheme.onSurface, fontSize: 13))),
+                ],
+                onChanged: null,
+              ),
+            ),
+          );
+        }
         final customers = snapshot.data ?? [];
+        final customerIds = [null, ...customers.map((c) => c['id'] as String?)];
+        final safeCustomerId = customerIds.contains(filter.customerId) ? filter.customerId : null;
         return Container(
           height: 40,
           padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -161,7 +209,7 @@ class ReportFilterBar extends ConsumerWidget {
           ),
           child: DropdownButtonHideUnderline(
             child: DropdownButton<String?>(
-              value: filter.customerId,
+              value: safeCustomerId,
               hint: const Text('Tous les clients', style: TextStyle(color: AppTheme.onSurfaceMuted, fontSize: 13)),
               dropdownColor: AppTheme.surfaceContainerHigh,
               items: [
