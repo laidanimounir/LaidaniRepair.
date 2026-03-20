@@ -1,6 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:laidani_repair/features/reports/data/repositories/reports_repository.dart';
 
+const _sentinel = Object();
+
 class ReportFilter {
   final DateTime startDate;
   final DateTime endDate;
@@ -19,15 +21,15 @@ class ReportFilter {
   ReportFilter copyWith({
     DateTime? startDate,
     DateTime? endDate,
-    String? workerId,
-    String? customerId,
+    Object? workerId = _sentinel,
+    Object? customerId = _sentinel,
     String? periodLabel,
   }) {
     return ReportFilter(
       startDate: startDate ?? this.startDate,
       endDate: endDate ?? this.endDate,
-      workerId: workerId != null && workerId.isEmpty ? null : workerId ?? this.workerId,
-      customerId: customerId != null && customerId.isEmpty ? null : customerId ?? this.customerId,
+      workerId: workerId == _sentinel ? this.workerId : workerId as String?,
+      customerId: customerId == _sentinel ? this.customerId : customerId as String?,
       periodLabel: periodLabel ?? this.periodLabel,
     );
   }
