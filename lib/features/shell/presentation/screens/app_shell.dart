@@ -76,6 +76,13 @@ const _navItems = <_NavItem>[
     route: AppConstants.routeAudit,
     ownerOnly: true,
   ),
+  _NavItem(
+    label: 'Rapports',
+    icon: Icons.bar_chart_outlined,
+    activeIcon: Icons.bar_chart,
+    route: '/shell/reports',
+    ownerOnly: true,
+  ),
 ];
 
 // ─── Theme Constants for Cyber Glass ──────────────────────────────────────

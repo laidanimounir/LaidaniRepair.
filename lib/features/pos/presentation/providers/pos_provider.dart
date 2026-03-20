@@ -4,6 +4,7 @@ import 'package:laidani_repair/features/pos/data/models/cart_item_model.dart';
 import 'package:laidani_repair/features/pos/data/models/customer_model.dart';
 import 'package:laidani_repair/features/pos/data/models/product_model.dart';
 import 'package:laidani_repair/features/pos/data/repositories/sales_repository.dart';
+import 'package:laidani_repair/features/pos/data/repositories/product_repository.dart';
 import 'package:laidani_repair/features/auth/presentation/providers/auth_provider.dart';
 import 'package:flutter/foundation.dart';
 import 'package:laidani_repair/core/providers/supabase_provider.dart';
