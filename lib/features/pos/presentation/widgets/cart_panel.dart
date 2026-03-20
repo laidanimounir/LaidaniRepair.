@@ -424,6 +424,7 @@ class _CartItemRowState extends ConsumerState<_CartItemRow> {
                     prefixText: ' Rem: ',
                     prefixStyle: TextStyle(color: Colors.white54, fontSize: 11),
                   ),
+                  onChanged: _onRemiseSubmitted,
                   onFieldSubmitted: _onRemiseSubmitted,
                 ),
               ),
