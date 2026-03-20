@@ -189,8 +189,10 @@ class _CheckoutDialogState extends ConsumerState<CheckoutDialog> {
     if (!mounted) return;
 
     if (success) {
-      // Refresh products after sale (stock updated by DB triggers)
-      ref.invalidate(productsProvider);
+      // Refresh all streams after sale (same as CartPanel)
+      ref.invalidate(productsStreamProvider);
+      ref.invalidate(recentSalesStreamProvider);
+      ref.invalidate(todayRevenueStreamProvider);
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
