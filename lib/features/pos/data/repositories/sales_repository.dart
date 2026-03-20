@@ -45,7 +45,7 @@ class SalesRepository {
 
 
 
-    if (amountPaid > 0 && customerId != null) {
+    if (customerId != null) {
       await _client.from('customer_payments').insert({
         'customer_id': customerId,
         'worker_id': workerId,
