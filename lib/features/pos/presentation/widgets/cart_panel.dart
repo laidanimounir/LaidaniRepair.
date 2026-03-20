@@ -85,11 +85,9 @@ class _CartPanelState extends ConsumerState<CartPanel> {
           context: context,
           builder: (_) => const CustomerSelectorDialog(),
         );
-        if (customer != null) {
-          ref.read(cartProvider.notifier).setCustomer(customer);
-        } else if (customer == null && context.mounted) {
-          ref.read(cartProvider.notifier).setCustomer(null);
-        }
+       if (customer != null) {
+  ref.read(cartProvider.notifier).setCustomer(customer);
+}
     });
 
     final cart = ref.watch(cartProvider);
@@ -421,7 +419,11 @@ class _CartItemRowState extends ConsumerState<_CartItemRow> {
                     prefixText: ' Rem: ',
                     prefixStyle: TextStyle(color: Colors.white54, fontSize: 11),
                   ),
-                  onFieldSubmitted: _onRemiseSubmitted,
+                onChanged: (val) {
+  if (val.isEmpty) return;
+  _onRemiseSubmitted(val);
+},
+onFieldSubmitted: _onRemiseSubmitted,
                 ),
               ),
             ],
@@ -466,10 +468,8 @@ class _CustomerSelector extends ConsumerWidget {
           builder: (_) => const CustomerSelectorDialog(),
         );
         if (customer != null) {
-          ref.read(cartProvider.notifier).setCustomer(customer);
-        } else if (customer == null && context.mounted) {
-          ref.read(cartProvider.notifier).setCustomer(null);
-        }
+  ref.read(cartProvider.notifier).setCustomer(customer);
+}
       },
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -537,8 +537,7 @@ class _RecentSalesList extends ConsumerWidget {
                   itemCount: sales.length,
                   itemBuilder: (context, i) {
                     final sale = sales[i];
-                    final date = DateTime.tryParse(sale['created_at']?.toString() ?? '') ?? DateTime.now();
-                    final formattedDate = DateFormat('HH:mm').format(date.toLocal());
+final date = DateTime.tryParse(sale['invoice_date']?.toString() ?? '') ?? DateTime.now();                    final formattedDate = DateFormat('HH:mm').format(date.toLocal());
                     final total = double.tryParse(sale['final_amount']?.toString() ?? '0') ?? 0.0;
 
                     return ListTile(

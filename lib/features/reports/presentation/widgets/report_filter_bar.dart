@@ -4,11 +4,27 @@ import 'package:laidani_repair/core/theme/app_theme.dart';
 import 'package:laidani_repair/features/reports/presentation/providers/reports_provider.dart';
 import 'package:laidani_repair/core/providers/supabase_provider.dart';
 
-class ReportFilterBar extends ConsumerWidget {
+class ReportFilterBar extends ConsumerStatefulWidget {
   const ReportFilterBar({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ReportFilterBar> createState() => _ReportFilterBarState();
+}
+
+class _ReportFilterBarState extends ConsumerState<ReportFilterBar> {
+  late final Future<List<dynamic>> _workersFuture;
+  late final Future<List<dynamic>> _customersFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    final client = ref.read(supabaseClientProvider);
+    _workersFuture = client.from('profiles').select('id, full_name');
+    _customersFuture = client.from('customers').select('id, full_name').order('full_name');
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final filter = ref.watch(reportFilterProvider);
 
     return Container(
@@ -34,7 +50,7 @@ class ReportFilterBar extends ConsumerWidget {
 
   Widget _buildDatesChips(BuildContext context, WidgetRef ref, ReportFilter filter) {
     final periods = ["Aujourd'hui", "Semaine", "Mois", "Total", "Personnalisé"];
-    
+
     return Wrap(
       spacing: 8,
       children: periods.map((period) {
@@ -73,11 +89,12 @@ class ReportFilterBar extends ConsumerWidget {
     if (period == "Aujourd'hui") {
       start = DateTime.utc(nowUtc.year, nowUtc.month, nowUtc.day);
     } else if (period == "Semaine") {
-      start = DateTime.utc(nowUtc.year, nowUtc.month, nowUtc.day).subtract(Duration(days: nowUtc.weekday - 1));
+      start = DateTime.utc(nowUtc.year, nowUtc.month, nowUtc.day)
+          .subtract(Duration(days: nowUtc.weekday - 1));
     } else if (period == "Mois") {
       start = DateTime.utc(nowUtc.year, nowUtc.month, 1);
-    } else { // Total
-      start = DateTime.utc(2000, 1, 1); 
+    } else {
+      start = DateTime.utc(2000, 1, 1);
     }
 
     ref.read(reportFilterProvider.notifier).updateFilter(
@@ -110,11 +127,10 @@ class ReportFilterBar extends ConsumerWidget {
   }
 
   Widget _buildWorkerDropdown(WidgetRef ref, ReportFilter filter) {
-    final client = ref.watch(supabaseClientProvider);
     return FutureBuilder<List<dynamic>>(
-      future: client.from('profiles').select('id, full_name'),
+      future: _workersFuture,
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting || snapshot.hasError) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
           return Container(
             height: 40,
             padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -123,22 +139,32 @@ class ReportFilterBar extends ConsumerWidget {
               borderRadius: BorderRadius.circular(8),
               border: Border.all(color: const Color(0xFF2A2A50)),
             ),
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<String?>(
-                value: null,
-                hint: const Text('Tous les employés', style: TextStyle(color: AppTheme.onSurfaceMuted, fontSize: 13)),
-                dropdownColor: AppTheme.surfaceContainerHigh,
-                items: const [
-                  DropdownMenuItem(value: null, child: Text("Tous les employés", style: TextStyle(color: AppTheme.onSurface, fontSize: 13))),
-                ],
-                onChanged: null,
+            child: const Center(
+              child: SizedBox(
+                width: 16, height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.primary),
               ),
+            ),
+          );
+        }
+        if (snapshot.hasError) {
+          return Container(
+            height: 40,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(
+              color: AppTheme.surfaceContainerHigh,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: AppTheme.error),
+            ),
+            child: const Center(
+              child: Text('Erreur', style: TextStyle(color: AppTheme.error, fontSize: 12)),
             ),
           );
         }
         final workers = snapshot.data ?? [];
         final workerIds = [null, ...workers.map((w) => w['id'] as String?)];
         final safeWorkerId = workerIds.contains(filter.workerId) ? filter.workerId : null;
+
         return Container(
           height: 40,
           padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -150,13 +176,19 @@ class ReportFilterBar extends ConsumerWidget {
           child: DropdownButtonHideUnderline(
             child: DropdownButton<String?>(
               value: safeWorkerId,
-              hint: const Text('Tous les employés', style: TextStyle(color: AppTheme.onSurfaceMuted, fontSize: 13)),
+              hint: const Text('Tous les employés',
+                  style: TextStyle(color: AppTheme.onSurfaceMuted, fontSize: 13)),
               dropdownColor: AppTheme.surfaceContainerHigh,
               items: [
-                const DropdownMenuItem(value: null, child: Text("Tous les employés", style: TextStyle(color: AppTheme.onSurface, fontSize: 13))),
+                const DropdownMenuItem(
+                  value: null,
+                  child: Text("Tous les employés",
+                      style: TextStyle(color: AppTheme.onSurface, fontSize: 13)),
+                ),
                 ...workers.map((w) => DropdownMenuItem(
-                      value: w['id'],
-                      child: Text(w['full_name'] ?? 'Employé', style: const TextStyle(color: AppTheme.onSurface, fontSize: 13)),
+                      value: w['id'] as String?,
+                      child: Text(w['full_name'] ?? 'Employé',
+                          style: const TextStyle(color: AppTheme.onSurface, fontSize: 13)),
                     ))
               ],
               onChanged: (val) {
@@ -170,11 +202,10 @@ class ReportFilterBar extends ConsumerWidget {
   }
 
   Widget _buildCustomerDropdown(WidgetRef ref, ReportFilter filter) {
-    final client = ref.watch(supabaseClientProvider);
     return FutureBuilder<List<dynamic>>(
-      future: client.from('customers').select('id, full_name').order('full_name'),
+      future: _customersFuture,
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting || snapshot.hasError) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
           return Container(
             height: 40,
             padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -183,22 +214,32 @@ class ReportFilterBar extends ConsumerWidget {
               borderRadius: BorderRadius.circular(8),
               border: Border.all(color: const Color(0xFF2A2A50)),
             ),
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<String?>(
-                value: null,
-                hint: const Text('Tous les clients', style: TextStyle(color: AppTheme.onSurfaceMuted, fontSize: 13)),
-                dropdownColor: AppTheme.surfaceContainerHigh,
-                items: const [
-                  DropdownMenuItem(value: null, child: Text("Tous les clients", style: TextStyle(color: AppTheme.onSurface, fontSize: 13))),
-                ],
-                onChanged: null,
+            child: const Center(
+              child: SizedBox(
+                width: 16, height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.primary),
               ),
+            ),
+          );
+        }
+        if (snapshot.hasError) {
+          return Container(
+            height: 40,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(
+              color: AppTheme.surfaceContainerHigh,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: AppTheme.error),
+            ),
+            child: const Center(
+              child: Text('Erreur', style: TextStyle(color: AppTheme.error, fontSize: 12)),
             ),
           );
         }
         final customers = snapshot.data ?? [];
         final customerIds = [null, ...customers.map((c) => c['id'] as String?)];
         final safeCustomerId = customerIds.contains(filter.customerId) ? filter.customerId : null;
+
         return Container(
           height: 40,
           padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -210,13 +251,19 @@ class ReportFilterBar extends ConsumerWidget {
           child: DropdownButtonHideUnderline(
             child: DropdownButton<String?>(
               value: safeCustomerId,
-              hint: const Text('Tous les clients', style: TextStyle(color: AppTheme.onSurfaceMuted, fontSize: 13)),
+              hint: const Text('Tous les clients',
+                  style: TextStyle(color: AppTheme.onSurfaceMuted, fontSize: 13)),
               dropdownColor: AppTheme.surfaceContainerHigh,
               items: [
-                const DropdownMenuItem(value: null, child: Text("Tous les clients", style: TextStyle(color: AppTheme.onSurface, fontSize: 13))),
+                const DropdownMenuItem(
+                  value: null,
+                  child: Text("Tous les clients",
+                      style: TextStyle(color: AppTheme.onSurface, fontSize: 13)),
+                ),
                 ...customers.map((c) => DropdownMenuItem(
-                      value: c['id'],
-                      child: Text(c['full_name'] ?? 'Client anonyme', style: const TextStyle(color: AppTheme.onSurface, fontSize: 13)),
+                      value: c['id'] as String?,
+                      child: Text(c['full_name'] ?? 'Client anonyme',
+                          style: const TextStyle(color: AppTheme.onSurface, fontSize: 13)),
                     ))
               ],
               onChanged: (val) {

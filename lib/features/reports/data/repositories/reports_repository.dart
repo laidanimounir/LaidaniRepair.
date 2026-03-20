@@ -12,19 +12,20 @@ class ReportsRepository {
     String? workerId,
     String? customerId,
   }) async {
-    var query = _client
-        .from('sales_invoices')
-        .select('*, customers(full_name), profiles!worker_id(full_name), sales_items(quantity, sell_price, products(product_name))')
-        .gte('invoice_date', startDate.toUtc().toIso8601String())
-        .lte('invoice_date', endDate.toUtc().toIso8601String())
-        .order('invoice_date', ascending: false);
+   var query = _client
+    .from('sales_invoices')
+    .select('*, customers(full_name), sales_items(quantity, sell_price, products(product_name))')
+    .gte('invoice_date', startDate.toUtc().toIso8601String())
+    .lte('invoice_date', endDate.toUtc().toIso8601String());
 
-    if (workerId != null && workerId.isNotEmpty) {
-      query = query.eq('worker_id', workerId);
-    }
-    if (customerId != null && customerId.isNotEmpty) {
-      query = query.eq('customer_id', customerId);
-    }
+if (workerId != null && workerId.isNotEmpty) {
+  query = query.eq('worker_id', workerId);
+}
+if (customerId != null && customerId.isNotEmpty) {
+  query = query.eq('customer_id', customerId);
+}
+
+query = query.order('invoice_date', ascending: false);
 
     final response = await query;
     return List<Map<String, dynamic>>.from(response);
