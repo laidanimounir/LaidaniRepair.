@@ -8,9 +8,13 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 // ─── Providers ────────────────────────────────────────────────────────────────
 
-final _customersProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
+final _customersStreamProvider = StreamProvider<List<Map<String, dynamic>>>((ref) {
   final client = ref.watch(supabaseClientProvider);
-  return await client.from('customers').select().eq('is_registered', true).order('full_name');
+  return client
+      .from('customers')
+      .stream(primaryKey: ['id'])
+      .eq('is_registered', true)
+      .order('total_debt', ascending: false);
 });
 
 final _paymentsProvider = FutureProvider.family<List<Map<String, dynamic>>, String>(
@@ -32,7 +36,7 @@ class ClientsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final customersAsync = ref.watch(_customersProvider);
+    final customersAsync = ref.watch(_customersStreamProvider);
 
     return Scaffold(
       backgroundColor: AppTheme.background,
@@ -54,7 +58,7 @@ class ClientsScreen extends ConsumerWidget {
                 const Spacer(),
                 IconButton(
                   icon: const Icon(Icons.refresh, color: AppTheme.onSurfaceMuted, size: 18),
-                  onPressed: () => ref.invalidate(_customersProvider),
+                  onPressed: () => ref.invalidate(_customersStreamProvider),
                 ),
               ],
             ),
@@ -278,7 +282,7 @@ void _showAddCustomerDialog(BuildContext context, WidgetRef ref) {
                 'phone_number': phoneCtrl.text.trim().isEmpty ? null : phoneCtrl.text.trim(),
                 'is_registered': true,
               });
-              container.invalidate(_customersProvider);
+              container.invalidate(_customersStreamProvider);
               messenger.showSnackBar(
                 const SnackBar(content: Text('Client ajouté avec succès'), backgroundColor: Colors.green),
               );
@@ -350,7 +354,7 @@ void _showPayDebtDialog(BuildContext context, WidgetRef ref, Map<String, dynamic
                 'worker_id': user?.id,
                 'amount_paid': amount,
               });
-              container.invalidate(_customersProvider);
+              container.invalidate(_customersStreamProvider);
               container.invalidate(_paymentsProvider(customer['id'] as String));
               messenger.showSnackBar(
                 const SnackBar(content: Text('Paiement enregistré avec succès'), backgroundColor: Colors.green),
