@@ -133,9 +133,9 @@ class _TopRecetteBar extends ConsumerWidget {
 
   void _showDailySalesDialog(BuildContext context, WidgetRef ref) async {
     final client = ref.read(supabaseClientProvider);
-    final now = DateTime.now();
-    final startOfDay = DateTime(now.year, now.month, now.day).toIso8601String();
-    final endOfDay = DateTime(now.year, now.month, now.day, 23, 59, 59).toIso8601String();
+    final nowUtc = DateTime.now().toUtc();
+    final startOfDay = DateTime.utc(nowUtc.year, nowUtc.month, nowUtc.day).toIso8601String();
+    final endOfDay = DateTime.utc(nowUtc.year, nowUtc.month, nowUtc.day, 23, 59, 59).toIso8601String();
     
     showDialog(
       context: context,

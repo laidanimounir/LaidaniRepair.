@@ -220,9 +220,11 @@ final recentSalesStreamProvider = StreamProvider<List<Map<String, dynamic>>>((re
 
 final todayRevenueStreamProvider = StreamProvider<double>((ref) {
   final client = ref.watch(supabaseClientProvider);
-  final now = DateTime.now();
-  final startOfDay = DateTime(now.year, now.month, now.day).toUtc().toIso8601String();
-  final endOfDay = DateTime(now.year, now.month, now.day, 23, 59, 59).toUtc().toIso8601String();
+  final nowUtc = DateTime.now().toUtc();
+  final startOfDay = DateTime.utc(nowUtc.year, nowUtc.month, nowUtc.day)
+      .toIso8601String();
+  final endOfDay = DateTime.utc(nowUtc.year, nowUtc.month, nowUtc.day, 23, 59, 59)
+      .toIso8601String();
 
   return client
       .from('sales_invoices')
@@ -233,8 +235,8 @@ final todayRevenueStreamProvider = StreamProvider<double>((ref) {
               final date = DateTime.tryParse(inv['invoice_date']?.toString() ?? '');
               if (date == null) return false;
               final utc = date.toUtc();
-              return utc.isAfter(DateTime.parse(startOfDay)) &&
-                     utc.isBefore(DateTime.parse(endOfDay));
+              return utc.isAfter(DateTime.parse(startOfDay).subtract(const Duration(seconds: 1))) &&
+                     utc.isBefore(DateTime.parse(endOfDay).add(const Duration(seconds: 1)));
             })
             .fold<double>(
               0.0,
