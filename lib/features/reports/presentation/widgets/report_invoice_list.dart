@@ -97,7 +97,7 @@ class ReportInvoiceList extends ConsumerWidget {
             ],
           ),
           subtitle: Padding(
-            padding: const EdgeInsets.top(8.0),
+            padding: const EdgeInsets.only(top: 8.0),
             child: Row(
               children: [
                 const Icon(Icons.shopping_bag_outlined, size: 14, color: AppTheme.primaryLight),

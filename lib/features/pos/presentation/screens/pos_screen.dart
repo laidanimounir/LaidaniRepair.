@@ -146,9 +146,9 @@ class _TopRecetteBar extends ConsumerWidget {
           future: client
             .from('sales_invoices')
             .select()
-            .gte('created_at', startOfDay)
-            .lte('created_at', endOfDay)
-            .order('created_at', ascending: false),
+            .gte('invoice_date', startOfDay)
+            .lte('invoice_date', endOfDay)
+            .order('invoice_date', ascending: false),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const SizedBox(width: 400, height: 200, child: Center(child: CircularProgressIndicator(color: AppTheme.primary)));
@@ -164,7 +164,7 @@ class _TopRecetteBar extends ConsumerWidget {
                 itemCount: sales.length,
                 itemBuilder: (context, index) {
                    final sale = sales[index];
-                   final time = DateTime.tryParse(sale['created_at'].toString())?.toLocal();
+                   final time = DateTime.tryParse(sale['invoice_date'].toString())?.toLocal();
                    final formatTime = time != null ? '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}' : '';
                    final amount = double.tryParse(sale['final_amount']?.toString() ?? '0') ?? 0.0;
                    return ListTile(

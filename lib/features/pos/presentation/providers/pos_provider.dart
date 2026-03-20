@@ -26,9 +26,9 @@ class CartState {
       items.fold(0.0, (sum, item) => sum + item.subtotal);
 
   double get totalDiscount =>
-      items.fold(0.0, (sum, item) => sum + item.discountAmount);
+      items.fold(0.0, (sum, item) => sum + (item.discountAmount * item.quantity));
 
-  double get finalAmount => (totalAmount - totalDiscount).clamp(0.0, double.infinity);
+  double get finalAmount => totalAmount;
 
   bool get isEmpty => items.isEmpty;
   int get itemCount => items.fold(0, (sum, item) => sum + item.quantity);
@@ -189,6 +189,8 @@ class CheckoutNotifier extends StateNotifier<AsyncValue<String?>> {
       state = AsyncValue.data(invoiceId);
       _ref.read(cartProvider.notifier).clear();
       _ref.invalidate(productsStreamProvider);
+      _ref.invalidate(recentSalesStreamProvider);
+      _ref.invalidate(todayRevenueStreamProvider);
       return true;
     } catch (e, st) {
       debugPrint('🚨 CRITICAL CHECKOUT ERROR 🚨');
@@ -218,17 +220,26 @@ final recentSalesStreamProvider = StreamProvider<List<Map<String, dynamic>>>((re
 
 final todayRevenueStreamProvider = StreamProvider<double>((ref) {
   final client = ref.watch(supabaseClientProvider);
+  final now = DateTime.now();
+  final startOfDay = DateTime(now.year, now.month, now.day).toUtc().toIso8601String();
+  final endOfDay = DateTime(now.year, now.month, now.day, 23, 59, 59).toUtc().toIso8601String();
+
   return client
       .from('sales_invoices')
       .stream(primaryKey: ['id'])
       .map((invoices) {
-        final now = DateTime.now();
-        return invoices.where((inv) {
-          final date = DateTime.tryParse(inv['invoice_date']?.toString() ?? '');
-          if (date == null) return false;
-          final local = date.toLocal();
-          return local.year == now.year && local.month == now.month && local.day == now.day;
-        }).fold(0.0, (sum, inv) => sum + (double.tryParse(inv['final_amount']?.toString() ?? '0') ?? 0.0));
+        return invoices
+            .where((inv) {
+              final date = DateTime.tryParse(inv['invoice_date']?.toString() ?? '');
+              if (date == null) return false;
+              final utc = date.toUtc();
+              return utc.isAfter(DateTime.parse(startOfDay)) &&
+                     utc.isBefore(DateTime.parse(endOfDay));
+            })
+            .fold<double>(
+              0.0,
+              (sum, inv) => sum + (double.tryParse(inv['final_amount']?.toString() ?? '0') ?? 0.0),
+            );
       });
 });
 
