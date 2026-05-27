@@ -20,6 +20,7 @@ import 'package:laidani_repair/features/audit/presentation/screens/audit_screen.
 import 'package:laidani_repair/features/reports/presentation/screens/sales_reports_screen.dart';
 import 'package:laidani_repair/features/attendance/presentation/screens/attendance_screen.dart';
 import 'package:laidani_repair/features/dashboard/presentation/screens/dashboard_screen.dart';
+import 'package:laidani_repair/features/tracking/presentation/screens/tracking_screen.dart';
 import 'package:laidani_repair/core/constants/app_constants.dart';
 // تأكد من وجود هذا السطر تحديداً
 import 'package:laidani_repair/features/repairs/presentation/screens/ticket_details_screen.dart';
@@ -77,6 +78,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
       if (location == AppConstants.routeSplash) return null;
 
+      // Public tracking page - no auth required
+      if (location.startsWith('/track/')) return null;
+
       if (!isLoggedIn) {
         return location == AppConstants.routeLogin
             ? null
@@ -105,6 +109,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppConstants.routeLogin,
         builder: (_, __) => const LoginScreen(),
+      ),
+      GoRoute(
+        path: '/track/:qr_code_hash',
+        builder: (context, state) {
+          final hash = state.pathParameters['qr_code_hash']!;
+          return TrackingScreen(qrCodeHash: hash);
+        },
       ),
       ShellRoute(
         builder: (context, state, child) => AppShell(child: child),
