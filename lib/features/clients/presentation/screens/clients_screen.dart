@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:laidani_repair/core/theme/app_theme.dart';
 import 'package:laidani_repair/core/providers/supabase_provider.dart';
 import 'package:laidani_repair/core/utils/csv_export.dart';
+import 'package:laidani_repair/core/services/groq_service.dart';
+import 'package:laidani_repair/features/auth/presentation/providers/auth_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 // ─── Providers ────────────────────────────────────────────────────────────────
@@ -100,72 +102,141 @@ class ClientsScreen extends ConsumerWidget {
                 if (customers.isEmpty) {
                   return const Center(
                     child: Text('Aucun client enregistré', style: TextStyle(color: AppTheme.onSurfaceMuted)),
-                  );
-                }
-                return ListView.separated(
-                  padding: const EdgeInsets.all(12),
-                  itemCount: customers.length,
-                  separatorBuilder: (_, __) => const Divider(height: 1),
-                  itemBuilder: (_, i) {
-                    final c = customers[i];
-                    final debt = (c['total_debt'] as num?)?.toDouble() ?? 0.0;
-                    return ListTile(
-                      leading: CircleAvatar(
-                        backgroundColor: AppTheme.primary.withOpacity(0.15),
-                        child: Text(
-                          (c['full_name'] ?? '?')[0].toUpperCase(),
-                          style: const TextStyle(color: AppTheme.primaryLight, fontWeight: FontWeight.w700),
-                        ),
-                      ),
-                      title: Text(c['full_name'] ?? '',
-                          style: const TextStyle(fontWeight: FontWeight.w600, color: AppTheme.onBackground)),
-                      subtitle: Text(c['phone_number'] ?? '—',
-                          style: const TextStyle(color: AppTheme.onSurfaceMuted, fontSize: 12)),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (((c['loyalty_points'] as num?)?.toInt() ?? 0) > 0)
-                            Container(
-                              margin: const EdgeInsets.only(right: 6),
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                              decoration: BoxDecoration(
-                                color: Colors.purpleAccent.withOpacity(0.15),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Text('${c['loyalty_points']} pts',
-                                  style: const TextStyle(color: Colors.purpleAccent, fontWeight: FontWeight.w600, fontSize: 11)),
-                            ),
-                          debt > 0
-                              ? Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: AppTheme.error.withOpacity(0.15),
-                                    borderRadius: BorderRadius.circular(8),
-                                    border: Border.all(color: AppTheme.error.withOpacity(0.3)),
-                                  ),
-                                  child: Text('${debt.toStringAsFixed(0)} DA',
-                                      style: const TextStyle(color: AppTheme.error, fontWeight: FontWeight.w700, fontSize: 13)),
-                                )
-                              : const Text('0 DA',
-                                  style: TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.w600, fontSize: 13)),
-                        ],
-                      ),
-                      onTap: () => _showCustomerDetail(context, ref, c),
-                    );
-                  },
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _showAddCustomerDialog(context, ref),
-        backgroundColor: AppTheme.primary,
-        child: const Icon(Icons.person_add, color: Colors.white),
-      ),
     );
   }
+}
+
+Future<void> _analyzeCustomerIA(BuildContext context, WidgetRef ref, Map<String, dynamic> customer) async {
+  showDialog(
+    context: context,
+    barrierDismissible: false,
+    builder: (ctx) => const AlertDialog(
+      backgroundColor: AppTheme.surfaceContainer,
+      content: Row(children: [CircularProgressIndicator(color: AppTheme.primary), SizedBox(width: 16), Text('Analyse client IA...', style: TextStyle(color: Colors.white))]),
+    ),
+  );
+
+  try {
+    final client = ref.read(supabaseClientProvider);
+    final customerId = customer['id'] as String;
+
+    final purchaseData = await client.from('sales_invoices').select('total_amount, invoice_date').eq('customer_id', customerId).limit(20);
+    final repairData = await client.from('repair_tickets').select('estimated_cost, status, created_at').eq('customer_id', customerId).limit(20);
+    final paymentsData = await client.from('customer_payments').select('amount_paid, payment_date').eq('customer_id', customerId).limit(20);
+
+    final totalPaid = paymentsData.fold(0.0, (sum, p) => sum + ((p['amount_paid'] as num?)?.toDouble() ?? 0));
+    final totalDebt = (customer['total_debt'] as num?)?.toDouble() ?? 0;
+    final paymentBehavior = totalPaid > 0
+        ? (totalDebt == 0 ? 'Toujours payé' : 'Paiements partiels')
+        : 'Aucun paiement';
+    final loyaltyPoints = (customer['loyalty_points'] as num?)?.toInt() ?? 0;
+
+    final result = await GroqService().analyzeCustomer(
+      purchaseHistory: List<Map<String, dynamic>>.from(purchaseData),
+      repairHistory: List<Map<String, dynamic>>.from(repairData),
+      paymentBehavior: paymentBehavior,
+      loyaltyPoints: loyaltyPoints,
+    );
+
+    if (!context.mounted) return;
+    Navigator.pop(context);
+
+    final valueScore = (result['valueScore'] as num?)?.toDouble() ?? 0;
+    final churnRisk = result['churnRisk']?.toString() ?? 'Moyen';
+    final personalizedOffer = result['personalizedOffer']?.toString() ?? '';
+    final bestContactTime = result['bestContactTime']?.toString() ?? '';
+
+    final riskColor = churnRisk == 'Élevé'
+        ? Colors.redAccent
+        : churnRisk == 'Moyen'
+            ? Colors.orangeAccent
+            : Colors.greenAccent;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppTheme.surfaceContainer,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(children: [Icon(Icons.psychology, color: Color(0xFF9C27B0)), SizedBox(width: 8), Text('Analyse Client IA', style: TextStyle(color: Colors.white))]),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Client: ${customer['full_name']}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(color: Colors.black26, borderRadius: BorderRadius.circular(8)),
+                    child: Column(
+                      children: [
+                        const Text('Score de valeur', style: TextStyle(color: AppTheme.onSurfaceMuted, fontSize: 11)),
+                        const SizedBox(height: 4),
+                        Text('${valueScore.toStringAsFixed(0)}/100', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 22)),
+                        const SizedBox(height: 4),
+                        LinearProgressIndicator(value: valueScore / 100, backgroundColor: Colors.white12, color: valueScore > 70 ? Colors.greenAccent : valueScore > 40 ? Colors.orangeAccent : Colors.redAccent),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(color: riskColor.withOpacity(0.1), borderRadius: BorderRadius.circular(8), border: Border.all(color: riskColor.withOpacity(0.3))),
+                    child: Column(
+                      children: [
+                        const Text('Risque de départ', style: TextStyle(color: AppTheme.onSurfaceMuted, fontSize: 11)),
+                        const SizedBox(height: 4),
+                        Text(churnRisk, style: TextStyle(color: riskColor, fontWeight: FontWeight.w900, fontSize: 16)),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            if (personalizedOffer.isNotEmpty) ...[
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(color: Colors.purpleAccent.withOpacity(0.1), borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.purpleAccent.withOpacity(0.3))),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Offre personnalisée', style: TextStyle(color: Colors.purpleAccent, fontWeight: FontWeight.bold, fontSize: 12)),
+                    const SizedBox(height: 4),
+                    Text(personalizedOffer, style: const TextStyle(color: Colors.white, fontSize: 13)),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
+            Row(
+              children: [
+                const Icon(Icons.access_time, size: 14, color: AppTheme.onSurfaceMuted),
+                const SizedBox(width: 4),
+                Text('Meilleur moment de contact: ', style: const TextStyle(color: AppTheme.onSurfaceMuted, fontSize: 12)),
+                Text(bestContactTime, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+              ],
+            ),
+            const SizedBox(height: 8),
+            const Row(children: [Icon(Icons.info_outline, size: 12, color: AppTheme.onSurfaceMuted), SizedBox(width: 4), Expanded(child: Text('Analyse générée par IA. À titre indicatif uniquement.', style: TextStyle(color: AppTheme.onSurfaceMuted, fontSize: 10, fontStyle: FontStyle.italic)))]),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Fermer', style: TextStyle(color: AppTheme.primary))),
+        ],
+      ),
+    );
+  } catch (e) {
+    if (context.mounted) {
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur IA: $e'), backgroundColor: Colors.redAccent));
+    }
+  }
+}
 }
 
 // ─── CSV Export ────────────────────────────────────────────────────────────────
@@ -276,6 +347,18 @@ class _CustomerDetailPanel extends ConsumerWidget {
                     ),
                   ),
                 ),
+                const Spacer(),
+                if (ref.watch(isOwnerProvider))
+                  ElevatedButton.icon(
+                    onPressed: () => _analyzeCustomerIA(context, ref, customer),
+                    icon: const Icon(Icons.psychology, size: 16),
+                    label: const Text('Analyse IA', style: TextStyle(fontSize: 12)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF9C27B0).withOpacity(0.15),
+                      foregroundColor: const Color(0xFF9C27B0),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    ),
+                  ),
               ],
             ),
             const SizedBox(height: 16),
