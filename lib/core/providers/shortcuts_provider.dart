@@ -36,6 +36,7 @@ void showKeyboardHelpDialog(BuildContext context) {
             _ShortcutRow(keys: 'Ctrl+N', description: 'Nouveau ticket de réparation'),
             _ShortcutRow(keys: 'Ctrl+P', description: 'Imprimer ticket/facture'),
             _ShortcutRow(keys: 'Ctrl+E', description: 'Exporter CSV (rapports)'),
+            _ShortcutRow(keys: 'Ctrl+K', description: 'Mode Kiosque (affichage client)'),
             SizedBox(height: 16),
             Text('Raccourcis POS', style: TextStyle(color: Color(0xFF6C63FF), fontWeight: FontWeight.bold, fontSize: 14)),
             SizedBox(height: 8),

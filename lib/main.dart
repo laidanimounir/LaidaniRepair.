@@ -11,6 +11,7 @@ import 'package:laidani_repair/core/theme/app_theme.dart';
 import 'package:laidani_repair/core/providers/theme_provider.dart';
 import 'package:laidani_repair/core/providers/shortcuts_provider.dart';
 import 'package:laidani_repair/features/auth/presentation/providers/auth_provider.dart';
+import 'package:laidani_repair/features/pos/presentation/providers/pos_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -112,6 +113,7 @@ class _ShortcutWrapper extends ConsumerWidget {
         const SingleActivator(LogicalKeyboardKey.keyE, control: true): () => _handleCtrlE(context, ref),
         const SingleActivator(LogicalKeyboardKey.keyN, control: true): () => _handleCtrlN(context, ref),
         const SingleActivator(LogicalKeyboardKey.keyP, control: true): () => _handleCtrlP(context, ref),
+        const SingleActivator(LogicalKeyboardKey.keyK, control: true): () => ref.read(posKioskModeProvider.notifier).state = !ref.read(posKioskModeProvider),
         const SingleActivator(LogicalKeyboardKey.digit1, control: true): () => _navigateByIndex(context, ref, 0),
         const SingleActivator(LogicalKeyboardKey.digit2, control: true): () => _navigateByIndex(context, ref, 1),
         const SingleActivator(LogicalKeyboardKey.digit3, control: true): () => _navigateByIndex(context, ref, 2),

@@ -66,8 +66,8 @@ class _PosScreenState extends ConsumerState<PosScreen> {
     });
 
     final isDesktop = MediaQuery.of(context).size.width >= 800;
+    final isKiosk = ref.watch(posKioskModeProvider);
     
-    // Forcefully wrap the entire POS tree inside an active Focus Node.
     return Focus(
       autofocus: true,
       canRequestFocus: true,
@@ -92,7 +92,83 @@ class _PosScreenState extends ConsumerState<PosScreen> {
         }
         return KeyEventResult.ignored;
       },
-      child: isDesktop ? const _DesktopPosLayout() : const _MobilePosLayout(),
+      child: Stack(
+        children: [
+          isDesktop ? const _DesktopPosLayout() : const _MobilePosLayout(),
+          if (isKiosk) const _KioskOverlay(),
+        ],
+      ),
+    );
+  }
+}
+
+class _KioskOverlay extends ConsumerWidget {
+  const _KioskOverlay();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final cart = ref.watch(cartProvider);
+    return Material(
+      color: Colors.black,
+      child: Padding(
+        padding: const EdgeInsets.all(40),
+        child: Column(
+          children: [
+            const Text('LAIDANI REPAIR', style: TextStyle(color: Color(0xFF00E5FF), fontSize: 48, fontWeight: FontWeight.w900, letterSpacing: 8)),
+            const SizedBox(height: 16),
+            const Text('Affichage Client - Mode Kiosque', style: TextStyle(color: Color(0xFF8A9BB4), fontSize: 16)),
+            const Expanded(child: SizedBox()),
+            if (cart.isEmpty)
+              const Column(
+                children: [
+                  Icon(Icons.sentiment_satisfied_alt, color: Color(0xFF00E5FF), size: 80),
+                  SizedBox(height: 16),
+                  Text('Merci pour votre visite!', style: TextStyle(color: Colors.white, fontSize: 36, fontWeight: FontWeight.bold)),
+                  SizedBox(height: 8),
+                  Text('Aucun article dans le panier', style: TextStyle(color: Color(0xFF8A9BB4), fontSize: 18)),
+                ],
+              )
+            else ...[
+              const Text('VOTRE PANIER', style: TextStyle(color: Color(0xFF00E5FF), fontSize: 24, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 24),
+              Expanded(
+                child: ListView.separated(
+                  itemCount: cart.items.length,
+                  separatorBuilder: (_, __) => const Divider(color: Color(0xFF2A2A50)),
+                  itemBuilder: (_, i) {
+                    final item = cart.items[i];
+                    return ListTile(
+                      leading: Text('${item.quantity}x', style: const TextStyle(color: Color(0xFF00E5FF), fontSize: 24, fontWeight: FontWeight.bold)),
+                      title: Text(item.product.productName, style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w600)),
+                      trailing: Text('${item.subtotal.toStringAsFixed(0)} DA', style: const TextStyle(color: Colors.greenAccent, fontSize: 24, fontWeight: FontWeight.w900)),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 24),
+              Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(border: Border.all(color: const Color(0xFF00E5FF), width: 2), borderRadius: BorderRadius.circular(12)),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Text('TOTAL: ', style: TextStyle(color: Color(0xFF8A9BB4), fontSize: 36)),
+                    Text('${cart.finalAmount.toStringAsFixed(0)} DA', style: const TextStyle(color: Color(0xFF00E5FF), fontSize: 48, fontWeight: FontWeight.w900, shadows: [Shadow(color: Color(0xFF00E5FF), blurRadius: 20)])),
+                  ],
+                ),
+              ),
+            ],
+            const Expanded(child: SizedBox()),
+            const Text('Merci de votre confiance', style: TextStyle(color: Color(0xFF8A9BB4), fontSize: 14)),
+            const SizedBox(height: 8),
+            TextButton.icon(
+              onPressed: () => ref.read(posKioskModeProvider.notifier).state = false,
+              icon: const Icon(Icons.close, color: Colors.redAccent),
+              label: const Text('Quitter le mode Kiosque [Ctrl+K]', style: TextStyle(color: Colors.redAccent)),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

@@ -275,3 +275,5 @@ final searchFocusRequestProvider = StateProvider<int>((ref) => 0);
 final clientFocusRequestProvider = StateProvider<int>((ref) => 0);
 final checkoutRequestProvider = StateProvider<int>((ref) => 0);
 final helpDialogRequestProvider = StateProvider<int>((ref) => 0);
+
+final posKioskModeProvider = StateProvider<bool>((ref) => false);
