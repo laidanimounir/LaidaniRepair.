@@ -11,6 +11,7 @@ import 'package:laidani_repair/core/providers/supabase_provider.dart';
 import 'package:laidani_repair/core/providers/shortcuts_provider.dart';
 import 'package:laidani_repair/features/auth/presentation/providers/auth_provider.dart';
 import 'package:laidani_repair/core/utils/invoice_pdf.dart';
+import 'package:laidani_repair/core/utils/quote_pdf.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 // --- Cyber Glass Theme Constants ---
@@ -218,6 +219,12 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
     });
     _fetchFullData();
     _showToast('Devis généré', Colors.green);
+
+    try {
+      final fullTicket = await client.from('repair_tickets').select('*, customers(full_name, phone_number)').eq('id', widget.ticketId).single();
+      final partsList = await client.from('repair_parts').select('*, products(product_name)').eq('ticket_id', widget.ticketId);
+      await previewOrPrintQuotePdf(fullTicket, List<Map<String, dynamic>>.from(partsList));
+    } catch (_) {}
   }
 
   Future<void> _markQuoteAsSent(Color color) async {
@@ -1964,6 +1971,7 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
                 if (!quoteGenerated)
                   _buildActionChip('Générer', Icons.description, color, () => _showQuoteDialog(color))
                 else ...[
+                  _buildActionChip('Devis PDF', Icons.picture_as_pdf, color, () => _showQuoteDialog(color)),
                   if (!quoteSent)
                     _buildActionChip('Envoyer', Icons.send, Colors.orangeAccent, () => _markQuoteAsSent(color))
                   else if (customerApproved == null)
