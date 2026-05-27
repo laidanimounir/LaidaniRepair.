@@ -131,6 +131,13 @@ const _navItems = <_NavItem>[
     route: AppConstants.routePromotions,
     ownerOnly: true,
   ),
+  _NavItem(
+    label: 'Rappels Maintenance',
+    icon: Icons.notification_important_outlined,
+    activeIcon: Icons.notification_important,
+    route: AppConstants.routeReminders,
+    ownerOnly: true,
+  ),
 ];
 
 // ─── Theme Constants for Cyber Glass ──────────────────────────────────────

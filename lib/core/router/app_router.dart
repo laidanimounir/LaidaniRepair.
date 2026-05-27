@@ -22,6 +22,8 @@ import 'package:laidani_repair/features/reports/presentation/screens/repairs_rep
 import 'package:laidani_repair/features/reports/presentation/screens/technician_report_screen.dart';
 import 'package:laidani_repair/features/attendance/presentation/screens/attendance_screen.dart';
 import 'package:laidani_repair/features/promotions/presentation/screens/promotions_screen.dart';
+import 'package:laidani_repair/features/maintenance/presentation/screens/reminders_screen.dart';
+import 'package:laidani_repair/features/website/presentation/screens/shop_website_screen.dart';
 import 'package:laidani_repair/features/dashboard/presentation/screens/dashboard_screen.dart';
 import 'package:laidani_repair/features/tracking/presentation/screens/tracking_screen.dart';
 import 'package:laidani_repair/core/constants/app_constants.dart';
@@ -79,19 +81,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final isLoggedIn = user != null;
       final location = state.matchedLocation;
 
-      if (location == AppConstants.routeSplash) return null;
-
-      // Public tracking page - no auth required
       if (location.startsWith('/track/')) return null;
 
       if (!isLoggedIn) {
-        return location == AppConstants.routeLogin
-            ? null
-            : AppConstants.routeLogin;
+        if (location == AppConstants.routeSplash) return null;
+        if (location == AppConstants.routeLogin) return null;
+        return AppConstants.routeLogin;
       }
 
-      if (location == AppConstants.routeLogin ||
-          location == AppConstants.routeSplash) {
+      if (location == AppConstants.routeSplash ||
+          location == AppConstants.routeLogin) {
         return AppConstants.routePos;
       }
 
@@ -107,7 +106,21 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     routes: [
       GoRoute(
         path: AppConstants.routeSplash,
-        builder: (_, __) => const SplashScreen(),
+        pageBuilder: (context, state) {
+          final user = Supabase.instance.client.auth.currentUser;
+          if (user != null) {
+            return CustomTransitionPage(
+              key: state.pageKey,
+              child: const SplashScreen(),
+              transitionsBuilder: (_, __, ___, child) => child,
+            );
+          }
+          return CustomTransitionPage(
+            key: state.pageKey,
+            child: const ShopWebsiteScreen(),
+            transitionsBuilder: (_, __, ___, child) => child,
+          );
+        },
       ),
       GoRoute(
         path: AppConstants.routeLogin,
@@ -182,6 +195,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: AppConstants.routePromotions,
             builder: (_, __) => const PromotionsScreen(),
+          ),
+          GoRoute(
+            path: AppConstants.routeReminders,
+            builder: (_, __) => const RemindersScreen(),
           ),
           // المسار الجديد مضاف هنا بشكل صحيح
           GoRoute(

@@ -973,6 +973,7 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
       'notes': 'Remise confirmée. État: $selectedCondition',
     });
     _fetchFullData();
+    _scheduleMaintenanceReminder(client);
     // Generate PDF invoice after handover
     try {
       final parts = await client.from('repair_parts').select('*, products(product_name)').eq('ticket_id', widget.ticketId);
@@ -980,6 +981,19 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
       await previewOrPrintPdf(updatedTicket, List<Map<String, dynamic>>.from(parts));
     } catch (_) {}
     _showToast('Remise confirmée', Colors.green);
+  }
+
+  Future<void> _scheduleMaintenanceReminder(SupabaseClient client) async {
+    final customerId = _ticket?['customer_id'] as String?;
+    if (customerId == null) return;
+    final remindDate = DateTime.now().add(const Duration(days: 180));
+    final deviceName = _ticket?['device_name'] ?? 'Appareil';
+    await client.from('maintenance_reminders').insert({
+      'repair_ticket_id': widget.ticketId,
+      'customer_id': customerId,
+      'remind_at': remindDate.toIso8601String().substring(0, 10),
+      'message': 'Maintenance recommandée pour $deviceName (6 mois après réparation)',
+    });
   }
 
   // --- 5. إلغاء التذكرة بالكامل (الدرع الواقي) ---
