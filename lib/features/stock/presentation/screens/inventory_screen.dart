@@ -532,7 +532,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
                 pw.SizedBox(height: 4),
                 pw.Text(name, style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold)),
                 pw.SizedBox(height: 4),
-                pw.Text(barcode, style: const pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
+                pw.Text(barcode, style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
                 pw.SizedBox(height: 4),
                 pw.Text('$price DA', style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)),
               ],

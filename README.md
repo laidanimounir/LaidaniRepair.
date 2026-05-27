@@ -35,6 +35,33 @@ Codes promo personnalisables : choix entre réduction en pourcentage ou montant 
 ### 🔍 Suivi Public (QR Code)
 Chaque ticket de réparation génère un QR code unique. En scannant ce code, le client accède à une page publique (sans authentification) affichant le statut de la réparation, l'appareil, le technicien assigné, la date estimée de fin, et le solde restant à payer.
 
+### 🤖 IA Groq (Llama3)
+Assistant intelligent intégré via l'API Groq : diagnostic automatique des pannes, estimation des prix de réparation, suggestion de pièces détachées avec correspondance en stock, analyse de réapprovisionnement, et scoring client (valeur, risque de churn, offres personnalisées).
+
+### 🏢 Multi-Succursales
+Gestion de plusieurs boutiques : création de branches avec adresse et téléphone, association des employés à une succursale via `profiles.branch_id`.
+
+### 📡 Mode Hors-Ligne
+Détection de connectivité automatique (`dart:io`), cache local en fichiers JSON dans le répertoire temporaire, bannière visuelle "hors-ligne" et indicateur de synchronisation dans l'en-tête.
+
+### 🏥 SLA & Escalade
+Chaque ticket de réparation est coloré par statut SLA : vert (dans les temps), jaune (échéance dans 24h), rouge (dépassé). Filtres SLA dédiés dans la liste des réparations.
+
+### 🖨️ Impression Étiquettes
+Génération et impression d'étiquettes code-barres pour les produits avec nom, code-barres, prix et nom du magasin via le package `printing`.
+
+### 📊 Analytiques Avancées
+Graphiques d'inventaire (top 10 produits, produits à faible rotation, KPIs) et graphiques de dépenses (évolution sur 6 mois, budget par catégorie avec barres de progression) utilisant `fl_chart`.
+
+### 📥 Import CSV
+Import de fichiers CSV pour les produits et clients avec validation des colonnes, prévisualisation des données, surlignage des erreurs et insertion groupée dans Supabase.
+
+### 🔔 Centre de Notifications
+Cloche de notifications avec badge de compteur dans l'en-tête, listant : stocks bas, réparations en retard, rappels de maintenance. Navigation directe vers l'écran concerné.
+
+### 🧮 Opérations Groupées
+Mode sélection multiple avec cases à cocher dans les listes de réparations et d'inventaire. Actions groupées : changement de statut, assignation de technicien, export CSV des éléments sélectionnés.
+
 ### 📈 Rapports & Export
 Rapports de ventes avec filtres (période prédéfinie ou personnalisée, employé, client). Rapports de réparations avec analyse des pannes fréquentes. Export CSV disponible pour : ventes, réparations, inventaire, et clients.
 
@@ -211,6 +238,7 @@ lib/
 │   ├── constants/                 # Constantes (URLs, routes, rôles)
 │   ├── providers/                 # Providers globaux (Supabase client)
 │   ├── router/                    # Configuration go_router
+│   ├── services/                  # Services (Groq IA, Offline, TOTP, API fournisseurs)
 │   ├── theme/                     # Thème sombre (couleurs, styles)
 │   └── utils/                     # Utilitaires (PDF, CSV export)
 │
@@ -218,10 +246,14 @@ lib/
 │   ├── attendance/                # Pointage employés
 │   ├── audit/                     # Journal d'audit
 │   ├── auth/                      # Connexion, inscription, profil
-│   ├── clients/                   # Fiche client détaillée
+│   ├── branches/                  # Gestion multi-succursales (owner)
+│   ├── checkin/                   # Borne libre-service client (QR)
+│   ├── clients/                   # Fiche client détaillée +Analyse IA
 │   ├── dashboard/                 # Tableau de bord avec KPIs
 │   ├── employees/                 # Gestion des employés (owner)
-│   ├── expenses/                  # Gestion des dépenses
+│   ├── expenses/                  # Gestion des dépenses +Budgets +Analytiques
+│   ├── import/                    # Import CSV (produits, clients)
+│   ├── notifications/             # Centre de notifications intégré
 │   ├── pos/                       # Point de vente (caisse)
 │   │   ├── data/                  # Modèles, repositories
 │   │   ├── presentation/
@@ -229,11 +261,14 @@ lib/
 │   │       ├── screens/           # Écran POS
 │   │       └── widgets/           # Composants (panier, produit, ticket)
 │   ├── promotions/                # Codes promo (owner)
-│   ├── repairs/                   # Réparations (création, suivi, QC)
+│   ├── repairs/                   # Réparations (création, suivi, QC, duplication, IA)
 │   ├── reports/                   # Rapports (ventes, réparations)
-│   ├── shell/                     # App shell (navigation latérale)
-│   ├── stock/                     # Inventaire, achats, fournisseurs
-│   └── tracking/                  # Suivi public QR code
+│   ├── settings/                  # Paramètres, Sauvegarde
+│   ├── shell/                     # App shell (navigation latérale, recherche)
+│   ├── stock/                     # Inventaire, achats, fournisseurs +Analytiques
+│   ├── sync/                      # Mode hors-ligne (bannière, statut sync)
+│   ├── tracking/                  # Suivi public QR code
+│   └── website/                   # Site vitrine
 │
 ├── main.dart                      # Point d'entrée
 └── app.dart                       # Widget racine
@@ -266,23 +301,39 @@ lib/
 - ✅ Recherche globale dans l'application
 - ✅ Journal d'audit complet
 - ✅ Authentification et contrôle d'accès par rôle
+- ✅ Mode hors-ligne avec cache JSON local et auto-sync
+- ✅ Thème clair/sombre (bascule utilisateur)
+- ✅ Support multilingue (Arabe / Français / Anglais)
+- ✅ Gestion multi-succursales (branches)
+- ✅ Assistant diagnostic IA (Groq - Llama3)
+- ✅ Estimateur de prix IA (Groq)
+- ✅ Suggestion de pièces IA (Groq)
+- ✅ Suggestions de réapprovisionnement IA (Groq)
+- ✅ Analyse client IA (score, risque, offres) (Groq)
+- ✅ Intégration API fournisseurs (placeholder + UI flow)
+- ✅ Paramètres avancés (apparence, sécurité, à propos)
+- ✅ Escalade SLA (vert/jaune/rouge)
+- ✅ Accueil client libre-service (borne QR)
+- ✅ Onglet d'analytiques inventaire (graphiques)
+- ✅ Budgets et analytiques dépenses (graphiques)
+- ✅ Recherche floue et historique de recherche
+- ✅ Centre de notifications intégré (cloche + badge)
+- ✅ Duplication de ticket de réparation
+- ✅ Opérations groupées (réparations et inventaire)
+- ✅ Impression d'étiquettes code-barres
+- ✅ Import CSV (produits et clients via file_picker)
 
 ### 🚧 En cours
 - 🚧 Tests automatisés (unitaires et d'intégration)
 
 ### 🔮 Planifié
-- 🔮 Application mobile client (suivi multi-appareil)
-- 🔮 Mode hors-ligne avec synchronisation
-- 🔮 Thème clair/sombre (bascule utilisateur)
-- 🔮 Support multilingue (Arabe / Français / Anglais)
-- 🔮 Gestion multi-succursales
-- 🔮 Analyses avancées (tableaux de bord graphiques)
-- 🔮 Authentification à deux facteurs (2FA)
-- 🔮 Intégration API fournisseurs (commandes automatiques)
+- 🔮 Application mobile client
 - 🔮 Sauvegarde automatique Google Drive
-- 🔮 Impression cloud (PrintNode / Google Cloud Print)
 - 🔮 Notifications push mobile
 - 🔮 Devis envoyé par email avec signature électronique
+- 🔮 Paiement en ligne (Intégration CIB / Dahabia)
+- 🔮 Module E-commerce (site vitrine + vente en ligne)
+- 🔮 Intégration API fournisseurs réelles
 
 ---
 
