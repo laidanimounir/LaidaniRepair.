@@ -32,6 +32,7 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
   List<Map<String, dynamic>> _payments = [];
   List<Map<String, dynamic>> _warrantyClaims = [];
   List<Map<String, dynamic>> _photos = [];
+  List<Map<String, dynamic>> _notifications = [];
 
   @override
   void initState() {
@@ -50,6 +51,7 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
       final paymentsData = await client.from('repair_payments').select('*').eq('ticket_id', widget.ticketId).order('paid_at', ascending: false);
       final warrantyData = await client.from('warranty_claims').select('*').or('original_ticket_id.eq.${widget.ticketId},claim_ticket_id.eq.${widget.ticketId}').order('claimed_at', ascending: false);
       final photosData = await client.from('repair_photos').select('*').eq('ticket_id', widget.ticketId).order('created_at', ascending: false);
+      final notifData = await client.from('repair_notifications').select('*').eq('ticket_id', widget.ticketId).order('sent_at', ascending: false);
 
       if (!mounted) return;
       setState(() {
@@ -58,6 +60,7 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
         _payments = List<Map<String, dynamic>>.from(paymentsData);
         _warrantyClaims = List<Map<String, dynamic>>.from(warrantyData);
         _photos = List<Map<String, dynamic>>.from(photosData);
+        _notifications = List<Map<String, dynamic>>.from(notifData);
         _isLoading = false;
       });
     } catch (e) {
@@ -729,6 +732,77 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
     }
   }
 
+  // --- Notification Tracking ---
+  Future<void> _showNotificationDialog(Color color) async {
+    String? method = 'WhatsApp';
+    String? status = 'Envoyé';
+    final notesCtrl = TextEditingController();
+    await showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          backgroundColor: _panelDark,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: _glassBorder)),
+          title: const Text('Enregistrer une notification', style: TextStyle(color: Colors.white)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              DropdownButtonFormField<String>(
+                value: method, dropdownColor: _panelDark, style: const TextStyle(color: Colors.white),
+                decoration: const InputDecoration(labelText: 'Méthode', labelStyle: TextStyle(color: _textMuted)),
+                items: ['WhatsApp', 'Appel', 'SMS', 'En personne'].map((m) => DropdownMenuItem(value: m, child: Row(children: [Icon(_notifIcon(m), size: 18, color: _neonCyan), const SizedBox(width: 8), Text(m)]))).toList(),
+                onChanged: (v) => setDialogState(() => method = v),
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                value: status, dropdownColor: _panelDark, style: const TextStyle(color: Colors.white),
+                decoration: const InputDecoration(labelText: 'Statut', labelStyle: TextStyle(color: _textMuted)),
+                items: ['Envoyé', 'Répondu', 'Pas de réponse', 'Rappeler'].map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
+                onChanged: (v) => setDialogState(() => status = v),
+              ),
+              const SizedBox(height: 12),
+              TextField(controller: notesCtrl, maxLines: 2, style: const TextStyle(color: Colors.white), decoration: const InputDecoration(labelText: 'Notes', labelStyle: TextStyle(color: _textMuted))),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Annuler', style: TextStyle(color: _textMuted))),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.orangeAccent, foregroundColor: _bgCarbon),
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('ENREGISTRER'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    final client = ref.read(supabaseClientProvider);
+    final user = Supabase.instance.client.auth.currentUser;
+    await client.from('repair_notifications').insert({
+      'ticket_id': widget.ticketId,
+      'notification_method': method,
+      'notification_status': status,
+      'notes': notesCtrl.text.trim().isEmpty ? null : notesCtrl.text.trim(),
+      'sent_by': user?.id,
+    });
+    await client.from('repair_tickets').update({
+      'last_notification_at': DateTime.now().toIso8601String(),
+      'last_notification_method': method,
+      'customer_notified': true,
+    }).eq('id', widget.ticketId);
+    _fetchFullData();
+    _showToast('Notification enregistrée', Colors.green);
+  }
+
+  IconData _notifIcon(String method) {
+    switch (method) {
+      case 'WhatsApp': return Icons.chat;
+      case 'Appel': return Icons.phone;
+      case 'SMS': return Icons.sms;
+      default: return Icons.person;
+    }
+  }
+
   // --- Handover (Remise au client) ---
   Future<void> _showHandoverDialog(Color color) async {
     final accessoriesRaw = _ticket?['accessories_included'];
@@ -1219,6 +1293,52 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
                   ),
                 ],
               ),
+            ),
+            const SizedBox(height: 24),
+            _buildSectionHeader('NOTIFICATIONS CLIENT', Icons.notifications, color),
+            SizedBox(
+              height: _notifications.isEmpty ? 50 : 100,
+              child: _notifications.isEmpty
+                ? Center(
+                    child: GestureDetector(
+                      onTap: () => _showNotificationDialog(color),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        decoration: BoxDecoration(color: _neonCyan.withOpacity(0.1), borderRadius: BorderRadius.circular(8), border: Border.all(color: _neonCyan.withOpacity(0.3))),
+                        child: const Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.add_alert, color: _neonCyan, size: 16), SizedBox(width: 8), Text('Nouvelle notification', style: TextStyle(color: _neonCyan, fontSize: 12))]),
+                      ),
+                    ),
+                  )
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: ListView.builder(
+                          itemCount: _notifications.length,
+                          itemBuilder: (ctx, i) {
+                            final n = _notifications[i];
+                            final method = n['notification_method'] ?? '';
+                            final status = n['notification_status'] ?? '';
+                            final date = DateTime.tryParse(n['sent_at'] ?? '')?.toString().substring(0, 16) ?? '';
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 4),
+                              child: Row(
+                                children: [
+                                  Icon(_notifIcon(method), color: _textMuted, size: 14),
+                                  const SizedBox(width: 6),
+                                  Expanded(child: Text('$date $status', style: const TextStyle(color: _textMuted, fontSize: 11))),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                      GestureDetector(
+                        onTap: () => _showNotificationDialog(color),
+                        child: Row(children: [Icon(Icons.add, color: _neonCyan, size: 14), const SizedBox(width: 4), Text('Ajouter', style: TextStyle(color: _neonCyan, fontSize: 11))]),
+                      ),
+                    ],
+                  ),
             ),
             const SizedBox(height: 24),
             _buildSectionHeader('CLIENT', Icons.person, color),
