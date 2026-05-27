@@ -6,6 +6,7 @@ class CustomerModel {
   final String? phoneNumber;
   final double totalDebt;
   final bool isRegistered;
+  final int loyaltyPoints;
 
   const CustomerModel({
     required this.id,
@@ -13,6 +14,7 @@ class CustomerModel {
     this.phoneNumber,
     required this.totalDebt,
     required this.isRegistered,
+    this.loyaltyPoints = 0,
   });
 
   factory CustomerModel.fromJson(Map<String, dynamic> json) {
@@ -22,6 +24,7 @@ class CustomerModel {
       phoneNumber: json['phone_number'] as String?,
       totalDebt: (json['total_debt'] as num?)?.toDouble() ?? 0.0,
       isRegistered: json['is_registered'] as bool? ?? false,
+      loyaltyPoints: (json['loyalty_points'] as num?)?.toInt() ?? 0,
     );
   }
 

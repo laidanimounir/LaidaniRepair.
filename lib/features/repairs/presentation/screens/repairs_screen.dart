@@ -341,7 +341,10 @@ class _CyberTableRow extends StatelessWidget {
                         'notes': 'Changement de statut: $oldStatus → $newStatus',
                       });
                       final updates = <String, dynamic>{'status': newStatus};
-                      if (newStatus == 'Livré') updates['delivered_at'] = DateTime.now().toIso8601String();
+                      if (newStatus == 'Livré') {
+                        updates['delivered_at'] = DateTime.now().toIso8601String();
+                        _addLoyaltyPointsForRepair(client, ticket);
+                      }
                       await client.from('repair_tickets').update(updates).eq('id', ticket['id']);
                       ref.invalidate(_ticketsProvider);
                     },
@@ -354,6 +357,22 @@ class _CyberTableRow extends StatelessWidget {
       ),
     );
   }
+}
+
+Future<void> _addLoyaltyPointsForRepair(SupabaseClient client, Map<String, dynamic> ticket) async {
+  final customerId = ticket['customer_id'] as String?;
+  if (customerId == null) return;
+  final finalCost = (ticket['final_cost'] as num?)?.toDouble() ?? 0;
+  final points = (finalCost / 50).floor();
+  if (points <= 0) return;
+  final existing = await client.from('customers').select('loyalty_points').eq('id', customerId).maybeSingle();
+  final currentPoints = (existing?['loyalty_points'] as num?)?.toInt() ?? 0;
+  await client.from('customers').update({'loyalty_points': currentPoints + points}).eq('id', customerId);
+  await client.from('loyalty_transactions').insert({
+    'customer_id': customerId,
+    'points': points,
+    'reason': 'Réparation terminée: ${finalCost.toStringAsFixed(0)} DA',
+  });
 }
 
 // ─── Mobile Ticket Card - للهاتف فقط 🌟 ───────────────────────────────────────
@@ -462,7 +481,10 @@ class _MobileTicketCard extends StatelessWidget {
                         'notes': 'Changement de statut: $oldStatus → $newStatus',
                       });
                       final updates = <String, dynamic>{'status': newStatus};
-                      if (newStatus == 'Livré') updates['delivered_at'] = DateTime.now().toIso8601String();
+                      if (newStatus == 'Livré') {
+                        updates['delivered_at'] = DateTime.now().toIso8601String();
+                        _addLoyaltyPointsForRepair(client, ticket);
+                      }
                       await client.from('repair_tickets').update(updates).eq('id', ticket['id']);
                       ref.invalidate(_ticketsProvider);
                     },

@@ -121,19 +121,35 @@ class ClientsScreen extends ConsumerWidget {
                           style: const TextStyle(fontWeight: FontWeight.w600, color: AppTheme.onBackground)),
                       subtitle: Text(c['phone_number'] ?? '—',
                           style: const TextStyle(color: AppTheme.onSurfaceMuted, fontSize: 12)),
-                      trailing: debt > 0
-                          ? Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (((c['loyalty_points'] as num?)?.toInt() ?? 0) > 0)
+                            Container(
+                              margin: const EdgeInsets.only(right: 6),
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                               decoration: BoxDecoration(
-                                color: AppTheme.error.withOpacity(0.15),
+                                color: Colors.purpleAccent.withOpacity(0.15),
                                 borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: AppTheme.error.withOpacity(0.3)),
                               ),
-                              child: Text('${debt.toStringAsFixed(0)} DA',
-                                  style: const TextStyle(color: AppTheme.error, fontWeight: FontWeight.w700, fontSize: 13)),
-                            )
-                          : const Text('0 DA',
-                              style: TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.w600, fontSize: 13)),
+                              child: Text('${c['loyalty_points']} pts',
+                                  style: const TextStyle(color: Colors.purpleAccent, fontWeight: FontWeight.w600, fontSize: 11)),
+                            ),
+                          debt > 0
+                              ? Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: AppTheme.error.withOpacity(0.15),
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(color: AppTheme.error.withOpacity(0.3)),
+                                  ),
+                                  child: Text('${debt.toStringAsFixed(0)} DA',
+                                      style: const TextStyle(color: AppTheme.error, fontWeight: FontWeight.w700, fontSize: 13)),
+                                )
+                              : const Text('0 DA',
+                                  style: TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.w600, fontSize: 13)),
+                        ],
+                      ),
                       onTap: () => _showCustomerDetail(context, ref, c),
                     );
                   },
@@ -237,6 +253,25 @@ class _CustomerDetailPanel extends ConsumerWidget {
                     'Dette: ${debt.toStringAsFixed(0)} DA',
                     style: TextStyle(
                       color: debt > 0 ? AppTheme.error : Colors.greenAccent,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.purpleAccent.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    'Points: ${(customer['loyalty_points'] as num?)?.toInt() ?? 0} pts',
+                    style: const TextStyle(
+                      color: Colors.purpleAccent,
                       fontWeight: FontWeight.w700,
                     ),
                   ),

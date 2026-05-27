@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import 'package:laidani_repair/core/theme/app_theme.dart';
+import 'package:laidani_repair/core/providers/supabase_provider.dart';
 import 'package:laidani_repair/features/pos/data/models/cart_item_model.dart';
 import 'package:laidani_repair/features/pos/data/models/customer_model.dart';
 import 'package:laidani_repair/features/pos/presentation/providers/pos_provider.dart';
@@ -19,6 +20,7 @@ class CartPanel extends ConsumerStatefulWidget {
 
 class _CartPanelState extends ConsumerState<CartPanel> {
   bool _isCredit = false;
+  bool _useLoyaltyPoints = false;
   final TextEditingController _paidController = TextEditingController();
 
   @override
@@ -31,7 +33,16 @@ class _CartPanelState extends ConsumerState<CartPanel> {
     final cart = ref.read(cartProvider);
     if (cart.isEmpty) return;
 
-    final finalAmount = cart.finalAmount;
+    final customer = cart.selectedCustomer;
+    double loyaltyDiscount = 0;
+    if (_useLoyaltyPoints && customer != null) {
+      final client = ref.read(supabaseClientProvider);
+      final customerData = await client.from('customers').select('loyalty_points').eq('id', customer.id).maybeSingle();
+      final availablePoints = (customerData?['loyalty_points'] as num?)?.toInt() ?? 0;
+      loyaltyDiscount = (availablePoints.clamp(0, cart.finalAmount.toInt())).toDouble();
+    }
+
+    final finalAmount = cart.finalAmount - loyaltyDiscount;
     final paid = _isCredit
         ? (double.tryParse(_paidController.text) ?? 0.0)
         : finalAmount;
@@ -41,6 +52,18 @@ class _CartPanelState extends ConsumerState<CartPanel> {
     );
 
     if (success && mounted) {
+      if (_useLoyaltyPoints && customer != null && loyaltyDiscount > 0) {
+        final client = ref.read(supabaseClientProvider);
+        final pointsUsed = loyaltyDiscount.toInt();
+        final existing = await client.from('customers').select('loyalty_points').eq('id', customer.id).maybeSingle();
+        final currentPoints = (existing?['loyalty_points'] as num?)?.toInt() ?? 0;
+        await client.from('customers').update({'loyalty_points': (currentPoints - pointsUsed).clamp(0, 999999)}).eq('id', customer.id);
+        await client.from('loyalty_transactions').insert({
+          'customer_id': customer.id,
+          'points': -pointsUsed,
+          'reason': 'Échange: $pointsUsed pts = $loyaltyDiscount DA',
+        });
+      }
       await showDialog(
         context: context,
         barrierDismissible: false,
@@ -48,6 +71,7 @@ class _CartPanelState extends ConsumerState<CartPanel> {
       );
       setState(() {
         _isCredit = false;
+        _useLoyaltyPoints = false;
         _paidController.clear();
       });
     }
@@ -231,6 +255,40 @@ class _CartPanelState extends ConsumerState<CartPanel> {
                   ],
                   const SizedBox(height: 12),
                 ],
+
+                if (hasCustomer && cart.selectedCustomer!.loyaltyPoints > 0)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(8),
+                      onTap: () => setState(() => _useLoyaltyPoints = !_useLoyaltyPoints),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: _useLoyaltyPoints ? Colors.purpleAccent.withOpacity(0.15) : Colors.transparent,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: _useLoyaltyPoints ? Colors.purpleAccent : const Color(0xFF2A2A50)),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.card_giftcard, color: _useLoyaltyPoints ? Colors.purpleAccent : AppTheme.onSurfaceMuted, size: 18),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Échanger ${cart.selectedCustomer!.loyaltyPoints} pts',
+                                style: TextStyle(color: _useLoyaltyPoints ? Colors.purpleAccent : AppTheme.onSurfaceMuted, fontSize: 13, fontWeight: FontWeight.w600),
+                              ),
+                            ),
+                            if (_useLoyaltyPoints)
+                              Text(
+                                '-${cart.selectedCustomer!.loyaltyPoints} DA',
+                                style: const TextStyle(color: Colors.purpleAccent, fontWeight: FontWeight.w900, fontSize: 14),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
 
                 // Checkout Button (Neon Theme)
                 SizedBox(

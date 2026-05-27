@@ -68,6 +68,18 @@ class SalesRepository {
         'worker_id': workerId,
         'amount_paid': amountPaid,
       });
+
+      final loyaltyPoints = (finalAmount / 100).floor();
+      if (loyaltyPoints > 0) {
+        final existing = await _client.from('customers').select('loyalty_points').eq('id', customerId).maybeSingle();
+        final currentPoints = (existing?['loyalty_points'] as num?)?.toInt() ?? 0;
+        await _client.from('customers').update({'loyalty_points': currentPoints + loyaltyPoints}).eq('id', customerId);
+        await _client.from('loyalty_transactions').insert({
+          'customer_id': customerId,
+          'points': loyaltyPoints,
+          'reason': 'Achat ${finalAmount.toStringAsFixed(0)} DA',
+        });
+      }
     }
 
     return invoiceId;

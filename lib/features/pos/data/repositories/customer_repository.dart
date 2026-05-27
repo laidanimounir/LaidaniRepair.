@@ -14,7 +14,7 @@ class CustomerRepository {
   }) async {
     var query = _client
         .from('customers')
-        .select('id, full_name, phone_number, total_debt, is_registered')
+        .select('id, full_name, phone_number, total_debt, is_registered, loyalty_points')
         .eq('is_registered', true);
 
     if (search != null && search.trim().isNotEmpty) {
