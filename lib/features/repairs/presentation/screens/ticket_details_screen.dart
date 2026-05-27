@@ -28,6 +28,7 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
   Map<String, dynamic>? _ticket;
   List<Map<String, dynamic>> _parts = [];
   List<Map<String, dynamic>> _payments = [];
+  List<Map<String, dynamic>> _warrantyClaims = [];
 
   @override
   void initState() {
@@ -44,12 +45,14 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
       final ticketData = await client.from('repair_tickets').select('*, customers(full_name, phone_number)').eq('id', widget.ticketId).maybeSingle();
       final partsData = await client.from('repair_parts').select('*, products(product_name, reference_price)').eq('ticket_id', widget.ticketId);
       final paymentsData = await client.from('repair_payments').select('*').eq('ticket_id', widget.ticketId).order('paid_at', ascending: false);
+      final warrantyData = await client.from('warranty_claims').select('*').or('original_ticket_id.eq.${widget.ticketId},claim_ticket_id.eq.${widget.ticketId}').order('claimed_at', ascending: false);
 
       if (!mounted) return;
       setState(() {
         _ticket = ticketData;
         _parts = List<Map<String, dynamic>>.from(partsData);
         _payments = List<Map<String, dynamic>>.from(paymentsData);
+        _warrantyClaims = List<Map<String, dynamic>>.from(warrantyData);
         _isLoading = false;
       });
     } catch (e) {
@@ -462,6 +465,144 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
     });
     _fetchFullData();
     _showToast('CQ réinitialisé', Colors.orangeAccent);
+  }
+
+  // --- Warranty Claims ---
+  Future<void> _showWarrantyClaimDialog(Color color) async {
+    final reasonCtrl = TextEditingController();
+    final result = await showDialog<Map<String, String>>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: _panelDark,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: _glassBorder)),
+        title: const Text('Nouvelle réclamation garantie', style: TextStyle(color: Colors.white)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Décrivez le problème rencontré', style: TextStyle(color: _textMuted, fontSize: 13)),
+            const SizedBox(height: 12),
+            TextField(
+              controller: reasonCtrl,
+              maxLines: 3,
+              style: const TextStyle(color: Colors.white),
+              decoration: const InputDecoration(
+                hintText: 'Ex: L\'écran ne s\'allume plus, la batterie gonfle...',
+                hintStyle: TextStyle(color: _textMuted),
+                filled: true, fillColor: _bgCarbon,
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Annuler', style: TextStyle(color: _textMuted))),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.orangeAccent, foregroundColor: _bgCarbon),
+            onPressed: () => reasonCtrl.text.trim().isEmpty ? null : Navigator.pop(ctx, {'reason': reasonCtrl.text.trim()}),
+            child: const Text('SOUMETTRE'),
+          ),
+        ],
+      ),
+    );
+
+    if (result == null) return;
+    final client = ref.read(supabaseClientProvider);
+    final user = Supabase.instance.client.auth.currentUser;
+    await client.from('warranty_claims').insert({
+      'original_ticket_id': widget.ticketId,
+      'claim_reason': result['reason'],
+      'claim_status': 'Ouvert',
+      'created_by': user?.id,
+    });
+    await client.from('repair_ticket_events').insert({
+      'ticket_id': widget.ticketId,
+      'event_type': 'warranty_claim_opened',
+      'old_value': null,
+      'new_value': result['reason'],
+      'created_by': user?.id,
+      'notes': 'Réclamation garantie: ${result['reason']}',
+    });
+    _fetchFullData();
+    _showToast('Réclamation enregistrée', Colors.orangeAccent);
+  }
+
+  Future<void> _showWarrantyClaimsListDialog(Color color) async {
+    final claims = List<Map<String, dynamic>>.from(_warrantyClaims);
+    if (claims.isEmpty) return;
+
+    final statuses = ['Ouvert', 'En cours', 'Résolu', 'Refusé'];
+    await showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          backgroundColor: _panelDark,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: _glassBorder)),
+          title: const Text('Suivi des réclamations', style: TextStyle(color: Colors.white)),
+          content: SizedBox(
+            width: 400,
+            child: ListView.builder(
+              shrinkWrap: true,
+              itemCount: claims.length,
+              itemBuilder: (ctx, i) {
+                final c = claims[i];
+                final status = c['claim_status'] as String? ?? 'Ouvert';
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(color: _bgCarbon, borderRadius: BorderRadius.circular(8), border: Border.all(color: _glassBorder)),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(c['claim_reason'] ?? '', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          DropdownButton<String>(
+                            value: status,
+                            dropdownColor: _panelDark,
+                            style: const TextStyle(color: Colors.white, fontSize: 12),
+                            items: statuses.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
+                            onChanged: (v) async {
+                              if (v == null) return;
+                              final client = ref.read(supabaseClientProvider);
+                              final user = Supabase.instance.client.auth.currentUser;
+                              final updates = <String, dynamic>{'claim_status': v};
+                              if (v == 'Résolu' || v == 'Refusé') updates['resolved_at'] = DateTime.now().toIso8601String();
+                              await client.from('warranty_claims').update(updates).eq('id', c['id']);
+                              await client.from('repair_ticket_events').insert({
+                                'ticket_id': widget.ticketId,
+                                'event_type': 'warranty_claim_status',
+                                'old_value': status,
+                                'new_value': v,
+                                'created_by': user?.id,
+                                'notes': 'Statut réclamation: $status → $v',
+                              });
+                              setDialogState(() => c['claim_status'] = v);
+                              _fetchFullData();
+                              _showToast('Statut mis à jour: $v', Colors.green);
+                            },
+                          ),
+                          const Spacer(),
+                          Text(DateTime.tryParse(c['claimed_at'] ?? '')?.toString().substring(0, 10) ?? '', style: const TextStyle(color: _textMuted, fontSize: 10)),
+                        ],
+                      ),
+                      if (c['resolution'] != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Text('Résolution: ${c['resolution']}', style: const TextStyle(color: _neonEmerald, fontSize: 11)),
+                        ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Fermer', style: TextStyle(color: _textMuted))),
+          ],
+        ),
+      ),
+    );
   }
 
   // --- Handover (Remise au client) ---
@@ -966,6 +1107,8 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
         const SizedBox(height: 16),
         _buildQCSection(color),
         const SizedBox(height: 16),
+        _buildWarrantySection(color),
+        const SizedBox(height: 16),
         _buildHandoverSection(color),
         const SizedBox(height: 16),
         _buildFinancialSummary(color),
@@ -1053,6 +1196,63 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
                   Padding(
                     padding: const EdgeInsets.only(left: 8),
                     child: _buildActionChip('Réinitialiser', Icons.refresh, _textMuted, () => _resetQC()),
+                  ),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWarrantySection(Color color) {
+    final isCanceled = _ticket?['status'] == 'Annulé';
+    final warrantyDays = (_ticket?['warranty_days'] as num?)?.toInt() ?? 0;
+    final expiresAt = _ticket?['warranty_expires_at'] as String?;
+    final isExpired = expiresAt != null && DateTime.tryParse(expiresAt)?.isBefore(DateTime.now()) == true;
+    final hasWarranty = warrantyDays > 0;
+
+    Color warrantyColor = isExpired ? Colors.redAccent : (hasWarranty ? Colors.orangeAccent : _textMuted);
+    final activeClaims = _warrantyClaims.where((c) => c['claim_status'] != 'Résolu' && c['claim_status'] != 'Refusé').toList();
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(color: _panelDark, borderRadius: BorderRadius.circular(16), border: Border.all(color: warrantyColor.withOpacity(0.3))),
+      child: Row(
+        children: [
+          Icon(Icons.verified_user, color: warrantyColor, size: 20),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('GARANTIE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+                if (hasWarranty) ...[
+                  Text('$warrantyDays jours • Expire: ${expiresAt != null ? DateTime.tryParse(expiresAt)?.toString().substring(0, 10) ?? '' : ''}${isExpired ? ' (EXPIRÉE)' : ''}', style: TextStyle(color: warrantyColor, fontSize: 11)),
+                ] else ...[
+                  const Text('Sans garantie', style: TextStyle(color: _textMuted, fontSize: 11)),
+                ],
+                if (activeClaims.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text('${activeClaims.length} réclamation(s) active(s)', style: const TextStyle(color: Colors.orangeAccent, fontSize: 11)),
+                  ),
+                if (_warrantyClaims.isNotEmpty)
+                  ..._warrantyClaims.map((c) => Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text('• ${c['claim_reason'] ?? ''} [${c['claim_status']}]', style: const TextStyle(color: _textMuted, fontSize: 10)),
+                  )),
+              ],
+            ),
+          ),
+          if (!isCanceled && hasWarranty && !isExpired)
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildActionChip('Réclamer', Icons.report_problem, Colors.orangeAccent, () => _showWarrantyClaimDialog(color)),
+                if (activeClaims.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 8),
+                    child: _buildActionChip('Suivi', Icons.track_changes, _neonCyan, () => _showWarrantyClaimsListDialog(color)),
                   ),
               ],
             ),
