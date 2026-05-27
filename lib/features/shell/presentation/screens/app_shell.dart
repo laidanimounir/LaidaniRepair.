@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:window_manager/window_manager.dart';
 
+import 'package:laidani_repair/core/providers/supabase_provider.dart';
 import 'package:laidani_repair/features/auth/data/models/profile_model.dart';
 import 'package:laidani_repair/features/auth/presentation/providers/auth_provider.dart';
 import 'package:laidani_repair/core/constants/app_constants.dart';
@@ -287,8 +288,19 @@ class _DesktopShellState extends ConsumerState<_DesktopShell> {
                           letterSpacing: 1.5,
                         ),
                       ),
-                      // الساعة الحية
-                      const _LiveClock(),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.search, color: _textMuted),
+                            tooltip: 'Recherche globale',
+                            onPressed: () => _showGlobalSearch(context),
+                          ),
+                          const SizedBox(width: 8),
+                          // الساعة الحية
+                          const _LiveClock(),
+                        ],
+                      ),
                     ],
                   ),
                 ),
@@ -470,6 +482,11 @@ class _DesktopShellState extends ConsumerState<_DesktopShell> {
     );
   }
 
+  // ─── Global Search ───
+  void _showGlobalSearch(BuildContext context) {
+    showSearch(context: context, delegate: _GlobalSearchDelegate(ref: ref));
+  }
+
   // ─── مسار تسجيل الخروج الاحترافي (Logout Flow) ───
   Future<void> _handleLogoutFlow(BuildContext context, WidgetRef ref) async {
     // 1. عرض نافذة التأكيد (Glassmorphism)
@@ -643,6 +660,139 @@ class _LiveClockState extends State<_LiveClock> {
   }
 }
 
+// ─── Global Search Delegate ──────────────────────────────
+class _GlobalSearchDelegate extends SearchDelegate<String?> {
+  final WidgetRef ref;
+
+  _GlobalSearchDelegate({required this.ref});
+
+  @override
+  List<Widget>? buildActions(BuildContext context) => [
+    IconButton(
+      icon: const Icon(Icons.clear),
+      onPressed: () => query = '',
+    ),
+  ];
+
+  @override
+  Widget? buildLeading(BuildContext context) => IconButton(
+    icon: const Icon(Icons.arrow_back),
+    onPressed: () => close(context, null),
+  );
+
+  @override
+  Widget buildResults(BuildContext context) => _buildSearchList(context);
+
+  @override
+  Widget buildSuggestions(BuildContext context) => _buildSearchList(context);
+
+  Widget _buildSearchList(BuildContext context) {
+    if (query.isEmpty) {
+      return const Center(
+        child: Text('Tapez pour rechercher des produits, clients, réparations...',
+            style: TextStyle(color: _textMuted)),
+      );
+    }
+
+    return FutureBuilder(
+      future: _search(),
+      builder: (context, AsyncSnapshot<List<_SearchResult>> snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator(color: _ownerNeon));
+        }
+        final results = snapshot.data ?? [];
+        if (results.isEmpty) {
+          return const Center(
+            child: Text('Aucun résultat', style: TextStyle(color: _textMuted)),
+          );
+        }
+        return ListView.separated(
+          itemCount: results.length,
+          separatorBuilder: (_, __) => const Divider(color: _glassBorder, height: 1),
+          itemBuilder: (_, i) {
+            final r = results[i];
+            return ListTile(
+              leading: Icon(r.icon, color: _ownerNeon),
+              title: Text(r.title, style: const TextStyle(color: Colors.white)),
+              subtitle: r.subtitle != null
+                  ? Text(r.subtitle!, style: const TextStyle(color: _textMuted, fontSize: 12))
+                  : null,
+              onTap: () {
+                close(context, null);
+                context.go(r.route);
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<List<_SearchResult>> _search() async {
+    final q = query.toLowerCase();
+    final client = ref.read(supabaseClientProvider);
+    final results = <_SearchResult>[];
+
+    final products = await client
+        .from('products')
+        .select('id, product_name, barcode')
+        .or('product_name.ilike.%$q%,barcode.ilike.%$q%')
+        .limit(5);
+    for (final p in products) {
+      results.add(_SearchResult(
+        icon: Icons.inventory_2,
+        title: p['product_name'] as String,
+        subtitle: p['barcode'] != null ? 'Code: ${p['barcode']}' : null,
+        route: '/shell/inventory',
+      ));
+    }
+
+    final customers = await client
+        .from('customers')
+        .select('id, full_name, phone_number')
+        .or('full_name.ilike.%$q%,phone_number.ilike.%$q%')
+        .limit(5);
+    for (final c in customers) {
+      results.add(_SearchResult(
+        icon: Icons.person,
+        title: c['full_name'] as String,
+        subtitle: c['phone_number'] != null ? 'Tél: ${c['phone_number']}' : null,
+        route: '/shell/clients',
+      ));
+    }
+
+    final repairs = await client
+        .from('repairs')
+        .select('id, device_model, issue_description, status')
+        .or('device_model.ilike.%$q%,issue_description.ilike.%$q%')
+        .limit(5);
+    for (final r in repairs) {
+      results.add(_SearchResult(
+        icon: Icons.build,
+        title: r['device_model'] as String,
+        subtitle: '${r['issue_description']} — ${r['status']}',
+        route: '/shell/repairs',
+      ));
+    }
+
+    results.sort((a, b) => a.title.compareTo(b.title));
+    return results;
+  }
+}
+
+class _SearchResult {
+  final IconData icon;
+  final String title;
+  final String? subtitle;
+  final String route;
+  const _SearchResult({
+    required this.icon,
+    required this.title,
+    this.subtitle,
+    required this.route,
+  });
+}
+
 // ─── Mobile Shell (Bottom Nav Bar) - تركتها للهواتف فقط ──────────────────
 class _MobileShell extends ConsumerWidget {
   final List<_NavItem> items;
@@ -673,6 +823,13 @@ class _MobileShell extends ConsumerWidget {
           style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
         ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.search, color: _textMuted),
+            onPressed: () => showSearch(
+              context: context,
+              delegate: _GlobalSearchDelegate(ref: ref),
+            ),
+          ),
           IconButton(
             icon: const Icon(Icons.power_settings_new, color: Colors.redAccent),
             onPressed: () => ref.read(authNotifierProvider.notifier).signOut(),
