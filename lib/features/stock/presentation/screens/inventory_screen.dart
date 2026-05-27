@@ -6,6 +6,9 @@ import 'package:laidani_repair/core/providers/supabase_provider.dart';
 import 'package:laidani_repair/core/utils/csv_export.dart';
 import 'package:laidani_repair/core/services/groq_service.dart';
 import 'package:laidani_repair/features/stock/presentation/providers/stock_providers.dart';
+import 'package:printing/printing.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
 
 // --- Cyber Glass Theme Constants ---
 const Color _bgCarbon = Color(0xFF050914);
@@ -340,7 +343,13 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
                     Expanded(flex: 2, child: Text(p['barcode'] ?? '—', style: const TextStyle(color: _textMuted, fontFamily: 'monospace', fontSize: 12))),
                     Expanded(flex: 2, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('A: ${p['purchase_price'] ?? 0} DA', style: const TextStyle(color: _textMuted, fontSize: 11)), const SizedBox(height: 2), Text('V: ${p['reference_price'] ?? 0} DA', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13))])),
                     Expanded(flex: 1, child: Center(child: Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4), decoration: BoxDecoration(color: isLowStock ? Colors.redAccent.withOpacity(0.1) : Colors.greenAccent.withOpacity(0.1), borderRadius: BorderRadius.circular(6), border: Border.all(color: isLowStock ? Colors.redAccent.withOpacity(0.5) : Colors.greenAccent.withOpacity(0.3))), child: Text('$qty', style: TextStyle(color: isLowStock ? Colors.redAccent : Colors.greenAccent, fontWeight: FontWeight.bold))))),
-                    Expanded(flex: 1, child: Align(alignment: Alignment.centerRight, child: IconButton(icon: const Icon(Icons.edit_outlined, color: _textMuted, size: 20), onPressed: () => _showProductDialog(context, ref, existing: p)))),
+                    Expanded(flex: 1, child: Align(alignment: Alignment.centerRight, child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(icon: const Icon(Icons.print, color: _textMuted, size: 18), onPressed: () => _printBarcodeLabel(context, p), tooltip: 'Imprimer étiquette'),
+                        IconButton(icon: const Icon(Icons.edit_outlined, color: _textMuted, size: 20), onPressed: () => _showProductDialog(context, ref, existing: p)),
+                      ],
+                    ))),
                   ],
                 ),
               );
@@ -495,6 +504,39 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur IA: $e'), backgroundColor: Colors.redAccent));
       }
     }
+  }
+
+  Future<void> _printBarcodeLabel(BuildContext context, Map<String, dynamic> product) async {
+    final name = product['product_name']?.toString() ?? 'Produit';
+    final barcode = product['barcode']?.toString() ?? 'N/A';
+    final price = (product['reference_price'] as num?)?.toDouble() ?? 0;
+
+    final pdf = pw.Document();
+    pdf.addPage(
+      pw.Page(
+        pageFormat: PdfPageFormat(162, 108),
+        build: (pw.Context ctx) {
+          return pw.Container(
+            padding: const pw.EdgeInsets.all(8),
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.center,
+              mainAxisAlignment: pw.MainAxisAlignment.center,
+              children: [
+                pw.Text('LaidaniRepair', style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
+                pw.SizedBox(height: 4),
+                pw.Text(name, style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold)),
+                pw.SizedBox(height: 4),
+                pw.Text(barcode, style: const pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
+                pw.SizedBox(height: 4),
+                pw.Text('$price DA', style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+
+    await Printing.layoutPdf(onLayout: (_) => pdf.save());
   }
 
   void _showProductDialog(BuildContext context, WidgetRef ref, {Map<String, dynamic>? existing}) {
