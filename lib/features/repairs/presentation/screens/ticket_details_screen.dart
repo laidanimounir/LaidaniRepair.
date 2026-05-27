@@ -9,6 +9,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:laidani_repair/core/providers/supabase_provider.dart';
 import 'package:laidani_repair/core/providers/shortcuts_provider.dart';
+import 'package:laidani_repair/core/services/groq_service.dart';
 import 'package:laidani_repair/features/auth/presentation/providers/auth_provider.dart';
 import 'package:laidani_repair/core/utils/invoice_pdf.dart';
 import 'package:laidani_repair/core/utils/quote_pdf.dart';
@@ -73,6 +74,138 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
         _isLoading = false;
       });
     } catch (e) {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  // --- 0. Suggestion IA de pièces ---
+  Future<void> _suggestPartsAI(Color color) async {
+    final device = _ticket?['device_name']?.toString() ?? '';
+    final brand = _ticket?['brand']?.toString() ?? '';
+    final issue = _ticket?['issue_description']?.toString() ?? '';
+    final diag = _ticket?['pre_diagnostic']?.toString() ?? '';
+    final deviceType = _ticket?['device_type']?.toString() ?? 'Appareil';
+
+    if (device.isEmpty || issue.isEmpty) {
+      _showToast('Informations insuffisantes pour l\'analyse IA', Colors.orangeAccent);
+      return;
+    }
+
+    setState(() => _isLoading = true);
+    try {
+      final suggestedParts = await GroqService().suggestParts(
+        deviceType: deviceType,
+        brand: brand,
+        problemDescription: issue,
+        diagnosticNotes: diag,
+      );
+
+      if (!mounted) return;
+
+      if (suggestedParts.isEmpty) {
+        _showToast('Aucune suggestion IA pour ce problème', Colors.orangeAccent);
+        setState(() => _isLoading = false);
+        return;
+      }
+
+      final client = ref.read(supabaseClientProvider);
+      final productsData = await client.from('products').select();
+      final allProducts = List<Map<String, dynamic>>.from(productsData);
+
+      showDialog(
+        context: context,
+        builder: (ctx) => StatefulBuilder(
+          builder: (ctx, setDialogState) {
+            final matches = <Map<String, dynamic>>[];
+            for (final suggestion in suggestedParts) {
+              final partName = suggestion['partName']?.toString().toLowerCase() ?? '';
+              final quantity = suggestion['quantity'] as int? ?? 1;
+              for (final product in allProducts) {
+                final productName = (product['product_name']?.toString() ?? '').toLowerCase();
+                if (productName.contains(partName) || partName.contains(productName)) {
+                  matches.add({
+                    ...product,
+                    '_suggestedQty': quantity,
+                    '_matchedTerm': suggestion['partName'],
+                  });
+                }
+              }
+            }
+
+            return AlertDialog(
+              backgroundColor: _panelDark,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: color.withOpacity(0.5))),
+              title: const Row(children: [Icon(Icons.psychology, color: Color(0xFF9C27B0)), SizedBox(width: 8), Text('Pièces suggérées par IA', style: TextStyle(color: Colors.white))]),
+              content: SizedBox(
+                width: 400,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('L\'IA suggère les pièces suivantes:', style: TextStyle(color: _textMuted, fontSize: 12)),
+                    const SizedBox(height: 8),
+                    ...suggestedParts.map((sp) => Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.build_circle, size: 14, color: Color(0xFF9C27B0)),
+                          const SizedBox(width: 8),
+                          Expanded(child: Text(sp['partName']?.toString() ?? '', style: const TextStyle(color: Colors.white, fontSize: 13))),
+                          Text('x${sp['quantity'] ?? 1}', style: const TextStyle(color: _textMuted, fontSize: 12)),
+                        ],
+                      ),
+                    )),
+                    const Divider(color: _glassBorder, height: 24),
+                    if (matches.isNotEmpty) ...[
+                      const Text('Correspondances trouvées en stock:', style: TextStyle(color: _neonEmerald, fontWeight: FontWeight.bold, fontSize: 12)),
+                      const SizedBox(height: 8),
+                      ...matches.take(6).map((m) {
+                        final stock = (m['stock_quantity'] as num?)?.toInt() ?? 0;
+                        final price = (m['reference_price'] as num?)?.toDouble() ?? 0;
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(color: _bgCarbon, borderRadius: BorderRadius.circular(8), border: Border.all(color: _glassBorder)),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(m['product_name']?.toString() ?? '', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+                                    Text('Stock: $stock | Prix: $price DA', style: TextStyle(color: stock > 0 ? _neonEmerald : Colors.redAccent, fontSize: 11)),
+                                  ],
+                                ),
+                              ),
+                              if (stock > 0)
+                                ElevatedButton(
+                                  style: ElevatedButton.styleFrom(backgroundColor: _neonEmerald.withOpacity(0.1), foregroundColor: _neonEmerald, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6)),
+                                  onPressed: () {
+                                    Navigator.pop(ctx);
+                                    _addPartToTicket(m);
+                                  },
+                                  child: const Text('Ajouter', style: TextStyle(fontSize: 11)),
+                                ),
+                            ],
+                          ),
+                        );
+                      }),
+                    ] else ...[
+                      const Text('Aucune correspondance trouvée dans le stock', style: TextStyle(color: Colors.orangeAccent, fontSize: 12)),
+                    ],
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Fermer', style: TextStyle(color: _textMuted))),
+              ],
+            );
+          },
+        ),
+      );
+    } catch (e) {
+      if (mounted) _showToast('Erreur IA: $e', Colors.redAccent);
+    } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
@@ -2024,11 +2157,23 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
               children: [
                 const Text('PIÈCES ET COMPOSANTS', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                 if (!isCanceled)
-                  ElevatedButton.icon(
-                    onPressed: () => _showSearchStockDialog(context, color),
-                    icon: const Icon(Icons.add_shopping_cart, size: 16),
-                    label: const Text('AJOUTER'),
-                    style: ElevatedButton.styleFrom(backgroundColor: color.withOpacity(0.1), foregroundColor: color),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      ElevatedButton.icon(
+                        onPressed: () => _suggestPartsAI(color),
+                        icon: const Icon(Icons.psychology, size: 14),
+                        label: const Text('IA', style: TextStyle(fontSize: 11)),
+                        style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF9C27B0).withOpacity(0.1), foregroundColor: const Color(0xFF9C27B0)),
+                      ),
+                      const SizedBox(width: 8),
+                      ElevatedButton.icon(
+                        onPressed: () => _showSearchStockDialog(context, color),
+                        icon: const Icon(Icons.add_shopping_cart, size: 16),
+                        label: const Text('AJOUTER'),
+                        style: ElevatedButton.styleFrom(backgroundColor: color.withOpacity(0.1), foregroundColor: color),
+                      ),
+                    ],
                   ),
               ],
             ),
