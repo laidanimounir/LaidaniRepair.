@@ -8,6 +8,7 @@ class AppConstants {
 
   // App
   static const String appName = 'LaidaniRepair';
+  static const String groqApiKey = 'PLACEHOLDER_GROQ_KEY';
 
   // Roles
   static const String roleOwner = 'owner';

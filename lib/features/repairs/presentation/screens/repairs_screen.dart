@@ -8,6 +8,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'package:laidani_repair/core/providers/supabase_provider.dart';
 import 'package:laidani_repair/core/providers/shortcuts_provider.dart';
+import 'package:laidani_repair/core/services/groq_service.dart';
 
 // --- Cyber Glass Theme Constants ---
 const Color _bgCarbon = Color(0xFF050914);
@@ -777,6 +778,8 @@ class _NewTicketFormState extends State<_NewTicketForm> {
           _buildTextField(_brandCtrl, 'Marque (ex: Samsung, Apple)', icon: Icons.badge),
           const SizedBox(height: 16),
           _buildTextField(_issueCtrl, 'Problème signalé par le client *', icon: Icons.warning_amber_rounded, maxLines: 2),
+          const SizedBox(height: 12),
+          _buildDiagnosticAIButton(),
         ],
       ),
     );
@@ -842,6 +845,160 @@ class _NewTicketFormState extends State<_NewTicketForm> {
         ],
       ),
     );
+  }
+
+  Widget _buildDiagnosticAIButton() {
+    return Row(
+      children: [
+        OutlinedButton.icon(
+          onPressed: _diagnosticIA,
+          style: OutlinedButton.styleFrom(
+            foregroundColor: const Color(0xFF9C27B0),
+            side: const BorderSide(color: Color(0xFF9C27B0)),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          ),
+          icon: const Icon(Icons.psychology, size: 18),
+          label: const Text('Diagnostic IA (Groq)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _diagnosticIA() async {
+    final device = _deviceCtrl.text.trim();
+    final issue = _issueCtrl.text.trim();
+    final brand = _brandCtrl.text.trim();
+
+    if (device.isEmpty || issue.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Veuillez remplir le modèle et le problème d\'abord'), backgroundColor: Colors.orangeAccent),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+    try {
+      final result = await GroqService().diagnoseProblem(
+        deviceType: _deviceType ?? 'Appareil',
+        brand: brand.isEmpty ? 'Inconnu' : brand,
+        description: issue,
+      );
+
+      if (!mounted) return;
+
+      final cause = result['probableCause'] ?? '';
+      final steps = result['recommendedSteps'] as List? ?? [];
+      final difficulty = result['difficulty'] ?? 'Moyen';
+      final parts = result['suggestedParts'] as List? ?? [];
+
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: _panelDark,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: _neonCyan.withOpacity(0.5))),
+          title: const Row(
+            children: [
+              Icon(Icons.psychology, color: Color(0xFF9C27B0)),
+              SizedBox(width: 8),
+              Text('Diagnostic IA', style: TextStyle(color: Colors.white)),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(color: _bgCarbon, borderRadius: BorderRadius.circular(8), border: Border.all(color: _glassBorder)),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Cause probable:', style: TextStyle(color: Colors.orangeAccent, fontWeight: FontWeight.bold, fontSize: 12)),
+                      const SizedBox(height: 4),
+                      Text(cause, style: const TextStyle(color: Colors.white, fontSize: 13)),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const Text('Difficulté:', style: TextStyle(color: _textMuted, fontSize: 11)),
+                Container(
+                  margin: const EdgeInsets.only(top: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: difficulty == 'Facile' ? Colors.green.withOpacity(0.1) : difficulty == 'Difficile' ? Colors.red.withOpacity(0.1) : Colors.orange.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(color: difficulty == 'Facile' ? Colors.green : difficulty == 'Difficile' ? Colors.red : Colors.orange, width: 0.5),
+                  ),
+                  child: Text(difficulty, style: TextStyle(color: difficulty == 'Facile' ? Colors.green : difficulty == 'Difficile' ? Colors.red : Colors.orange, fontSize: 12, fontWeight: FontWeight.bold)),
+                ),
+                if (steps.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  const Text('Étapes recommandées:', style: TextStyle(color: _neonCyan, fontWeight: FontWeight.bold, fontSize: 12)),
+                  const SizedBox(height: 4),
+                  ...steps.asMap().entries.map((e) => Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('${e.key + 1}. ', style: const TextStyle(color: _neonCyan, fontSize: 12)),
+                        Expanded(child: Text(e.value.toString(), style: const TextStyle(color: Colors.white, fontSize: 12))),
+                      ],
+                    ),
+                  )),
+                ],
+                if (parts.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  const Text('Pièces suggérées:', style: TextStyle(color: _neonCyan, fontWeight: FontWeight.bold, fontSize: 12)),
+                  const SizedBox(height: 4),
+                  ...parts.map((p) => Row(
+                    children: [
+                      const Icon(Icons.build_circle, size: 12, color: _textMuted),
+                      const SizedBox(width: 4),
+                      Text('- ${p.toString()}', style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                    ],
+                  )),
+                ],
+                const SizedBox(height: 8),
+                const Row(
+                  children: [
+                    Icon(Icons.info_outline, size: 12, color: _textMuted),
+                    SizedBox(width: 4),
+                    Expanded(child: Text('Ces suggestions sont générées par IA. Vérifiez toujours avec un diagnostic manuel.', style: TextStyle(color: _textMuted, fontSize: 10, fontStyle: FontStyle.italic))),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Fermer', style: TextStyle(color: _textMuted)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: _neonCyan, foregroundColor: _bgCarbon),
+              onPressed: () {
+                Navigator.pop(ctx);
+                if (cause.isNotEmpty) {
+                  final currentDiag = _diagCtrl.text;
+                  _diagCtrl.text = '$currentDiag\n[IA] Cause probable: $cause'.trim();
+                }
+              },
+              child: const Text('Appliquer au diagnostic', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erreur IA: $e'), backgroundColor: Colors.redAccent),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   Widget _buildSectionTitle(String title, IconData icon) {
