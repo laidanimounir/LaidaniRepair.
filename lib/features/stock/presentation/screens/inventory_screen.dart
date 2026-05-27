@@ -1,6 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:laidani_repair/core/providers/supabase_provider.dart';
 import 'package:laidani_repair/core/utils/csv_export.dart';
@@ -100,6 +101,11 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
                           icon: const Icon(Icons.psychology, color: _textMuted),
                           tooltip: 'Analyse IA des stocks',
                           onPressed: () => _analyzeStockIA(context, ref),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.file_upload, color: _textMuted),
+                          tooltip: 'Importer CSV',
+                          onPressed: () => context.push('/shell/import'),
                         ),
                         ElevatedButton.icon(
                           onPressed: () => _showProductDialog(context, ref),

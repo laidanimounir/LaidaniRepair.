@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import 'package:laidani_repair/core/theme/app_theme.dart';
 import 'package:laidani_repair/core/providers/supabase_provider.dart';
@@ -89,6 +90,11 @@ class ClientsScreen extends ConsumerWidget {
                 IconButton(
                   icon: const Icon(Icons.refresh, color: AppTheme.onSurfaceMuted, size: 18),
                   onPressed: () => ref.invalidate(_customersStreamProvider),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.file_upload, color: AppTheme.onSurfaceMuted, size: 18),
+                  tooltip: 'Importer CSV',
+                  onPressed: () => context.push('/shell/import'),
                 ),
               ],
             ),
