@@ -2,6 +2,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:laidani_repair/core/providers/supabase_provider.dart';
+import 'package:laidani_repair/core/utils/csv_export.dart';
 import 'package:laidani_repair/features/stock/presentation/providers/stock_providers.dart';
 
 // --- Cyber Glass Theme Constants ---
@@ -61,6 +62,11 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                         const SizedBox(width: 16),
                         const Text('INVENTAIRE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 18, letterSpacing: 1.5)),
                         const Spacer(),
+                        IconButton(
+                          icon: const Icon(Icons.file_download, color: _textMuted),
+                          tooltip: 'Exporter CSV',
+                          onPressed: () => _exportInventoryCsv(context, ref),
+                        ),
                         ElevatedButton.icon(
                           onPressed: () => _showProductDialog(context, ref),
                           style: ElevatedButton.styleFrom(
@@ -223,6 +229,22 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
   }
 }
 
+
+  Future<void> _exportInventoryCsv(BuildContext context, WidgetRef ref) async {
+    final products = ref.read(inventoryListProvider).valueOrNull ?? [];
+    final headers = ['Nom', 'Code barres', 'Catégorie', 'Prix achat', 'Prix vente', 'Stock', 'Stock min'];
+    final rows = products.map((p) => [
+      p['product_name'] ?? '',
+      p['barcode'] ?? '',
+      p['categories'] is Map ? (p['categories'] as Map)['category_name'] ?? '' : '',
+      (p['purchase_price'] as num?)?.toDouble() ?? 0,
+      (p['reference_price'] as num?)?.toDouble() ?? 0,
+      (p['stock_quantity'] as num?)?.toInt() ?? 0,
+      (p['min_stock'] as num?)?.toInt() ?? 5,
+    ]).toList();
+    final csv = await exportToCsv(headers: headers, rows: rows);
+    await shareCsv(context, csv, 'inventaire_${DateTime.now().millisecondsSinceEpoch}.csv');
+  }
 
   void _showProductDialog(BuildContext context, WidgetRef ref, {Map<String, dynamic>? existing}) {
   showDialog(

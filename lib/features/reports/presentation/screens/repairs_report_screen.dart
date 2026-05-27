@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:laidani_repair/core/providers/supabase_provider.dart';
+import 'package:laidani_repair/core/utils/csv_export.dart';
 
 const Color _bgCarbon = Color(0xFF050914);
 const Color _panelDark = Color(0xFF0A0F1A);
@@ -54,6 +55,25 @@ class _RepairsReportScreenState extends ConsumerState<RepairsReportScreen> {
     setState(() { _tickets = List<Map<String, dynamic>>.from(data); _loading = false; });
   }
 
+  Future<void> _exportCsv(BuildContext context) async {
+    final headers = ['ID', 'Client', 'Téléphone', 'Appareil', 'Marque', 'Type', 'Problème', 'Statut', 'Coût final', 'Date création', 'Date livraison'];
+    final rows = _tickets.map((t) => [
+      t['id'] ?? '',
+      t['customers'] is Map ? (t['customers'] as Map)['full_name'] ?? '' : '',
+      t['customers'] is Map ? (t['customers'] as Map)['phone_number'] ?? '' : '',
+      t['device_name'] ?? '',
+      t['device_brand'] ?? '',
+      t['device_type'] ?? '',
+      t['issue_description'] ?? '',
+      t['status'] ?? '',
+      (t['final_cost'] as num?)?.toDouble() ?? 0,
+      t['created_at']?.toString() ?? '',
+      t['delivered_at']?.toString() ?? '',
+    ]).toList();
+    final csv = await exportToCsv(headers: headers, rows: rows);
+    await shareCsv(context, csv, 'reparations_${DateTime.now().millisecondsSinceEpoch}.csv');
+  }
+
   @override
   Widget build(BuildContext context) {
     final totalRepairs = _tickets.length;
@@ -92,6 +112,11 @@ class _RepairsReportScreenState extends ConsumerState<RepairsReportScreen> {
                     ),
                     const SizedBox(width: 16),
                     const Expanded(child: Text('RAPPORT RÉPARATIONS', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 18, letterSpacing: 1.5))),
+                    IconButton(
+                      icon: const Icon(Icons.file_download, color: _textMuted),
+                      tooltip: 'Exporter CSV',
+                      onPressed: () => _exportCsv(context),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 16),

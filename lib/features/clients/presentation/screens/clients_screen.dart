@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:laidani_repair/core/theme/app_theme.dart';
 import 'package:laidani_repair/core/providers/supabase_provider.dart';
+import 'package:laidani_repair/core/utils/csv_export.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 // ─── Providers ────────────────────────────────────────────────────────────────
@@ -79,6 +80,11 @@ class ClientsScreen extends ConsumerWidget {
                     style: TextStyle(color: AppTheme.onBackground, fontWeight: FontWeight.w700, fontSize: 18)),
                 const Spacer(),
                 IconButton(
+                  icon: const Icon(Icons.file_download, color: AppTheme.onSurfaceMuted, size: 18),
+                  tooltip: 'Exporter CSV',
+                  onPressed: () => _exportCustomersCsv(context, ref),
+                ),
+                IconButton(
                   icon: const Icon(Icons.refresh, color: AppTheme.onSurfaceMuted, size: 18),
                   onPressed: () => ref.invalidate(_customersStreamProvider),
                 ),
@@ -144,6 +150,28 @@ class ClientsScreen extends ConsumerWidget {
       ),
     );
   }
+}
+
+// ─── CSV Export ────────────────────────────────────────────────────────────────
+
+Future<void> _exportCustomersCsv(BuildContext context, WidgetRef ref) async {
+  final client = ref.read(supabaseClientProvider);
+  final customers = await client
+      .from('customers')
+      .select('full_name, phone_number, total_debt, created_at')
+      .eq('is_registered', true)
+      .order('total_debt', ascending: false);
+
+  final headers = ['Nom', 'Téléphone', 'Dette', 'Date inscription'];
+  final rows = customers.map((c) => [
+    c['full_name'] ?? '',
+    c['phone_number'] ?? '',
+    (c['total_debt'] as num?)?.toDouble() ?? 0,
+    c['created_at']?.toString() ?? '',
+  ]).toList();
+
+  final csv = await exportToCsv(headers: headers, rows: rows);
+  await shareCsv(context, csv, 'clients_${DateTime.now().millisecondsSinceEpoch}.csv');
 }
 
 // ─── Customer Detail Bottom Sheet ─────────────────────────────────────────────
