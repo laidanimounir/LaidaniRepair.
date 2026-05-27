@@ -9,6 +9,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:laidani_repair/core/providers/supabase_provider.dart';
 import 'package:laidani_repair/features/auth/presentation/providers/auth_provider.dart';
+import 'package:laidani_repair/core/utils/invoice_pdf.dart';
 
 // --- Cyber Glass Theme Constants ---
 const Color _bgCarbon = Color(0xFF050914);
@@ -971,6 +972,12 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
       'notes': 'Remise confirmée. État: $selectedCondition',
     });
     _fetchFullData();
+    // Generate PDF invoice after handover
+    try {
+      final parts = await client.from('repair_parts').select('*, products(product_name)').eq('ticket_id', widget.ticketId);
+      final updatedTicket = await client.from('repair_tickets').select('*, customers(full_name, phone_number)').eq('id', widget.ticketId).single();
+      await previewOrPrintPdf(updatedTicket, List<Map<String, dynamic>>.from(parts));
+    } catch (_) {}
     _showToast('Remise confirmée', Colors.green);
   }
 
