@@ -563,10 +563,14 @@ class _NewTicketFormState extends State<_NewTicketForm> {
   
   final _deviceCtrl = TextEditingController();
   final _issueCtrl = TextEditingController();
+  String? _deviceType;
+  final _brandCtrl = TextEditingController();
   
   final _imeiCtrl = TextEditingController();
+  final _serialCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
   final _diagCtrl = TextEditingController();
+  final _accessoriesCtrl = TextEditingController();
   
   final _costCtrl = TextEditingController();
   final _advanceCtrl = TextEditingController();
@@ -714,6 +718,19 @@ class _NewTicketFormState extends State<_NewTicketForm> {
           const SizedBox(height: 32),
           _buildSectionTitle('2. L\'appareil', Icons.smartphone),
           _buildTextField(_deviceCtrl, 'Modèle de l\'appareil * (ex: Samsung S23)', icon: Icons.phone_android),
+          const SizedBox(height: 12),
+          DropdownButtonFormField<String>(
+            value: _deviceType,
+            dropdownColor: _panelDark,
+            style: const TextStyle(color: Colors.white),
+            decoration: _inputDecoration('Type d\'appareil', Icons.devices),
+            items: ['Téléphone', 'Tablette', 'Ordinateur', 'Console', 'Montre', 'Autre']
+                .map((t) => DropdownMenuItem(value: t, child: Text(t)))
+                .toList(),
+            onChanged: (v) => setState(() => _deviceType = v),
+          ),
+          const SizedBox(height: 12),
+          _buildTextField(_brandCtrl, 'Marque (ex: Samsung, Apple)', icon: Icons.badge),
           const SizedBox(height: 16),
           _buildTextField(_issueCtrl, 'Problème signalé par le client *', icon: Icons.warning_amber_rounded, maxLines: 2),
         ],
@@ -730,9 +747,17 @@ class _NewTicketFormState extends State<_NewTicketForm> {
           _buildSectionTitle('3. Diagnostic & Sécurité (Optionnel)', Icons.security),
           Row(
             children: [
-              Expanded(child: _buildTextField(_imeiCtrl, 'IMEI / Série', icon: Icons.qr_code)),
+              Expanded(child: _buildTextField(_imeiCtrl, 'IMEI', icon: Icons.qr_code)),
               const SizedBox(width: 16),
+              Expanded(child: _buildTextField(_serialCtrl, 'N° de série', icon: Icons.confirmation_number)),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
               Expanded(child: _buildTextField(_passwordCtrl, 'Code / Schéma', icon: Icons.lock_open)),
+              const SizedBox(width: 16),
+              Expanded(child: _buildTextField(_accessoriesCtrl, 'Accessoires fournis', icon: Icons.backpack)),
             ],
           ),
           const SizedBox(height: 16),
@@ -818,10 +843,14 @@ class _NewTicketFormState extends State<_NewTicketForm> {
         'client_name_temp': _isAnonymous ? _anonNameCtrl.text.trim() : null,
         'client_phone_temp': _isAnonymous ? _anonPhoneCtrl.text.trim() : null,
         'worker_id': user?.id,
+        'device_type': _deviceType,
+        'brand': _brandCtrl.text.trim(),
         'device_name': device,
         'issue_description': issue,
         'imei': _imeiCtrl.text.trim(),
+        'serial_number': _serialCtrl.text.trim(),
         'device_password': _passwordCtrl.text.trim(),
+        'accessories': _accessoriesCtrl.text.trim(),
         'pre_diagnostic': _diagCtrl.text.trim(),
         'estimated_cost': cost,
         'advance_payment': advance,
