@@ -12,6 +12,7 @@ import 'package:laidani_repair/core/providers/shortcuts_provider.dart';
 import 'package:laidani_repair/features/auth/presentation/providers/auth_provider.dart';
 import 'package:laidani_repair/core/utils/invoice_pdf.dart';
 import 'package:laidani_repair/core/utils/quote_pdf.dart';
+import 'package:laidani_repair/core/utils/warranty_pdf.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 // --- Cyber Glass Theme Constants ---
@@ -1080,11 +1081,15 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
     });
     _fetchFullData();
     _scheduleMaintenanceReminder(client);
-    // Generate PDF invoice after handover
     try {
       final parts = await client.from('repair_parts').select('*, products(product_name)').eq('ticket_id', widget.ticketId);
       final updatedTicket = await client.from('repair_tickets').select('*, customers(full_name, phone_number)').eq('id', widget.ticketId).single();
       await previewOrPrintPdf(updatedTicket, List<Map<String, dynamic>>.from(parts));
+    } catch (_) {}
+    try {
+      final parts = await client.from('repair_parts').select('*, products(product_name)').eq('ticket_id', widget.ticketId);
+      final updatedTicket = await client.from('repair_tickets').select('*, customers(full_name, phone_number)').eq('id', widget.ticketId).single();
+      await previewOrPrintWarrantyPdf(updatedTicket, List<Map<String, dynamic>>.from(parts));
     } catch (_) {}
     _showToast('Remise confirmée', Colors.green);
   }
