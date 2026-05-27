@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:laidani_repair/core/providers/supabase_provider.dart';
@@ -143,12 +144,12 @@ class _SuppliersTab extends ConsumerWidget {
       error: (e, _) => Center(child: Text('Erreur: $e', style: const TextStyle(color: Colors.redAccent))),
       data: (list) {
         if (list.isEmpty) return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.store_outlined, size: 64, color: _textMuted.withOpacity(0.2)), const SizedBox(height: 16), const Text('Aucun fournisseur enregistré.', style: TextStyle(color: _textMuted))]));
-        return isDesktop ? _buildDesktopTable(list) : _buildMobileList(list);
+        return isDesktop ? _buildDesktopTable(context, ref, list) : _buildMobileList(context, ref, list);
       },
     );
   }
 
-  Widget _buildDesktopTable(List<Map<String, dynamic>> suppliers) {
+  Widget _buildDesktopTable(BuildContext context, WidgetRef ref, List<Map<String, dynamic>> suppliers) {
     return Column(children: [
       Container(padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16), decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: _glassBorder, width: 1))), child: const Row(children: [Expanded(flex: 3, child: Text('FOURNISSEUR', style: TextStyle(color: _textMuted, fontSize: 11, fontWeight: FontWeight.bold))), Expanded(flex: 2, child: Text('TÉLÉPHONE', style: TextStyle(color: _textMuted, fontSize: 11, fontWeight: FontWeight.bold))), Expanded(flex: 2, child: Text('DÛ (DETTE)', textAlign: TextAlign.right, style: TextStyle(color: _textMuted, fontSize: 11, fontWeight: FontWeight.bold)))])),
       Expanded(child: ListView.builder(itemCount: suppliers.length, itemBuilder: (ctx, i) {
@@ -156,19 +157,39 @@ class _SuppliersTab extends ConsumerWidget {
         return Container(padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16), decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: _glassBorder, width: 0.5))), child: Row(children: [
           Expanded(flex: 3, child: Row(children: [CircleAvatar(backgroundColor: _neonPurple.withOpacity(0.15), child: Text((s['supplier_name'] ?? '?')[0].toUpperCase(), style: const TextStyle(color: _neonPurple, fontWeight: FontWeight.bold))), const SizedBox(width: 16), Text(s['supplier_name'] ?? '', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold))])),
           Expanded(flex: 2, child: Text(s['phone_number'] ?? '—', style: const TextStyle(color: _textMuted))),
-          Expanded(flex: 2, child: Align(alignment: Alignment.centerRight, child: hasDebt ? Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), decoration: BoxDecoration(color: Colors.redAccent.withOpacity(0.1), borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.redAccent.withOpacity(0.5))), child: Text('Dû: ${due.toStringAsFixed(0)} DA', style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold, fontSize: 12))) : const Text('0 DA', style: TextStyle(color: _textMuted)))),
+          Expanded(flex: 2, child: Align(alignment: Alignment.centerRight, child: hasDebt ? Row(mainAxisSize: MainAxisSize.min, children: [
+            Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), decoration: BoxDecoration(color: Colors.redAccent.withOpacity(0.1), borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.redAccent.withOpacity(0.5))), child: Text('Dû: ${due.toStringAsFixed(0)} DA', style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold, fontSize: 12))),
+            const SizedBox(width: 8),
+            IconButton(
+              icon: const Icon(Icons.payments_outlined, color: Colors.greenAccent, size: 20),
+              tooltip: 'Enregistrer un paiement',
+              onPressed: () => _showSupplierPaymentDialog(context, ref, s),
+            ),
+          ]) : const Text('0 DA', style: TextStyle(color: _textMuted)))),
         ]));
       }))
     ]);
   }
 
-  Widget _buildMobileList(List<Map<String, dynamic>> suppliers) {
+  Widget _buildMobileList(BuildContext context, WidgetRef ref, List<Map<String, dynamic>> suppliers) {
     return ListView.builder(padding: const EdgeInsets.all(16), itemCount: suppliers.length, itemBuilder: (ctx, i) {
       final s = suppliers[i]; final due = (s['total_due'] as num?)?.toDouble() ?? 0.0; final hasDebt = due > 0;
       return Container(margin: const EdgeInsets.only(bottom: 12), padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: _panelDark.withOpacity(0.5), borderRadius: BorderRadius.circular(12), border: Border.all(color: _glassBorder)), child: Row(children: [
         CircleAvatar(backgroundColor: _neonPurple.withOpacity(0.15), child: Text((s['supplier_name'] ?? '?')[0].toUpperCase(), style: const TextStyle(color: _neonPurple, fontWeight: FontWeight.bold))), const SizedBox(width: 16),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(s['supplier_name'] ?? '', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)), const SizedBox(height: 4), Text(s['phone_number'] ?? '—', style: const TextStyle(color: _textMuted, fontSize: 12))])),
-        if (hasDebt) Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: Colors.redAccent.withOpacity(0.1), borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.redAccent.withOpacity(0.3))), child: Text('Dû: ${due.toStringAsFixed(0)} DA', style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold, fontSize: 11))) else const Text('0 DA', style: TextStyle(color: _textMuted, fontSize: 12)),
+        if (hasDebt)
+          Column(
+            children: [
+              Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: Colors.redAccent.withOpacity(0.1), borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.redAccent.withOpacity(0.3))), child: Text('Dû: ${due.toStringAsFixed(0)} DA', style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold, fontSize: 11))),
+              const SizedBox(height: 4),
+              IconButton(
+                icon: const Icon(Icons.payments_outlined, color: Colors.greenAccent, size: 20),
+                tooltip: 'Enregistrer un paiement',
+                onPressed: () => _showSupplierPaymentDialog(context, ref, s),
+              ),
+            ],
+          )
+        else const Text('0 DA', style: TextStyle(color: _textMuted, fontSize: 12)),
       ]));
     });
   }
@@ -176,6 +197,80 @@ class _SuppliersTab extends ConsumerWidget {
 
 void _showSupplierDialog(BuildContext context, WidgetRef ref) {
   showDialog(context: context, barrierColor: Colors.black87, builder: (ctx) => BackdropFilter(filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10), child: _SupplierFormDialog(ref: ref)));
+}
+
+void _showSupplierPaymentDialog(BuildContext context, WidgetRef ref, Map<String, dynamic> supplier) {
+  final due = (supplier['total_due'] as num?)?.toDouble() ?? 0.0;
+  final ctrl = TextEditingController();
+  showDialog(
+    context: context,
+    barrierColor: Colors.black87,
+    builder: (ctx) => BackdropFilter(
+      filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+      child: AlertDialog(
+        backgroundColor: _panelDark.withOpacity(0.95),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: _glassBorder)),
+        title: Row(children: [
+          const Icon(Icons.payments, color: Colors.greenAccent),
+          const SizedBox(width: 12),
+          Expanded(child: Text('Paiement Fournisseur', style: const TextStyle(color: Colors.white, fontSize: 16))),
+        ]),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Fournisseur: ${supplier['supplier_name']}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 4),
+            Text('Dû actuel: ${due.toStringAsFixed(0)} DA', style: const TextStyle(color: Colors.redAccent)),
+            const SizedBox(height: 16),
+            TextField(
+              controller: ctrl,
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
+              textAlign: TextAlign.center,
+              decoration: InputDecoration(
+                hintText: 'Montant à payer',
+                hintStyle: const TextStyle(color: _textMuted),
+                suffixText: 'DA',
+                suffixStyle: const TextStyle(color: _textMuted),
+                filled: true, fillColor: _bgCarbon,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: _glassBorder)),
+              ),
+              autofocus: true,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Annuler', style: TextStyle(color: _textMuted))),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.greenAccent, foregroundColor: _bgCarbon),
+            onPressed: () async {
+              final amount = double.tryParse(ctrl.text) ?? 0;
+              if (amount <= 0) {
+                ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text('Montant invalide'), backgroundColor: Colors.redAccent));
+                return;
+              }
+              Navigator.pop(ctx);
+              final client = ref.read(supabaseClientProvider);
+              final user = Supabase.instance.client.auth.currentUser;
+              await client.from('supplier_payments').insert({
+                'supplier_id': supplier['id'],
+                'worker_id': user?.id,
+                'amount_paid': amount,
+                'payment_date': DateTime.now().toIso8601String(),
+              });
+              ref.invalidate(suppliersProvider);
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Paiement de $amount DA enregistré'), backgroundColor: Colors.green));
+              }
+            },
+            child: const Text('PAYER', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
 class _SupplierFormDialog extends StatefulWidget {
