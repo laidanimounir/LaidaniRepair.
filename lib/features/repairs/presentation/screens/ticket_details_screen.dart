@@ -1240,6 +1240,56 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
     });
   }
 
+  // --- 4.5 Dupliquer le ticket ---
+  Future<void> _duplicateTicket() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: _panelDark,
+        title: const Text('Dupliquer le ticket ?', style: TextStyle(color: _neonCyan, fontWeight: FontWeight.bold)),
+        content: const Text('Un nouveau ticket sera créé avec les mêmes informations (client, appareil, problème). Les pièces et paiements ne seront pas copiés.', style: TextStyle(color: Colors.white)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Non', style: TextStyle(color: _textMuted))),
+          ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: _neonCyan, foregroundColor: _bgCarbon), onPressed: () => Navigator.pop(ctx, true), child: const Text('Oui, Dupliquer')),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+    setState(() => _isLoading = true);
+    try {
+      final client = ref.read(supabaseClientProvider);
+      final user = Supabase.instance.client.auth.currentUser;
+      final qrHash = 'LR-${DateTime.now().millisecondsSinceEpoch}-${DateTime.now().microsecond.toString().substring(0, 3)}';
+
+      await client.from('repair_tickets').insert({
+        'customer_id': _ticket?['customer_id'],
+        'client_name_temp': _ticket?['client_name_temp'],
+        'client_phone_temp': _ticket?['client_phone_temp'],
+        'worker_id': user?.id,
+        'device_type': _ticket?['device_type'],
+        'brand': _ticket?['brand'],
+        'device_name': _ticket?['device_name'],
+        'issue_description': _ticket?['issue_description'],
+        'imei': _ticket?['imei'],
+        'serial_number': _ticket?['serial_number'],
+        'device_password': _ticket?['device_password'],
+        'accessories': _ticket?['accessories'],
+        'pre_diagnostic': _ticket?['pre_diagnostic'],
+        'estimated_cost': _ticket?['estimated_cost'],
+        'labor_cost': _ticket?['labor_cost'],
+        'qr_code_hash': qrHash,
+        'status': 'En attente',
+      });
+
+      _showToast('Ticket dupliqué avec succès !', _neonCyan);
+      _fetchFullData();
+    } catch (e) {
+      _showToast('Erreur: $e', Colors.redAccent);
+      _fetchFullData();
+    }
+  }
+
   // --- 5. إلغاء التذكرة بالكامل (الدرع الواقي) ---
   Future<void> _cancelTicket() async {
     final confirm = await showDialog<bool>(
@@ -1568,9 +1618,13 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
               icon: const Icon(Icons.more_vert, color: Colors.white),
               color: _panelDark,
               itemBuilder: (_) => [
+                const PopupMenuItem(value: 'duplicate', child: Text('Dupliquer le ticket', style: TextStyle(color: _neonCyan))),
                 const PopupMenuItem(value: 'cancel', child: Text('Annuler le dossier (Retour Stock)', style: TextStyle(color: Colors.redAccent))),
               ],
-              onSelected: (val) { if (val == 'cancel') _cancelTicket(); },
+              onSelected: (val) {
+                if (val == 'cancel') _cancelTicket();
+                if (val == 'duplicate') _duplicateTicket();
+              },
             )
           ]
         ],
