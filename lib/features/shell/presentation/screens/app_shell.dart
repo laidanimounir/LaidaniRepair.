@@ -31,6 +31,12 @@ class _NavItem {
 
 const _navItems = <_NavItem>[
   _NavItem(
+    label: 'Tableau de Bord',
+    icon: Icons.dashboard_customize_outlined,
+    activeIcon: Icons.dashboard_customize,
+    route: AppConstants.routeDashboard,
+  ),
+  _NavItem(
     label: 'Point de Vente',
     icon: Icons.point_of_sale_outlined,
     activeIcon: Icons.point_of_sale,

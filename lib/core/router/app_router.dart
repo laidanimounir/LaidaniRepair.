@@ -16,6 +16,7 @@ import 'package:laidani_repair/features/stock/presentation/screens/purchases_scr
 import 'package:laidani_repair/features/expenses/presentation/screens/expenses_screen.dart';
 import 'package:laidani_repair/features/audit/presentation/screens/audit_screen.dart';
 import 'package:laidani_repair/features/reports/presentation/screens/sales_reports_screen.dart';
+import 'package:laidani_repair/features/dashboard/presentation/screens/dashboard_screen.dart';
 import 'package:laidani_repair/core/constants/app_constants.dart';
 // تأكد من وجود هذا السطر تحديداً
 import 'package:laidani_repair/features/repairs/presentation/screens/ticket_details_screen.dart';
@@ -136,6 +137,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/shell/reports',
             builder: (_, __) => const SalesReportsScreen(),
+          ),
+          GoRoute(
+            path: AppConstants.routeDashboard,
+            builder: (_, __) => const DashboardScreen(),
           ),
           // المسار الجديد مضاف هنا بشكل صحيح
           GoRoute(

@@ -23,6 +23,7 @@ class AppConstants {
   static const String routePurchases = '/shell/purchases';
   static const String routeExpenses = '/shell/expenses';
   static const String routeAudit = '/shell/audit';
+  static const String routeDashboard = '/shell/dashboard';
 
   /// Routes accessible only by 'owner' role
   static const List<String> ownerOnlyRoutes = [
