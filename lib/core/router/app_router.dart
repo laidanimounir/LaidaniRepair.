@@ -30,6 +30,7 @@ import 'package:laidani_repair/features/settings/presentation/screens/backup_scr
 import 'package:laidani_repair/core/constants/app_constants.dart';
 // تأكد من وجود هذا السطر تحديداً
 import 'package:laidani_repair/features/repairs/presentation/screens/ticket_details_screen.dart';
+import 'package:laidani_repair/features/auth/presentation/screens/otp_screen.dart';
 
 class _GoRouterRefreshNotifier extends ChangeNotifier {
   late final StreamSubscription<AuthState> _sub;
@@ -126,6 +127,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppConstants.routeLogin,
         builder: (_, __) => const LoginScreen(),
+      ),
+      GoRoute(
+        path: '/otp/:userId',
+        builder: (context, state) {
+          final userId = state.pathParameters['userId']!;
+          return OtpScreen(userId: userId);
+        },
       ),
       GoRoute(
         path: '/track/:qr_code_hash',

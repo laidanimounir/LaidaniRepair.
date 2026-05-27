@@ -9,6 +9,7 @@ import 'package:window_manager/window_manager.dart';
 
 import 'package:laidani_repair/core/providers/supabase_provider.dart';
 import 'package:laidani_repair/core/providers/theme_provider.dart';
+import 'package:laidani_repair/core/providers/locale_provider.dart';
 import 'package:laidani_repair/features/auth/data/models/profile_model.dart';
 import 'package:laidani_repair/features/auth/presentation/providers/auth_provider.dart';
 import 'package:laidani_repair/core/constants/app_constants.dart';
@@ -333,6 +334,11 @@ class _DesktopShellState extends ConsumerState<_DesktopShell> {
                             onPressed: () => ref.read(themeProvider.notifier).toggle(),
                           ),
                           IconButton(
+                            icon: const Icon(Icons.language, color: _textMuted),
+                            tooltip: 'Langue',
+                            onPressed: () => _showLanguagePicker(context, ref),
+                          ),
+                          IconButton(
                             icon: const Icon(Icons.search, color: _textMuted),
                             tooltip: 'Recherche globale',
                             onPressed: () => _showGlobalSearch(context),
@@ -526,6 +532,38 @@ class _DesktopShellState extends ConsumerState<_DesktopShell> {
   // ─── Global Search ───
   void _showGlobalSearch(BuildContext context) {
     showSearch(context: context, delegate: _GlobalSearchDelegate(ref: ref));
+  }
+
+  void _showLanguagePicker(BuildContext context, WidgetRef ref) {
+    final currentLocale = ref.read(localeProvider);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: _panelDark,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: _glassBorder)),
+        title: const Text('Choisir la langue', style: TextStyle(color: Colors.white)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _langOption(ctx, ref, 'Français', const Locale('fr'), currentLocale),
+            _langOption(ctx, ref, 'العربية', const Locale('ar'), currentLocale),
+            _langOption(ctx, ref, 'English', const Locale('en'), currentLocale),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _langOption(BuildContext ctx, WidgetRef ref, String label, Locale locale, Locale current) {
+    final isSelected = current.languageCode == locale.languageCode;
+    return ListTile(
+      leading: Icon(isSelected ? Icons.radio_button_checked : Icons.radio_button_unchecked, color: isSelected ? _ownerNeon : _textMuted),
+      title: Text(label, style: TextStyle(color: isSelected ? Colors.white : _textMuted, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
+      onTap: () {
+        ref.read(localeProvider.notifier).setLocale(locale);
+        Navigator.pop(ctx);
+      },
+    );
   }
 
   // ─── مسار تسجيل الخروج الاحترافي (Logout Flow) ───

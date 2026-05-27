@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -10,6 +11,8 @@ import 'package:laidani_repair/core/router/app_router.dart';
 import 'package:laidani_repair/core/theme/app_theme.dart';
 import 'package:laidani_repair/core/providers/theme_provider.dart';
 import 'package:laidani_repair/core/providers/shortcuts_provider.dart';
+import 'package:laidani_repair/core/providers/locale_provider.dart';
+import 'package:laidani_repair/core/localization/app_localizations.dart';
 import 'package:laidani_repair/features/auth/presentation/providers/auth_provider.dart';
 import 'package:laidani_repair/features/pos/presentation/providers/pos_provider.dart';
 
@@ -50,6 +53,7 @@ class _LaidaniRepairApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(appRouterProvider);
     final themeMode = ref.watch(themeProvider);
+    final locale = ref.watch(localeProvider);
 
     return MaterialApp.router(
       title: 'LaidaniRepair ERP',
@@ -57,6 +61,14 @@ class _LaidaniRepairApp extends ConsumerWidget {
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: themeMode,
+      locale: locale,
+      supportedLocales: AppLocalizations.supportedLocales,
+      localizationsDelegates: const [
+        AppLocalizations.delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
       routerConfig: router,
       builder: (context, child) {
         return _ShortcutWrapper(child: child!);
