@@ -12,6 +12,7 @@ import 'package:laidani_repair/core/providers/theme_provider.dart';
 import 'package:laidani_repair/core/providers/locale_provider.dart';
 import 'package:laidani_repair/features/auth/data/models/profile_model.dart';
 import 'package:laidani_repair/features/auth/presentation/providers/auth_provider.dart';
+import 'package:laidani_repair/features/sync/presentation/widgets/offline_banner.dart';
 import 'package:laidani_repair/core/constants/app_constants.dart';
 
 // ─── Nav Item Definition ─────────────────────────────────────────────────
@@ -295,6 +296,8 @@ class _DesktopShellState extends ConsumerState<_DesktopShell> {
           Expanded(
             child: Column(
               children: [
+                // Bannière hors-ligne
+                const OfflineBanner(),
                 // الشريط العلوي (Smart Header)
                 Container(
                   height: 70,
@@ -321,6 +324,8 @@ class _DesktopShellState extends ConsumerState<_DesktopShell> {
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
+                          const SyncStatusIndicator(),
+                          const SizedBox(width: 8),
                           IconButton(
                             icon: Icon(
                               ref.watch(themeProvider) == ThemeMode.light
