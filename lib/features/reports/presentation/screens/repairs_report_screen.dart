@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:fl_chart/fl_chart.dart';
 import 'package:laidani_repair/core/providers/supabase_provider.dart';
 import 'package:laidani_repair/core/providers/shortcuts_provider.dart';
 import 'package:laidani_repair/core/utils/csv_export.dart';
@@ -261,24 +262,16 @@ class _RepairsReportScreenState extends ConsumerState<RepairsReportScreen> {
 
   Widget _buildCommonFaultsChart() {
     final faults = <String, int>{};
-    final brandFaults = <String, int>{};
-    final typeFaults = <String, int>{};
     for (final t in _tickets) {
       final issue = (t['issue_description'] as String? ?? '').trim();
-      final brand = (t['brand'] as String? ?? 'Inconnu').trim();
-      final type = (t['device_type'] as String? ?? 'Autre').trim();
       if (issue.isNotEmpty) {
-        final shortIssue = issue.length > 30 ? '${issue.substring(0, 30)}...' : issue;
-        faults[shortIssue] = (faults[shortIssue] ?? 0) + 1;
+        final short = issue.length > 25 ? '${issue.substring(0, 25)}...' : issue;
+        faults[short] = (faults[short] ?? 0) + 1;
       }
-      brandFaults[brand] = (brandFaults[brand] ?? 0) + 1;
-      typeFaults[type] = (typeFaults[type] ?? 0) + 1;
     }
-    final sortedFaults = faults.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
-    final sortedBrands = brandFaults.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
-    final sortedTypes = typeFaults.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
-
-    if (sortedFaults.isEmpty && sortedBrands.isEmpty) return const SizedBox.shrink();
+    final sorted = faults.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+    if (sorted.isEmpty) return const SizedBox.shrink();
+    final top = sorted.take(10).toList();
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -286,46 +279,26 @@ class _RepairsReportScreenState extends ConsumerState<RepairsReportScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('PANNES FRÉQUENTES', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
-          const SizedBox(height: 12),
-          if (sortedFaults.isNotEmpty) ...[
-            const Text('Par problème:', style: TextStyle(color: _textMuted, fontSize: 11)),
-            const SizedBox(height: 4),
-            ...sortedFaults.take(5).map((e) => _barRow(e.key, e.value, sortedFaults.first.value, _neonCyan)),
-          ],
-          const SizedBox(height: 12),
-          if (sortedBrands.isNotEmpty) ...[
-            const Text('Par marque:', style: TextStyle(color: _textMuted, fontSize: 11)),
-            const SizedBox(height: 4),
-            ...sortedBrands.take(5).map((e) => _barRow(e.key, e.value, sortedBrands.first.value, Colors.amber)),
-          ],
-          const SizedBox(height: 12),
-          if (sortedTypes.isNotEmpty) ...[
-            const Text('Par type:', style: TextStyle(color: _textMuted, fontSize: 11)),
-            const SizedBox(height: 4),
-            ...sortedTypes.take(5).map((e) => _barRow(e.key, e.value, sortedTypes.first.value, _neonEmerald)),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _barRow(String label, int count, int maxCount, Color color) {
-    final ratio = maxCount > 0 ? count / maxCount : 0.0;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
-      child: Row(
-        children: [
-          SizedBox(width: 100, child: Text(label, style: const TextStyle(color: Colors.white, fontSize: 11), overflow: TextOverflow.ellipsis)),
-          const SizedBox(width: 8),
-          Expanded(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: LinearProgressIndicator(value: ratio, backgroundColor: color.withOpacity(0.1), valueColor: AlwaysStoppedAnimation(color), minHeight: 14),
+          const Text('TOP 10 PANNES FREQUENTES', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+          const SizedBox(height: 16),
+          SizedBox(
+            height: 250,
+            child: BarChart(
+              BarChartData(
+                alignment: BarChartAlignment.spaceAround,
+                maxY: top.isEmpty ? 1 : top.first.value.toDouble() + 1,
+                barGroups: List.generate(top.length, (i) => BarChartGroupData(x: i, barRods: [BarChartRodData(toY: top[i].value.toDouble(), color: _neonCyan, width: 18, borderRadius: const BorderRadius.vertical(top: Radius.circular(4)))])),
+                titlesData: FlTitlesData(
+                  leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, reservedSize: 35, getTitlesWidget: (v, _) => Text('${v.toInt()}', style: const TextStyle(color: _textMuted, fontSize: 10)))),
+                  bottomTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, reservedSize: 28, getTitlesWidget: (v, _) => Padding(padding: const EdgeInsets.only(top: 4), child: Text(top[v.toInt()].key.length > 10 ? '${top[v.toInt()].key.substring(0, 10)}..' : top[v.toInt()].key, style: const TextStyle(color: _textMuted, fontSize: 9))))),
+                  topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                ),
+                gridData: const FlGridData(show: false),
+                borderData: FlBorderData(show: false),
+              ),
             ),
           ),
-          const SizedBox(width: 8),
-          SizedBox(width: 30, child: Text('$count', style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 11))),
         ],
       ),
     );

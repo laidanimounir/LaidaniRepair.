@@ -24,6 +24,7 @@ dependencies:
 
   # QR Code Generation (Step C - Repairs)
   qr_flutter: ^4.1.0
+  fl_chart: ^0.69.2
   mobile_scanner: ^6.0.2
   image_picker: ^1.0.7
   pdf: ^3.11.1
