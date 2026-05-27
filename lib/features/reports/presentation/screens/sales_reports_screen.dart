@@ -22,12 +22,8 @@ class SalesReportsScreen extends ConsumerWidget {
           worker:profiles(full_name)
         ''');
 
-    if (filter.startDate != null) {
-      q = q.gte('invoice_date', filter.startDate!.toUtc().toIso8601String());
-    }
-    if (filter.endDate != null) {
-      q = q.lte('invoice_date', filter.endDate!.toUtc().toIso8601String());
-    }
+    q = q.gte('invoice_date', filter.startDate.toUtc().toIso8601String());
+    q = q.lte('invoice_date', filter.endDate.toUtc().toIso8601String());
     if (filter.workerId != null) {
       q = q.eq('worker_id', filter.workerId!);
     }
