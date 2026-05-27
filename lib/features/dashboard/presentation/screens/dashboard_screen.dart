@@ -1,3 +1,4 @@
+import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -84,6 +85,31 @@ final _dashboardStatsProvider = FutureProvider<Map<String, dynamic>>((ref) async
     'expensesToday': expensesToday,
     'netRevenue': netRevenue,
   };
+});
+
+final _forecastProvider = FutureProvider<List<double>>((ref) async {
+  final client = Supabase.instance.client;
+  final now = DateTime.now();
+  final thirtyDaysAgo = now.subtract(const Duration(days: 30));
+  final invoices = await client
+      .from('sales_invoices')
+      .select('final_amount, invoice_date')
+      .gte('invoice_date', thirtyDaysAgo.toIso8601String())
+      .lte('invoice_date', now.toIso8601String());
+
+  final dailyRevenue = <int, double>{};
+  for (final inv in invoices) {
+    final date = DateTime.tryParse(inv['invoice_date'] as String);
+    if (date == null) continue;
+    final dayKey = DateTime(date.year, date.month, date.day).millisecondsSinceEpoch;
+    dailyRevenue[dayKey] = (dailyRevenue[dayKey] ?? 0) + ((inv['final_amount'] as num?)?.toDouble() ?? 0);
+  }
+
+  final totalDays = dailyRevenue.isNotEmpty ? dailyRevenue.length : 1;
+  final totalRevenue = dailyRevenue.values.fold<double>(0, (a, b) => a + b);
+  final avgDaily = totalRevenue / totalDays;
+
+  return List.generate(7, (i) => avgDaily);
 });
 
 class DashboardScreen extends ConsumerWidget {
@@ -187,9 +213,70 @@ class DashboardScreen extends ConsumerWidget {
               ]),
               const SizedBox(height: 16),
               _buildDailySummary(stats),
+              const SizedBox(height: 16),
+              _buildForecastCard(ref),
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildForecastCard(WidgetRef ref) {
+    final forecastAsync = ref.watch(_forecastProvider);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(color: _panelDark, borderRadius: BorderRadius.circular(16), border: Border.all(color: _neonCyan.withOpacity(0.3))),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.trending_up, color: _neonCyan, size: 18),
+              const SizedBox(width: 8),
+              const Text('PRÉVISION 7 JOURS', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14, letterSpacing: 1)),
+              const Spacer(),
+              Text('Basé sur 30j', style: TextStyle(color: _textMuted, fontSize: 11)),
+            ],
+          ),
+          const SizedBox(height: 16),
+          forecastAsync.when(
+            loading: () => const SizedBox(height: 180, child: Center(child: CircularProgressIndicator(color: _neonCyan))),
+            error: (e, _) => Text('Erreur: $e', style: const TextStyle(color: Colors.redAccent)),
+            data: (values) => SizedBox(
+              height: 200,
+              child: LineChart(
+                LineChartData(
+                  gridData: FlGridData(show: true, drawVerticalLine: false, horizontalInterval: values.isEmpty ? 1 : values.reduce((a, b) => a > b ? a : b) / 4, getDrawingHorizontalLine: (value) => FlLine(color: _glassBorder, strokeWidth: 1)),
+                  titlesData: FlTitlesData(
+                    leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, getTitlesWidget: (value, meta) => Text('${value.toInt()} DA', style: const TextStyle(color: _textMuted, fontSize: 10)), reservedSize: 50)),
+                    bottomTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, getTitlesWidget: (value, meta) {
+                      final labels = ['J+1', 'J+2', 'J+3', 'J+4', 'J+5', 'J+6', 'J+7'];
+                      final idx = value.toInt();
+                      return idx >= 0 && idx < labels.length ? Text(labels[idx], style: const TextStyle(color: _textMuted, fontSize: 10)) : const Text('');
+                    })),
+                    topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                    rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  ),
+                  borderData: FlBorderData(show: false),
+                  minY: 0,
+                  lineBarsData: [
+                    LineChartBarData(
+                      spots: values.asMap().entries.map((e) => FlSpot(e.key.toDouble(), e.value)).toList(),
+                      isCurved: true,
+                      color: _neonCyan,
+                      barWidth: 3,
+                      dotData: FlDotData(show: true, getDotPainter: (spot, _, __, ___) => FlDotCirclePainter(radius: 4, color: _bgCarbon, strokeWidth: 2, strokeColor: _neonCyan)),
+                      belowBarData: BarAreaData(show: true, color: _neonCyan.withOpacity(0.08)),
+                    ),
+                  ],
+                  lineTouchData: LineTouchData(touchTooltipData: LineTouchTooltipData(getTooltipItems: (spots) => spots.map((s) => LineTooltipItem('${s.y.toStringAsFixed(0)} DA', const TextStyle(color: Colors.white, fontWeight: FontWeight.bold))).toList())),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
