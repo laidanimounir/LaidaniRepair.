@@ -135,12 +135,12 @@ class _RepairsReportScreenState extends ConsumerState<RepairsReportScreen> {
                 ? const Center(child: CircularProgressIndicator(color: _neonCyan))
                 : _tickets.isEmpty
                     ? Center(child: Text('Aucune donnée.', style: const TextStyle(color: _textMuted)))
-                    : ListView.builder(
+                    : ListView(
                         padding: const EdgeInsets.symmetric(horizontal: 20),
-                        itemCount: _tickets.length,
-                        itemBuilder: (context, index) {
-                          final t = _tickets[index];
-                          return Container(
+                        children: [
+                          _buildCommonFaultsChart(),
+                          const SizedBox(height: 16),
+                          ...(_tickets.map((t) => Container(
                             margin: const EdgeInsets.only(bottom: 6),
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(color: _panelDark, borderRadius: BorderRadius.circular(8), border: Border.all(color: _glassBorder)),
@@ -152,8 +152,8 @@ class _RepairsReportScreenState extends ConsumerState<RepairsReportScreen> {
                                 Expanded(flex: 1, child: Text('${(t['final_cost'] as num?)?.toDouble() ?? 0} DA', style: const TextStyle(color: Colors.white, fontSize: 12))),
                               ],
                             ),
-                          );
-                        },
+                          ))),
+                        ],
                       ),
           ),
         ],
@@ -226,6 +226,78 @@ class _RepairsReportScreenState extends ConsumerState<RepairsReportScreen> {
           )).toList(),
         );
       },
+    );
+  }
+
+  Widget _buildCommonFaultsChart() {
+    final faults = <String, int>{};
+    final brandFaults = <String, int>{};
+    final typeFaults = <String, int>{};
+    for (final t in _tickets) {
+      final issue = (t['issue_description'] as String? ?? '').trim();
+      final brand = (t['brand'] as String? ?? 'Inconnu').trim();
+      final type = (t['device_type'] as String? ?? 'Autre').trim();
+      if (issue.isNotEmpty) {
+        final shortIssue = issue.length > 30 ? '${issue.substring(0, 30)}...' : issue;
+        faults[shortIssue] = (faults[shortIssue] ?? 0) + 1;
+      }
+      brandFaults[brand] = (brandFaults[brand] ?? 0) + 1;
+      typeFaults[type] = (typeFaults[type] ?? 0) + 1;
+    }
+    final sortedFaults = faults.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+    final sortedBrands = brandFaults.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+    final sortedTypes = typeFaults.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+
+    if (sortedFaults.isEmpty && sortedBrands.isEmpty) return const SizedBox.shrink();
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(color: _panelDark, borderRadius: BorderRadius.circular(16), border: Border.all(color: _glassBorder)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('PANNES FRÉQUENTES', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+          const SizedBox(height: 12),
+          if (sortedFaults.isNotEmpty) ...[
+            const Text('Par problème:', style: TextStyle(color: _textMuted, fontSize: 11)),
+            const SizedBox(height: 4),
+            ...sortedFaults.take(5).map((e) => _barRow(e.key, e.value, sortedFaults.first.value, _neonCyan)),
+          ],
+          const SizedBox(height: 12),
+          if (sortedBrands.isNotEmpty) ...[
+            const Text('Par marque:', style: TextStyle(color: _textMuted, fontSize: 11)),
+            const SizedBox(height: 4),
+            ...sortedBrands.take(5).map((e) => _barRow(e.key, e.value, sortedBrands.first.value, Colors.amber)),
+          ],
+          const SizedBox(height: 12),
+          if (sortedTypes.isNotEmpty) ...[
+            const Text('Par type:', style: TextStyle(color: _textMuted, fontSize: 11)),
+            const SizedBox(height: 4),
+            ...sortedTypes.take(5).map((e) => _barRow(e.key, e.value, sortedTypes.first.value, _neonEmerald)),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _barRow(String label, int count, int maxCount, Color color) {
+    final ratio = maxCount > 0 ? count / maxCount : 0.0;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        children: [
+          SizedBox(width: 100, child: Text(label, style: const TextStyle(color: Colors.white, fontSize: 11), overflow: TextOverflow.ellipsis)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(value: ratio, backgroundColor: color.withOpacity(0.1), valueColor: AlwaysStoppedAnimation(color), minHeight: 14),
+            ),
+          ),
+          const SizedBox(width: 8),
+          SizedBox(width: 30, child: Text('$count', style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 11))),
+        ],
+      ),
     );
   }
 
