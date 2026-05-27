@@ -145,6 +145,209 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
     }
   }
 
+  // --- Quote Workflow ---
+  Future<void> _showQuoteDialog(Color color) async {
+    final result = await showDialog<Map<String, String>>(
+      context: context,
+      builder: (ctx) {
+        final amountCtrl = TextEditingController(text: (_ticket?['estimated_cost'] as num?)?.toStringAsFixed(0) ?? '0');
+        return AlertDialog(
+          backgroundColor: _panelDark,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: _glassBorder)),
+          title: const Text('Générer le devis', style: TextStyle(color: Colors.white)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('Montant estimé à facturer', style: TextStyle(color: _textMuted, fontSize: 13)),
+              const SizedBox(height: 8),
+              TextField(
+                controller: amountCtrl,
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
+                textAlign: TextAlign.center,
+                decoration: const InputDecoration(suffixText: 'DA', suffixStyle: TextStyle(color: _textMuted)),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Annuler', style: TextStyle(color: _textMuted))),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: _neonCyan, foregroundColor: _bgCarbon),
+              onPressed: () => Navigator.pop(ctx, {'amount': amountCtrl.text}),
+              child: const Text('GÉNÉRER LE DEVIS'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (result == null) return;
+    final amount = double.tryParse(result['amount'] ?? '') ?? 0;
+    final client = ref.read(supabaseClientProvider);
+    await client.from('repair_tickets').update({
+      'estimated_cost': amount,
+      'quote_generated_at': DateTime.now().toIso8601String(),
+    }).eq('id', widget.ticketId);
+    final user = Supabase.instance.client.auth.currentUser;
+    await client.from('repair_ticket_events').insert({
+      'ticket_id': widget.ticketId,
+      'event_type': 'quote_generated',
+      'old_value': null,
+      'new_value': amount.toString(),
+      'created_by': user?.id,
+      'notes': 'Devis généré: $amount DA',
+    });
+    _fetchFullData();
+    _showToast('Devis généré', Colors.green);
+  }
+
+  Future<void> _markQuoteAsSent(Color color) async {
+    final method = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: _panelDark,
+        title: const Text('Mode d\'envoi du devis', style: TextStyle(color: Colors.white)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: ['WhatsApp', 'SMS', 'Appel', 'Email', 'En personne'].map((m) => ListTile(
+            leading: Icon(_quoteMethodIcon(m), color: _neonCyan),
+            title: Text(m, style: const TextStyle(color: Colors.white)),
+            onTap: () => Navigator.pop(ctx, m),
+          )).toList(),
+        ),
+      ),
+    );
+    if (method == null) return;
+
+    final client = ref.read(supabaseClientProvider);
+    await client.from('repair_tickets').update({
+      'quote_sent_at': DateTime.now().toIso8601String(),
+      'quote_sent_method': method,
+    }).eq('id', widget.ticketId);
+    final user = Supabase.instance.client.auth.currentUser;
+    await client.from('repair_ticket_events').insert({
+      'ticket_id': widget.ticketId,
+      'event_type': 'quote_sent',
+      'old_value': null,
+      'new_value': method,
+      'created_by': user?.id,
+      'notes': 'Devis envoyé par $method',
+    });
+    _fetchFullData();
+    _showToast('Devis marqué comme envoyé', Colors.green);
+  }
+
+  Future<void> _recordCustomerApproval(Color color) async {
+    final result = await showDialog<Map<String, String>>(
+      context: context,
+      builder: (ctx) {
+        final amountCtrl = TextEditingController(text: (_ticket?['approved_amount'] as num?)?.toStringAsFixed(0) ?? (_ticket?['estimated_cost'] as num?)?.toStringAsFixed(0) ?? '0');
+        final reasonCtrl = TextEditingController();
+        String? action = 'approve';
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) => AlertDialog(
+            backgroundColor: _panelDark,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: _glassBorder)),
+            title: const Text('Réponse du client', style: TextStyle(color: Colors.white)),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: action == 'approve' ? _neonEmerald.withOpacity(0.2) : Colors.transparent,
+                          foregroundColor: action == 'approve' ? _neonEmerald : _textMuted,
+                          side: BorderSide(color: action == 'approve' ? _neonEmerald : _glassBorder),
+                        ),
+                        onPressed: () => setDialogState(() => action = 'approve'),
+                        child: const Text('APPROUVER'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: action == 'reject' ? Colors.redAccent.withOpacity(0.2) : Colors.transparent,
+                          foregroundColor: action == 'reject' ? Colors.redAccent : _textMuted,
+                          side: BorderSide(color: action == 'reject' ? Colors.redAccent : _glassBorder),
+                        ),
+                        onPressed: () => setDialogState(() => action = 'reject'),
+                        child: const Text('REFUSER'),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                if (action == 'approve')
+                  TextField(
+                    controller: amountCtrl,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
+                    textAlign: TextAlign.center,
+                    decoration: const InputDecoration(labelText: 'Montant approuvé (DA)', labelStyle: TextStyle(color: _textMuted)),
+                  ),
+                if (action == 'reject')
+                  TextField(
+                    controller: reasonCtrl,
+                    maxLines: 2,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: const InputDecoration(labelText: 'Motif du refus', labelStyle: TextStyle(color: _textMuted)),
+                  ),
+              ],
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Annuler', style: TextStyle(color: _textMuted))),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: _neonCyan, foregroundColor: _bgCarbon),
+                onPressed: () => Navigator.pop(ctx, {'action': action, 'amount': amountCtrl.text, 'reason': reasonCtrl.text}),
+                child: const Text('ENREGISTRER'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (result == null) return;
+    final isApproved = result['action'] == 'approve';
+    final client = ref.read(supabaseClientProvider);
+    final updates = <String, dynamic>{
+      'customer_approved': isApproved,
+      'approved_at': DateTime.now().toIso8601String(),
+    };
+    if (isApproved) {
+      updates['approved_amount'] = double.tryParse(result['amount'] ?? '') ?? 0;
+    } else {
+      updates['rejection_reason'] = result['reason'] ?? '';
+    }
+    await client.from('repair_tickets').update(updates).eq('id', widget.ticketId);
+    final user = Supabase.instance.client.auth.currentUser;
+    await client.from('repair_ticket_events').insert({
+      'ticket_id': widget.ticketId,
+      'event_type': isApproved ? 'quote_approved' : 'quote_rejected',
+      'old_value': null,
+      'new_value': isApproved ? result['amount'] : result['reason'],
+      'created_by': user?.id,
+      'notes': isApproved ? 'Client a approuvé le devis' : 'Client a refusé le devis',
+    });
+    _fetchFullData();
+    _showToast(isApproved ? 'Approbation enregistrée' : 'Refus enregistré', isApproved ? Colors.green : Colors.redAccent);
+  }
+
+  IconData _quoteMethodIcon(String method) {
+    switch (method) {
+      case 'WhatsApp': return Icons.chat;
+      case 'SMS': return Icons.sms;
+      case 'Appel': return Icons.phone;
+      case 'Email': return Icons.email;
+      default: return Icons.person;
+    }
+  }
+
   // --- 5. إلغاء التذكرة بالكامل (الدرع الواقي) ---
   Future<void> _cancelTicket() async {
     final confirm = await showDialog<bool>(
@@ -528,8 +731,93 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
         const SizedBox(height: 16),
         _buildPaymentsSection(color),
         const SizedBox(height: 16),
+        _buildQuoteSection(color),
+        const SizedBox(height: 16),
         _buildFinancialSummary(color),
       ],
+    );
+  }
+
+  Widget _buildQuoteSection(Color color) {
+    final isCanceled = _ticket?['status'] == 'Annulé';
+    final quoteGenerated = _ticket?['quote_generated_at'] != null;
+    final quoteSent = _ticket?['quote_sent_at'] != null;
+    final customerApproved = _ticket?['customer_approved'] as bool?;
+    final quoteSentMethod = _ticket?['quote_sent_method'] as String?;
+
+    String statusText;
+    Color statusColor;
+    if (customerApproved == true) {
+      statusText = 'Approuvé (${_ticket?['approved_amount'] ?? ''} DA)';
+      statusColor = _neonEmerald;
+    } else if (customerApproved == false) {
+      statusText = 'Refusé: ${_ticket?['rejection_reason'] ?? ''}';
+      statusColor = Colors.redAccent;
+    } else if (quoteSent) {
+      statusText = 'Envoyé par $quoteSentMethod';
+      statusColor = Colors.orangeAccent;
+    } else if (quoteGenerated) {
+      statusText = 'Généré';
+      statusColor = color;
+    } else {
+      statusText = 'Non généré';
+      statusColor = _textMuted;
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(color: _panelDark, borderRadius: BorderRadius.circular(16), border: Border.all(color: statusColor.withOpacity(0.3))),
+      child: Row(
+        children: [
+          Icon(Icons.description_outlined, color: statusColor, size: 20),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('DEVIS', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+                Text(statusText, style: TextStyle(color: statusColor, fontSize: 11)),
+              ],
+            ),
+          ),
+          if (!isCanceled)
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (!quoteGenerated)
+                  _buildActionChip('Générer', Icons.description, color, () => _showQuoteDialog(color))
+                else ...[
+                  if (!quoteSent)
+                    _buildActionChip('Envoyer', Icons.send, Colors.orangeAccent, () => _markQuoteAsSent(color))
+                  else if (customerApproved == null)
+                    _buildActionChip('Client', Icons.thumbs_up_down, _neonEmerald, () => _recordCustomerApproval(color)),
+                ],
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionChip(String label, IconData icon, Color chipColor, VoidCallback onTap) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 8),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(color: chipColor.withOpacity(0.1), borderRadius: BorderRadius.circular(8), border: Border.all(color: chipColor.withOpacity(0.3))),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 12, color: chipColor),
+              const SizedBox(width: 4),
+              Text(label, style: TextStyle(color: chipColor, fontSize: 11, fontWeight: FontWeight.bold)),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
