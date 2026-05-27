@@ -348,6 +348,122 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
     }
   }
 
+  // --- Quality Control ---
+  Future<void> _showQCDialog(Color color) async {
+    final notesCtrl = TextEditingController(text: _ticket?['qc_notes'] as String? ?? '');
+    String? selectedStatus = _ticket?['qc_status'] as String? ?? 'Réussi';
+    bool tested = _ticket?['device_tested'] as bool? ?? false;
+
+    final result = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          backgroundColor: _panelDark,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: _glassBorder)),
+          title: const Text('Contrôle Qualité', style: TextStyle(color: Colors.white)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: selectedStatus == 'Réussi' ? _neonEmerald.withOpacity(0.2) : Colors.transparent,
+                        foregroundColor: selectedStatus == 'Réussi' ? _neonEmerald : _textMuted,
+                        side: BorderSide(color: selectedStatus == 'Réussi' ? _neonEmerald : _glassBorder),
+                      ),
+                      onPressed: () => setDialogState(() => selectedStatus = 'Réussi'),
+                      child: const Text('RÉUSSI'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: selectedStatus == 'Échoué' ? Colors.redAccent.withOpacity(0.2) : Colors.transparent,
+                        foregroundColor: selectedStatus == 'Échoué' ? Colors.redAccent : _textMuted,
+                        side: BorderSide(color: selectedStatus == 'Échoué' ? Colors.redAccent : _glassBorder),
+                      ),
+                      onPressed: () => setDialogState(() => selectedStatus = 'Échoué'),
+                      child: const Text('ÉCHOUÉ'),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              CheckboxListTile(
+                title: const Text('Appareil testé fonctionnel', style: TextStyle(color: Colors.white)),
+                value: tested,
+                activeColor: _neonEmerald,
+                contentPadding: EdgeInsets.zero,
+                onChanged: (v) => setDialogState(() => tested = v ?? false),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: notesCtrl,
+                maxLines: 3,
+                style: const TextStyle(color: Colors.white),
+                decoration: const InputDecoration(labelText: 'Notes CQ', labelStyle: TextStyle(color: _textMuted)),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Annuler', style: TextStyle(color: _textMuted))),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: _neonCyan, foregroundColor: _bgCarbon),
+              onPressed: () => Navigator.pop(ctx, {'status': selectedStatus, 'tested': tested, 'notes': notesCtrl.text}),
+              child: const Text('ENREGISTRER'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (result == null) return;
+    final client = ref.read(supabaseClientProvider);
+    final user = Supabase.instance.client.auth.currentUser;
+    await client.from('repair_tickets').update({
+      'qc_status': result['status'],
+      'qc_notes': (result['notes'] as String).trim(),
+      'qc_done_by': user?.id,
+      'qc_done_at': DateTime.now().toIso8601String(),
+      'device_tested': result['tested'],
+    }).eq('id', widget.ticketId);
+    await client.from('repair_ticket_events').insert({
+      'ticket_id': widget.ticketId,
+      'event_type': 'qc_result',
+      'old_value': _ticket?['qc_status'] as String? ?? 'En attente',
+      'new_value': result['status'] as String,
+      'created_by': user?.id,
+      'notes': 'CQ: ${result['status']} - ${(result['notes'] as String).trim()}',
+    });
+    _fetchFullData();
+    _showToast('CQ enregistré: ${result['status']}', Colors.green);
+  }
+
+  Future<void> _resetQC() async {
+    final client = ref.read(supabaseClientProvider);
+    final user = Supabase.instance.client.auth.currentUser;
+    await client.from('repair_tickets').update({
+      'qc_status': 'En attente',
+      'qc_notes': null,
+      'qc_done_by': null,
+      'qc_done_at': null,
+      'device_tested': false,
+    }).eq('id', widget.ticketId);
+    await client.from('repair_ticket_events').insert({
+      'ticket_id': widget.ticketId,
+      'event_type': 'qc_reset',
+      'old_value': _ticket?['qc_status'] as String? ?? 'En attente',
+      'new_value': 'En attente',
+      'created_by': user?.id,
+      'notes': 'CQ réinitialisé',
+    });
+    _fetchFullData();
+    _showToast('CQ réinitialisé', Colors.orangeAccent);
+  }
+
   // --- 5. إلغاء التذكرة بالكامل (الدرع الواقي) ---
   Future<void> _cancelTicket() async {
     final confirm = await showDialog<bool>(
@@ -733,8 +849,62 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
         const SizedBox(height: 16),
         _buildQuoteSection(color),
         const SizedBox(height: 16),
+        _buildQCSection(color),
+        const SizedBox(height: 16),
         _buildFinancialSummary(color),
       ],
+    );
+  }
+
+  Widget _buildQCSection(Color color) {
+    final isCanceled = _ticket?['status'] == 'Annulé';
+    final qcStatus = _ticket?['qc_status'] as String? ?? 'En attente';
+    final deviceTested = _ticket?['device_tested'] as bool? ?? false;
+
+    Color qcColor;
+    switch (qcStatus) {
+      case 'Réussi':
+        qcColor = _neonEmerald;
+        break;
+      case 'Échoué':
+        qcColor = Colors.redAccent;
+        break;
+      default:
+        qcColor = _textMuted;
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(color: _panelDark, borderRadius: BorderRadius.circular(16), border: Border.all(color: qcColor.withOpacity(0.3))),
+      child: Row(
+        children: [
+          Icon(Icons.verified_outlined, color: qcColor, size: 20),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('CONTRÔLE QUALITÉ', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+                Text('QC: $qcStatus • Testé: ${deviceTested ? 'Oui' : 'Non'}', style: TextStyle(color: qcColor, fontSize: 11)),
+                if (qcStatus == 'Échoué' && _ticket?['qc_notes'] != null)
+                  Padding(padding: const EdgeInsets.only(top: 4), child: Text('Note: ${_ticket!['qc_notes']}', style: const TextStyle(color: Colors.redAccent, fontSize: 11))),
+              ],
+            ),
+          ),
+          if (!isCanceled && qcStatus != 'Réussi')
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildActionChip(qcStatus == 'En attente' ? 'CQ Réussi' : 'Retour CQ', Icons.check_circle, _neonEmerald, () => _showQCDialog(color)),
+                if (qcStatus != 'En attente')
+                  Padding(
+                    padding: const EdgeInsets.only(left: 8),
+                    child: _buildActionChip('Réinitialiser', Icons.refresh, _textMuted, () => _resetQC()),
+                  ),
+              ],
+            ),
+        ],
+      ),
     );
   }
 
