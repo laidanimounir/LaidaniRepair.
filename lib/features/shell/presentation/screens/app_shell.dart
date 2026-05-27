@@ -118,6 +118,13 @@ const _navItems = <_NavItem>[
     ownerOnly: true,
   ),
   _NavItem(
+    label: 'Performance Techniciens',
+    icon: Icons.person_search_outlined,
+    activeIcon: Icons.person_search,
+    route: '/shell/technician-report',
+    ownerOnly: true,
+  ),
+  _NavItem(
     label: 'Promotions',
     icon: Icons.local_offer_outlined,
     activeIcon: Icons.local_offer,

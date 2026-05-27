@@ -19,6 +19,7 @@ import 'package:laidani_repair/features/expenses/presentation/screens/expenses_s
 import 'package:laidani_repair/features/audit/presentation/screens/audit_screen.dart';
 import 'package:laidani_repair/features/reports/presentation/screens/sales_reports_screen.dart';
 import 'package:laidani_repair/features/reports/presentation/screens/repairs_report_screen.dart';
+import 'package:laidani_repair/features/reports/presentation/screens/technician_report_screen.dart';
 import 'package:laidani_repair/features/attendance/presentation/screens/attendance_screen.dart';
 import 'package:laidani_repair/features/promotions/presentation/screens/promotions_screen.dart';
 import 'package:laidani_repair/features/dashboard/presentation/screens/dashboard_screen.dart';
@@ -169,6 +170,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/shell/repairs-report',
             builder: (_, __) => const RepairsReportScreen(),
+          ),
+          GoRoute(
+            path: '/shell/technician-report',
+            builder: (_, __) => const TechnicianReportScreen(),
           ),
           GoRoute(
             path: AppConstants.routeDashboard,
