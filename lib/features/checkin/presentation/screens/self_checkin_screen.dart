@@ -2,7 +2,6 @@ import 'dart:math';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:laidani_repair/core/providers/supabase_provider.dart';
 
 const Color _bgCarbon = Color(0xFF050914);

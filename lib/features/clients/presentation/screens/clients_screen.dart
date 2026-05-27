@@ -102,6 +102,70 @@ class ClientsScreen extends ConsumerWidget {
                 if (customers.isEmpty) {
                   return const Center(
                     child: Text('Aucun client enregistré', style: TextStyle(color: AppTheme.onSurfaceMuted)),
+                  );
+                }
+                return ListView.separated(
+                  padding: const EdgeInsets.all(12),
+                  itemCount: customers.length,
+                  separatorBuilder: (_, __) => const Divider(height: 1),
+                  itemBuilder: (_, i) {
+                    final c = customers[i];
+                    final debt = (c['total_debt'] as num?)?.toDouble() ?? 0.0;
+                    return ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor: AppTheme.primary.withOpacity(0.15),
+                        child: Text(
+                          (c['full_name'] ?? '?')[0].toUpperCase(),
+                          style: const TextStyle(color: AppTheme.primaryLight, fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                      title: Text(c['full_name'] ?? '',
+                          style: const TextStyle(fontWeight: FontWeight.w600, color: AppTheme.onBackground)),
+                      subtitle: Text(c['phone_number'] ?? '—',
+                          style: const TextStyle(color: AppTheme.onSurfaceMuted, fontSize: 12)),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (((c['loyalty_points'] as num?)?.toInt() ?? 0) > 0)
+                            Container(
+                              margin: const EdgeInsets.only(right: 6),
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: Colors.purpleAccent.withOpacity(0.15),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text('${c['loyalty_points']} pts',
+                                  style: const TextStyle(color: Colors.purpleAccent, fontWeight: FontWeight.w600, fontSize: 11)),
+                            ),
+                          debt > 0
+                              ? Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: AppTheme.error.withOpacity(0.15),
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(color: AppTheme.error.withOpacity(0.3)),
+                                  ),
+                                  child: Text('${debt.toStringAsFixed(0)} DA',
+                                      style: const TextStyle(color: AppTheme.error, fontWeight: FontWeight.w700, fontSize: 13)),
+                                )
+                              : const Text('0 DA',
+                                  style: TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.w600, fontSize: 13)),
+                        ],
+                      ),
+                      onTap: () => _showCustomerDetail(context, ref, c),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => _showAddCustomerDialog(context, ref),
+        backgroundColor: AppTheme.primary,
+        child: const Icon(Icons.person_add, color: Colors.white),
+      ),
     );
   }
 }
@@ -237,9 +301,6 @@ Future<void> _analyzeCustomerIA(BuildContext context, WidgetRef ref, Map<String,
     }
   }
 }
-}
-
-// ─── CSV Export ────────────────────────────────────────────────────────────────
 
 Future<void> _exportCustomersCsv(BuildContext context, WidgetRef ref) async {
   final client = ref.read(supabaseClientProvider);

@@ -14,6 +14,9 @@ const Color _glassBorder = Color(0x1AFFFFFF);
 const Color _textMuted = Color(0xFF8A9BB4);
 const Color _neonPurple = Color(0xFFB000FF);
 
+final _bulkModeInventory = StateProvider<bool>((ref) => false);
+final _selectedProducts = StateProvider<Set<dynamic>>((ref) => Set<dynamic>());
+
 class InventoryScreen extends ConsumerStatefulWidget {
   const InventoryScreen({super.key});
 
@@ -77,6 +80,14 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
                         const SizedBox(width: 16),
                         const Text('INVENTAIRE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 18, letterSpacing: 1.5)),
                         const Spacer(),
+                        IconButton(
+                          icon: Icon(ref.watch(_bulkModeInventory) ? Icons.checklist : Icons.checklist_outlined, color: ref.watch(_bulkModeInventory) ? _neonPurple : _textMuted),
+                          tooltip: 'Mode sélection multiple',
+                          onPressed: () {
+                            ref.read(_bulkModeInventory.notifier).state = !ref.read(_bulkModeInventory);
+                            ref.read(_selectedProducts.notifier).state = {};
+                          },
+                        ),
                         IconButton(
                           icon: const Icon(Icons.file_download, color: _textMuted),
                           tooltip: 'Exporter CSV',
@@ -160,7 +171,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
           ..sort((a, b) => ((b['stock_quantity'] as num?)?.toInt() ?? 0).compareTo((a['stock_quantity'] as num?)?.toInt() ?? 0));
         final top10 = sortedBySales.take(10).toList();
 
-        final slowMoving = products.where((p) => (p['stock_quantity'] as num?)?.toInt() ?? 0 > (p['min_stock'] as num?)?.toInt() ?? 5).toList();
+        final slowMoving = products.where((p) => ((p['stock_quantity'] as num?)?.toInt() ?? 0) > ((p['min_stock'] as num?)?.toInt() ?? 5)).toList();
         final slowMovingSorted = List<Map<String, dynamic>>.from(slowMoving)
           ..sort((a, b) => ((a['stock_quantity'] as num?)?.toInt() ?? 0).compareTo((b['stock_quantity'] as num?)?.toInt() ?? 0));
         final slowest10 = slowMovingSorted.take(10).toList();
@@ -177,7 +188,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
                 children: [
                   _buildKpiCard('Produits totaux', '${products.length}', _neonPurple),
                   const SizedBox(width: 12),
-                  _buildKpiCard('Stock total', '$totalStock unités', _neonCyan),
+                  _buildKpiCard('Stock total', '$totalStock unités', _neonPurple),
                   const SizedBox(width: 12),
                   _buildKpiCard('Valeur totale', '${totalValue.toStringAsFixed(0)} DA', Color(0xFF00E676)),
                 ],

@@ -9,6 +9,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:laidani_repair/core/providers/supabase_provider.dart';
 import 'package:laidani_repair/core/providers/shortcuts_provider.dart';
 import 'package:laidani_repair/core/services/groq_service.dart';
+import 'package:laidani_repair/core/utils/csv_export.dart';
 
 // --- Cyber Glass Theme Constants ---
 const Color _bgCarbon = Color(0xFF050914);
@@ -30,6 +31,8 @@ final _ticketsProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async 
 
 final _statusFilter = StateProvider<String?>((ref) => null);
 final _slaFilter = StateProvider<String?>((ref) => null);
+final _bulkModeProvider = StateProvider<bool>((ref) => false);
+final _selectedTicketsProvider = StateProvider<Set<String>>((ref) => Set<String>());
 
 // ─── Repairs Screen (Responsive) ────────────────────────────────────────
 
@@ -41,6 +44,8 @@ class RepairsScreen extends ConsumerWidget {
     final ticketsAsync = ref.watch(_ticketsProvider);
     final statusF = ref.watch(_statusFilter);
     final slaF = ref.watch(_slaFilter);
+    final bulkMode = ref.watch(_bulkModeProvider);
+    final selectedTickets = ref.watch(_selectedTicketsProvider);
 
     ref.listen(newTicketRequestProvider, (_, __) {
       _showNewTicketDialog(context, ref);
@@ -93,6 +98,14 @@ class RepairsScreen extends ConsumerWidget {
                       icon: const Icon(Icons.refresh, color: _textMuted),
                       onPressed: () => ref.invalidate(_ticketsProvider),
                       tooltip: 'Rafraîchir',
+                    ),
+                    IconButton(
+                      icon: Icon(bulkMode ? Icons.checklist : Icons.checklist_outlined, color: bulkMode ? _neonCyan : _textMuted),
+                      onPressed: () {
+                        ref.read(_bulkModeProvider.notifier).state = !bulkMode;
+                        ref.read(_selectedTicketsProvider.notifier).state = {};
+                      },
+                      tooltip: 'Mode sélection multiple',
                     ),
                     // 🌟 إخفاء زر الإضافة من الأعلى في الهاتف 🌟
                     if (isDesktop) ...[
@@ -161,6 +174,8 @@ class RepairsScreen extends ConsumerWidget {
 
                 return Column(
                   children: [
+                    if (bulkMode && selectedTickets.isNotEmpty)
+                      _buildBulkActionBar(ref, slaFiltered, selectedTickets),
                     if (kioskTickets.isNotEmpty)
                       Container(
                         width: double.infinity,
@@ -192,8 +207,6 @@ class RepairsScreen extends ConsumerWidget {
                         ),
                       ),
 
-                return Column(
-                  children: [
                     // 🌟 إظهار رأس الجدول للحاسوب فقط 🌟
                     if (isDesktop)
                       Container(
@@ -214,6 +227,33 @@ class RepairsScreen extends ConsumerWidget {
                       child: ListView.builder(
                         itemCount: slaFiltered.length,
                         itemBuilder: (context, index) {
+                          final ticket = slaFiltered[index];
+                          final ticketId = ticket['id'] as String;
+                          final isSelected = selectedTickets.contains(ticketId);
+
+                          if (bulkMode) {
+                            return GestureDetector(
+                              onTap: () {
+                                final set = Set<String>.from(selectedTickets);
+                                if (isSelected) {
+                                  set.remove(ticketId);
+                                } else {
+                                  set.add(ticketId);
+                                }
+                                ref.read(_selectedTicketsProvider.notifier).state = set;
+                              },
+                              child: isDesktop
+                                  ? _CyberTableRow.withCheckbox(
+                                      ticket: ticket, ref: ref,
+                                      selected: isSelected,
+                                    )
+                                  : _MobileTicketCard.withCheckbox(
+                                      ticket: ticket, ref: ref,
+                                      selected: isSelected,
+                                    ),
+                            );
+                          }
+
                           // 🌟 اختيار طريقة العرض المناسبة 🌟
                           return isDesktop 
                               ? _CyberTableRow(ticket: slaFiltered[index], ref: ref)
@@ -261,8 +301,10 @@ class RepairsScreen extends ConsumerWidget {
 class _CyberTableRow extends StatelessWidget {
   final Map<String, dynamic> ticket;
   final WidgetRef ref;
+  final bool selected;
 
-  const _CyberTableRow({required this.ticket, required this.ref});
+  const _CyberTableRow({required this.ticket, required this.ref, this.selected = false});
+  _CyberTableRow.withCheckbox({required this.ticket, required this.ref, required this.selected});
 
   @override
   Widget build(BuildContext context) {
@@ -283,11 +325,15 @@ class _CyberTableRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
       decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: _glassBorder, width: 0.5)),
-        color: _getSlaRowColor(ticket),
+        color: selected ? _neonCyan.withOpacity(0.1) : _getSlaRowColor(ticket),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: Icon(selected ? Icons.check_box : Icons.check_box_outline_blank, color: selected ? _neonCyan : _textMuted.withOpacity(0.3), size: 20),
+          ),
           Expanded(
             flex: 2,
             child: Column(
@@ -431,8 +477,10 @@ Future<void> _addLoyaltyPointsForRepair(SupabaseClient client, Map<String, dynam
 class _MobileTicketCard extends StatelessWidget {
   final Map<String, dynamic> ticket;
   final WidgetRef ref;
+  final bool selected;
 
-  const _MobileTicketCard({required this.ticket, required this.ref});
+  const _MobileTicketCard({required this.ticket, required this.ref, this.selected = false});
+  _MobileTicketCard.withCheckbox({required this.ticket, required this.ref, required this.selected});
 
   @override
   Widget build(BuildContext context) {
@@ -451,13 +499,18 @@ class _MobileTicketCard extends StatelessWidget {
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: _getSlaCardColor(ticket),
+        color: selected ? _neonCyan.withOpacity(0.05) : _getSlaCardColor(ticket),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _getSlaBorderColor(ticket)),
+        border: Border.all(color: selected ? _neonCyan.withOpacity(0.5) : _getSlaBorderColor(ticket)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (selected != null)
+            Align(
+              alignment: Alignment.topRight,
+              child: Icon(selected ? Icons.check_box : Icons.check_box_outline_blank, color: selected ? _neonCyan : _textMuted.withOpacity(0.3), size: 20),
+            ),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -701,6 +754,107 @@ Color _getSlaBorderColor(Map<String, dynamic> ticket) {
     case 'yellow': return Colors.orangeAccent.withOpacity(0.4);
     default: return _glassBorder;
   }
+}
+
+Widget _buildBulkActionBar(WidgetRef ref, List<Map<String, dynamic>> tickets, Set<String> selected) {
+  return Container(
+    width: double.infinity,
+    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+    decoration: BoxDecoration(color: _neonCyan.withOpacity(0.08), border: Border(bottom: BorderSide(color: _neonCyan.withOpacity(0.3)))),
+    child: Row(
+      children: [
+        Text('${selected.length} sélectionné(s)', style: const TextStyle(color: _neonCyan, fontWeight: FontWeight.bold, fontSize: 13)),
+        const Spacer(),
+        TextButton.icon(
+          onPressed: () => _showBulkStatusDialog(ref, selected),
+          icon: const Icon(Icons.edit, size: 16),
+          label: const Text('Changer statut', style: TextStyle(fontSize: 12)),
+        ),
+        const SizedBox(width: 8),
+        TextButton.icon(
+          onPressed: () => _showBulkAssignDialog(ref, selected),
+          icon: const Icon(Icons.person_add, size: 16),
+          label: const Text('Assigner tech.', style: TextStyle(fontSize: 12)),
+        ),
+        const SizedBox(width: 8),
+        TextButton.icon(
+          onPressed: () => _exportSelectedCsv(ref, tickets, selected),
+          icon: const Icon(Icons.file_download, size: 16),
+          label: const Text('Exporter', style: TextStyle(fontSize: 12)),
+        ),
+      ],
+    ),
+  );
+}
+
+Future<void> _showBulkStatusDialog(WidgetRef ref, Set<String> selected) async {
+  if (selected.isEmpty) return;
+  final statuses = ['En attente', 'En cours', 'Terminé', 'Livré'];
+  final status = await showDialog<String>(
+    context: ref.context,
+    builder: (ctx) => AlertDialog(
+      backgroundColor: _panelDark,
+      title: const Text('Changer le statut', style: TextStyle(color: Colors.white)),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: statuses.map((s) => ListTile(
+          title: Text(s, style: const TextStyle(color: Colors.white)),
+          onTap: () => Navigator.pop(ctx, s),
+        )).toList(),
+      ),
+    ),
+  );
+  if (status == null) return;
+  final client = ref.read(supabaseClientProvider);
+  for (final id in selected) {
+    await client.from('repair_tickets').update({'status': status}).eq('id', id);
+  }
+  ref.invalidate(_ticketsProvider);
+  ref.read(_selectedTicketsProvider.notifier).state = {};
+}
+
+Future<void> _showBulkAssignDialog(WidgetRef ref, Set<String> selected) async {
+  if (selected.isEmpty) return;
+  final profiles = await ref.read(supabaseClientProvider).from('profiles').select('id, full_name');
+  final techId = await showDialog<String>(
+    context: ref.context,
+    builder: (ctx) => AlertDialog(
+      backgroundColor: _panelDark,
+      title: const Text('Assigner un technicien', style: TextStyle(color: Colors.white)),
+      content: SizedBox(
+        width: double.maxFinite,
+        child: ListView(
+          shrinkWrap: true,
+          children: (profiles as List).map((p) => ListTile(
+            title: Text(p['full_name']?.toString() ?? '', style: const TextStyle(color: Colors.white)),
+            onTap: () => Navigator.pop(ctx, p['id']?.toString()),
+          )).toList(),
+        ),
+      ),
+    ),
+  );
+  if (techId == null) return;
+  final client = ref.read(supabaseClientProvider);
+  for (final id in selected) {
+    await client.from('repair_tickets').update({'assigned_technician_id': techId}).eq('id', id);
+  }
+  ref.invalidate(_ticketsProvider);
+  ref.read(_selectedTicketsProvider.notifier).state = {};
+}
+
+Future<void> _exportSelectedCsv(WidgetRef ref, List<Map<String, dynamic>> tickets, Set<String> selected) async {
+  final selectedTickets = tickets.where((t) => selected.contains(t['id'] as String)).toList();
+  final headers = ['ID', 'Client', 'Appareil', 'Problème', 'Statut', 'Coût'];
+  final rows = selectedTickets.map((t) => [
+    t['id']?.toString() ?? '',
+    t['customers']?['full_name']?.toString() ?? t['client_name_temp']?.toString() ?? '',
+    t['device_name']?.toString() ?? '',
+    t['issue_description']?.toString() ?? '',
+    t['status']?.toString() ?? '',
+    (t['estimated_cost'] as num?)?.toString() ?? '0',
+  ]).toList();
+  final csv = await exportToCsv(headers: headers, rows: rows);
+  await shareCsv(ref.context, csv, 'tickets_${DateTime.now().millisecondsSinceEpoch}.csv');
 }
 
 // ─── New Ticket Dialog (Two-Column Cyber Layout - Responsive) ─────────────────────────────
@@ -1249,8 +1403,6 @@ class _NewTicketFormState extends State<_NewTicketForm> {
       ],
     );
   }
-
-  Widget _buildSectionTitle(String title, IconData icon) {
 
   Widget _buildSectionTitle(String title, IconData icon) {
     return Padding(

@@ -215,7 +215,7 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> with SingleTick
                   return Column(
                     children: cats.map((cat) {
                       final budget = budgets[cat.key] ?? 0;
-                      final ratio = budget > 0 ? (cat.value / budget).clamp(0, 1) : 1.0;
+                      final ratio = (budget > 0 ? (cat.value / budget).clamp(0, 1).toDouble() : 1.0);
                       final color = ratio > 0.9 ? Colors.redAccent : ratio > 0.7 ? Colors.orangeAccent : Colors.greenAccent;
                       return Padding(
                         padding: const EdgeInsets.only(bottom: 12),

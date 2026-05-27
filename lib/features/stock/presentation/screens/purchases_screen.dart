@@ -132,6 +132,18 @@ class _PurchasesScreenState extends ConsumerState<PurchasesScreen> with SingleTi
       ),
     );
   }
+
+  String _getAddButtonLabel() {
+    return _tabController.index == 0 ? 'NOUVEL ACHAT' : 'NOUVEAU FOURNISSEUR';
+  }
+
+  void _showAddDialog(BuildContext context, WidgetRef ref) {
+    if (_tabController.index == 0) {
+      _showPurchaseDialog(context, ref);
+    } else {
+      _showSupplierDialog(context, ref);
+    }
+  }
 }
 
 void _showSupplierCatalogDialog(BuildContext context, WidgetRef ref) {
@@ -251,15 +263,6 @@ void _showSupplierCatalogDialog(BuildContext context, WidgetRef ref) {
       },
     ),
   );
-}
-
-  void _showAddDialog(BuildContext context, WidgetRef ref) {
-    if (_tabController.index == 0) {
-      _showPurchaseDialog(context, ref);
-    } else {
-      _showSupplierDialog(context, ref);
-    }
-  }
 }
 
 // ─── Suppliers Tab ────────────────────────────────────────────────────────────
