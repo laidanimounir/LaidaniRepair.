@@ -55,6 +55,12 @@ const _navItems = <_NavItem>[
     route: AppConstants.routeTechnicianBoard,
   ),
   _NavItem(
+    label: 'Pointage',
+    icon: Icons.access_time,
+    activeIcon: Icons.access_time_filled,
+    route: AppConstants.routeAttendance,
+  ),
+  _NavItem(
     label: 'Clients & Dettes',
     icon: Icons.people_outline,
     activeIcon: Icons.people,
