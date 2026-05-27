@@ -1,10 +1,11 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:laidani_repair/core/theme/app_theme.dart';
+import 'package:csv/csv.dart';
+import 'package:path_provider/path_provider.dart';
+import 'dart:io';
 import 'package:laidani_repair/core/providers/supabase_provider.dart';
 
-// --- Cyber Glass Theme Constants ---
 const Color _bgCarbon = Color(0xFF050914);
 const Color _panelDark = Color(0xFF0A0F1A);
 const Color _glassBorder = Color(0x1AFFFFFF);
@@ -13,20 +14,16 @@ const Color _neonPurple = Color(0xFFB000FF);
 const Color _dangerNeon = Colors.redAccent;
 const Color _successNeon = Colors.greenAccent;
 
-// ─── Providers ─────────────────────────────────────────────────────────────────
-
-// 1. Raw Stream of Audit Logs
 final _auditLogsStreamProvider = StreamProvider<List<Map<String, dynamic>>>((ref) {
   final client = ref.watch(supabaseClientProvider);
   return client
       .from('audit_logs')
       .stream(primaryKey: ['id'])
       .order('created_at', ascending: false)
-      .limit(300)
+      .limit(500)
       .map((data) => List<Map<String, dynamic>>.from(data));
 });
 
-// 2. Profiles Mapping Provider (To grab employee names)
 final _profilesProvider = FutureProvider<Map<String, String>>((ref) async {
   final client = ref.watch(supabaseClientProvider);
   final res = await client.from('profiles').select('id, full_name');
@@ -37,41 +34,45 @@ final _profilesProvider = FutureProvider<Map<String, String>>((ref) async {
   return map;
 });
 
-// 3. Computed Provider (Combines stream + profiles + active filter)
 final _logFilterProvider = StateProvider<String>((ref) => 'All');
+final _actionFilterProvider = StateProvider<String>((ref) => 'All');
+final _userFilterProvider = StateProvider<String?>((ref) => null);
 
 final _mappedAuditLogsProvider = Provider<AsyncValue<List<Map<String, dynamic>>>>((ref) {
   final streamAsync = ref.watch(_auditLogsStreamProvider);
   final profilesAsync = ref.watch(_profilesProvider);
-  final filter = ref.watch(_logFilterProvider);
+  final tableFilter = ref.watch(_logFilterProvider);
+  final actionFilter = ref.watch(_actionFilterProvider);
+  final userFilter = ref.watch(_userFilterProvider);
 
   if (streamAsync.isLoading || profilesAsync.isLoading && !profilesAsync.hasValue) {
     return const AsyncValue.loading();
   }
-  
+
   if (streamAsync.hasError) return AsyncValue.error(streamAsync.error!, streamAsync.stackTrace!);
-  
+
   final logs = streamAsync.value ?? [];
   final profilesMap = profilesAsync.value ?? {};
 
   List<Map<String, dynamic>> filteredLogs = [];
-  
+
   for (var log in logs) {
     final action = (log['action_type'] ?? '').toString().toUpperCase();
     final table = (log['table_name'] ?? '').toString().toLowerCase();
-    
-    // Apply filters
-    bool keep = false;
-    if (filter == 'All') keep = true;
-    else if (filter == 'Repairs' && (table.contains('repair') || table.contains('ticket'))) keep = true;
-    else if (filter == 'Sales' && table.contains('sale')) keep = true;
-    else if (filter == 'Purchases' && (table.contains('purchase') || table.contains('supplier'))) keep = true;
-    else if (filter == 'Deletes' && action == 'DELETE') keep = true;
+    final workerId = (log['user_id'] ?? log['worker_id'])?.toString() ?? '';
+
+    bool keep = true;
+    if (tableFilter != 'All') {
+      if (tableFilter == 'Repairs' && !(table.contains('repair') || table.contains('ticket'))) keep = false;
+      else if (tableFilter == 'Sales' && !table.contains('sale')) keep = false;
+      else if (tableFilter == 'Purchases' && !(table.contains('purchase') || table.contains('supplier'))) keep = false;
+      else if (tableFilter == 'Deletes' && action != 'DELETE') keep = false;
+    }
+    if (actionFilter != 'All' && action != actionFilter) keep = false;
+    if (userFilter != null && workerId != userFilter) keep = false;
 
     if (keep) {
       final newLog = Map<String, dynamic>.from(log);
-      // Determine worker_id field (fallback to 'worker_id' or 'user_id' based on generic schema)
-      final workerId = (newLog['user_id'] ?? newLog['worker_id'])?.toString() ?? '';
       newLog['worker_name'] = profilesMap[workerId] ?? 'Système / Trigger';
       filteredLogs.add(newLog);
     }
@@ -80,11 +81,9 @@ final _mappedAuditLogsProvider = Provider<AsyncValue<List<Map<String, dynamic>>>
   return AsyncValue.data(filteredLogs);
 });
 
-// ─── Translators ─────────────────────────────────────────────────────────────
-
 String _translateAction(String action) {
   switch (action.toUpperCase()) {
-    case 'INSERT': return 'Création / Ajout';
+    case 'INSERT': return 'Création';
     case 'UPDATE': return 'Modification';
     case 'DELETE': return 'Suppression';
     default: return action;
@@ -93,13 +92,13 @@ String _translateAction(String action) {
 
 String _translateTable(String table) {
   switch (table.toLowerCase()) {
-    case 'repair_tickets': return 'Ticket de Réparation';
-    case 'repair_parts': return 'Pièce de Réparation';
-    case 'sales': return 'Vente (Facture)';
+    case 'repair_tickets': return 'Ticket Réparation';
+    case 'repair_parts': return 'Pièce Réparation';
+    case 'sales': return 'Vente';
     case 'sale_items': return 'Article Vendu';
     case 'purchase_invoices': return 'Achat Fournisseur';
     case 'purchase_items': return 'Article Acheté';
-    case 'products': return 'Article de Stock';
+    case 'products': return 'Stock';
     case 'suppliers': return 'Fournisseur';
     case 'customers': return 'Client';
     case 'customer_payments': return 'Paiement Client';
@@ -129,7 +128,7 @@ String _translateKey(String key) {
     case 'purchase_price': return 'Prix Achat';
     case 'reference_price': return 'Prix Vente';
     case 'supplier_name': return 'Fournisseur';
-    case 'total_due': return 'Dette (Dû)';
+    case 'total_due': return 'Dette';
     case 'total_amount': return 'Montant Total';
     case 'paid_amount': return 'Montant Payé';
     case 'part_name': return 'Pièce';
@@ -138,16 +137,14 @@ String _translateKey(String key) {
     case 'category_id': return 'Catégorie';
     case 'barcode': return 'Code Barres';
     case 'min_stock': return 'Seuil Min';
-    case 'advance_payment': return 'Avance (Dépôt)';
+    case 'advance_payment': return 'Avance';
     case 'client_name_temp': return 'Nom Client';
     case 'client_phone_temp': return 'Tél Client';
     case 'qr_code_hash': return 'Code QR';
-    case 'issue_description': return 'Description Panne';
+    case 'issue_description': return 'Panne';
     default: return key.replaceAll('_', ' ');
   }
 }
-
-// ─── UI Widgets ───────────────────────────────────────────────────────────────
 
 class AuditScreen extends ConsumerWidget {
   const AuditScreen({super.key});
@@ -156,12 +153,13 @@ class AuditScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final logsAsync = ref.watch(_mappedAuditLogsProvider);
     final currentFilter = ref.watch(_logFilterProvider);
+    final currentActionFilter = ref.watch(_actionFilterProvider);
+    final profilesAsync = ref.watch(_profilesProvider);
 
     return Scaffold(
       backgroundColor: _bgCarbon,
       body: Column(
         children: [
-          // Header & Filter Bar
           Container(
             padding: const EdgeInsets.all(24),
             decoration: const BoxDecoration(
@@ -184,34 +182,80 @@ class AuditScreen extends ConsumerWidget {
                     ),
                     const SizedBox(width: 16),
                     const Text('JOURNAL D\'AUDIT', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 18, letterSpacing: 1.5)),
+                    const Spacer(),
+                    IconButton(
+                      icon: const Icon(Icons.file_download, color: _neonPurple),
+                      tooltip: 'Exporter CSV',
+                      onPressed: () => _exportCsv(context, logsAsync.valueOrNull ?? []),
+                    ),
                   ],
                 ),
-                const SizedBox(height: 24),
-                // Smart Filters Row
+                const SizedBox(height: 16),
                 SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   child: Row(
-                    children: ['All', 'Repairs', 'Sales', 'Purchases', 'Deletes'].map((filter) {
-                      final isSelected = currentFilter == filter;
-                      return Padding(
-                        padding: const EdgeInsets.only(right: 12),
-                        child: ChoiceChip(
-                          label: Text(filter == 'All' ? 'Tout' : (filter == 'Deletes' ? 'Suppressions' : filter), style: TextStyle(color: isSelected ? Colors.white : _textMuted, fontWeight: FontWeight.bold)),
-                          selected: isSelected,
-                          selectedColor: filter == 'Deletes' ? _dangerNeon.withOpacity(0.2) : _neonPurple.withOpacity(0.2),
-                          backgroundColor: _bgCarbon,
-                          side: BorderSide(color: isSelected ? (filter == 'Deletes' ? _dangerNeon : _neonPurple) : _glassBorder),
-                          onSelected: (_) => ref.read(_logFilterProvider.notifier).state = filter,
-                        ),
-                      );
-                    }).toList(),
+                    children: [
+                      ...['All', 'Repairs', 'Sales', 'Purchases', 'Deletes'].map((filter) {
+                        final isSelected = currentFilter == filter;
+                        return Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: ChoiceChip(
+                            label: Text(filter == 'All' ? 'Tout' : (filter == 'Deletes' ? 'Suppressions' : filter), style: TextStyle(color: isSelected ? Colors.white : _textMuted, fontWeight: FontWeight.bold, fontSize: 12)),
+                            selected: isSelected,
+                            selectedColor: filter == 'Deletes' ? _dangerNeon.withOpacity(0.2) : _neonPurple.withOpacity(0.2),
+                            backgroundColor: _bgCarbon,
+                            side: BorderSide(color: isSelected ? (filter == 'Deletes' ? _dangerNeon : _neonPurple) : _glassBorder),
+                            onSelected: (_) => ref.read(_logFilterProvider.notifier).state = filter,
+                          ),
+                        );
+                      }),
+                      const SizedBox(width: 12),
+                      Container(width: 1, height: 28, color: _glassBorder),
+                      const SizedBox(width: 12),
+                      ...['All', 'INSERT', 'UPDATE', 'DELETE'].map((action) {
+                        final isSelected = currentActionFilter == action;
+                        return Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: ChoiceChip(
+                            label: Text(action == 'All' ? 'Actions' : _translateAction(action), style: TextStyle(color: isSelected ? Colors.white : _textMuted, fontWeight: FontWeight.bold, fontSize: 12)),
+                            selected: isSelected,
+                            selectedColor: action == 'DELETE' ? _dangerNeon.withOpacity(0.2) : _neonPurple.withOpacity(0.2),
+                            backgroundColor: _bgCarbon,
+                            side: BorderSide(color: isSelected ? _neonPurple : _glassBorder),
+                            onSelected: (_) => ref.read(_actionFilterProvider.notifier).state = action,
+                          ),
+                        );
+                      }),
+                      const SizedBox(width: 12),
+                      Container(width: 1, height: 28, color: _glassBorder),
+                      const SizedBox(width: 12),
+                      profilesAsync.when(
+                        loading: () => const SizedBox.shrink(),
+                        error: (_, __) => const SizedBox.shrink(),
+                        data: (profiles) {
+                          final items = profiles.entries.toList();
+                          final currentUser = ref.watch(_userFilterProvider);
+                          return DropdownButton<String?>(
+                            value: currentUser,
+                            dropdownColor: _panelDark,
+                            style: const TextStyle(color: Colors.white, fontSize: 12),
+                            underline: const SizedBox(),
+                            hint: const Text('Filtrer par employé', style: TextStyle(color: _textMuted, fontSize: 12)),
+                            items: [
+                              const DropdownMenuItem<String?>(value: null, child: Text('Tous les employés', style: TextStyle(color: _textMuted, fontSize: 12))),
+                              ...items.map((e) => DropdownMenuItem<String?>(value: e.key, child: Text(e.value, style: const TextStyle(color: Colors.white, fontSize: 12)))),
+                            ],
+                            onChanged: (v) => ref.read(_userFilterProvider.notifier).state = v,
+                          );
+                        },
+                      ),
+                    ],
                   ),
                 ),
               ],
             ),
           ),
-          
-          // Timeline List
+
           Expanded(
             child: logsAsync.when(
               loading: () => const Center(child: CircularProgressIndicator(color: _neonPurple)),
@@ -229,7 +273,7 @@ class AuditScreen extends ConsumerWidget {
                     ),
                   );
                 }
-                
+
                 return ListView.builder(
                   padding: const EdgeInsets.all(24),
                   itemCount: logs.length,
@@ -251,35 +295,30 @@ class AuditScreen extends ConsumerWidget {
     final table = (log['table_name'] ?? '').toString();
     final workerName = log['worker_name'] ?? 'Système';
     final rawDate = DateTime.tryParse(log['created_at'] ?? '') ?? DateTime.now();
-    
-    // Time ago & Full date
+
     final diff = DateTime.now().difference(rawDate);
     String timeAgo;
     if (diff.inMinutes < 1) timeAgo = "À l'instant";
     else if (diff.inHours < 1) timeAgo = "Il y a ${diff.inMinutes} min";
     else if (diff.inDays < 1) timeAgo = "Il y a ${diff.inHours} h";
     else timeAgo = "Il y a ${diff.inDays} jours";
-    
+
     final fullDate = "${rawDate.day.toString().padLeft(2, '0')}/${rawDate.month.toString().padLeft(2, '0')}/${rawDate.year} ${rawDate.hour.toString().padLeft(2, '0')}:${rawDate.minute.toString().padLeft(2, '0')}";
 
     final isDelete = action == 'DELETE';
-    final isDanger = isDelete;
-    
-    final accentColor = isDanger ? _dangerNeon : (action == 'UPDATE' ? Colors.orangeAccent : _successNeon);
-    IconData iconData = Icons.info_outline;
+    final isInsert = action == 'INSERT';
+    final accentColor = isDelete ? _dangerNeon : (isInsert ? _successNeon : Colors.orangeAccent);
+    IconData iconData = isDelete ? Icons.delete_forever : (isInsert ? Icons.add_circle_outline : Icons.edit_note);
     if (table.contains('repair')) iconData = Icons.build_circle_outlined;
     else if (table.contains('sale') || table.contains('purchase')) iconData = Icons.shopping_cart_outlined;
     else if (table.contains('product')) iconData = Icons.inventory_2_outlined;
-    
-    if (isDelete) iconData = Icons.delete_forever;
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 16),
+      margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: _panelDark.withOpacity(0.5),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: isDanger ? accentColor.withOpacity(0.5) : _glassBorder),
-        boxShadow: isDanger ? [BoxShadow(color: accentColor.withOpacity(0.1), blurRadius: 10, spreadRadius: 1)] : null,
+        border: Border.all(color: isDelete ? accentColor.withOpacity(0.5) : _glassBorder),
       ),
       child: Material(
         color: Colors.transparent,
@@ -287,22 +326,16 @@ class AuditScreen extends ConsumerWidget {
           borderRadius: BorderRadius.circular(12),
           onTap: () => _showAuditDetails(context, log, action, accentColor),
           child: Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(12),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Icon
                 Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: accentColor.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Icon(iconData, color: accentColor, size: 20),
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(color: accentColor.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
+                  child: Icon(iconData, color: accentColor, size: 18),
                 ),
-                const SizedBox(width: 16),
-                
-                // Content
+                const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -310,22 +343,23 @@ class AuditScreen extends ConsumerWidget {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(
-                            _getHumanTitle(action, table),
-                            style: TextStyle(color: accentColor, fontWeight: FontWeight.w900, fontSize: 16, letterSpacing: 0.5),
+                          Expanded(
+                            child: Text(_getHumanTitle(action, table),
+                                style: TextStyle(color: accentColor, fontWeight: FontWeight.w900, fontSize: 13)),
                           ),
-                          Text(
-                            '$timeAgo • $fullDate',
-                            style: const TextStyle(color: _textMuted, fontSize: 12),
-                          ),
+                          Text('$timeAgo', style: const TextStyle(color: _textMuted, fontSize: 11)),
                         ],
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 4),
                       Row(
                         children: [
-                          const Icon(Icons.person_outline, size: 14, color: _textMuted),
+                          const Icon(Icons.person_outline, size: 12, color: _textMuted),
                           const SizedBox(width: 4),
-                          Text(workerName, style: const TextStyle(color: _textMuted, fontSize: 13)),
+                          Text(workerName, style: const TextStyle(color: _textMuted, fontSize: 11)),
+                          const SizedBox(width: 16),
+                          const Icon(Icons.calendar_today, size: 10, color: _textMuted),
+                          const SizedBox(width: 4),
+                          Text(fullDate, style: const TextStyle(color: _textMuted, fontSize: 10)),
                         ],
                       ),
                     ],
@@ -340,10 +374,9 @@ class AuditScreen extends ConsumerWidget {
   }
 
   void _showAuditDetails(BuildContext context, Map<String, dynamic> log, String action, Color accentColor) {
-    // Parse json
     Map<String, dynamic> oldData = {};
     Map<String, dynamic> newData = {};
-    
+
     if (log['old_data'] != null) {
       try {
         oldData = (log['old_data'] is String) ? jsonDecode(log['old_data']) : Map<String, dynamic>.from(log['old_data']);
@@ -373,9 +406,10 @@ class AuditScreen extends ConsumerWidget {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: accentColor.withOpacity(0.5), width: 1.5)),
         child: Container(
           width: 800,
+          constraints: const BoxConstraints(maxHeight: 600),
           padding: const EdgeInsets.all(24),
           child: Column(
-            mainAxisSize: MainAxisSize.min, // Auto-size to prevent unnecessary scrolling
+            mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
@@ -385,72 +419,107 @@ class AuditScreen extends ConsumerWidget {
                   Text(action == 'UPDATE' ? 'CHANGEMENTS DÉTECTÉS' : 'DÉTAILS DU JOURNAL', style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
                 ],
               ),
-              const Divider(color: _glassBorder, height: 32),
-              
+              const Divider(color: _glassBorder, height: 24),
+
               if (changedKeys.isEmpty)
                 const Center(child: Padding(padding: EdgeInsets.symmetric(vertical: 20), child: Text('Aucune modification détectée sur les champs visibles.', style: TextStyle(color: _textMuted))))
               else
                 Flexible(
                   child: SingleChildScrollView(
-                    child: action == 'UPDATE'
-                      ? Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: changedKeys.map((key) {
-                            final humanKey = _translateKey(key).toUpperCase();
-                            final oldVal = oldData[key]?.toString() ?? 'Rien';
-                            final newVal = newData[key]?.toString() ?? 'Rien';
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: changedKeys.map((key) {
+                        final humanKey = _translateKey(key).toUpperCase();
+                        final oldVal = oldData[key]?.toString() ?? '';
+                        final newVal = newData[key]?.toString() ?? '';
 
-                            return Container(
-                              margin: const EdgeInsets.only(bottom: 16),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                        Color diffColor;
+                        if (action == 'INSERT') {
+                          diffColor = _successNeon;
+                        } else if (action == 'DELETE') {
+                          diffColor = _dangerNeon;
+                        } else {
+                          diffColor = Colors.orangeAccent;
+                        }
+
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: _bgCarbon.withOpacity(0.4),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border(left: BorderSide(color: diffColor, width: 3)),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
                                 children: [
                                   Text(humanKey, style: const TextStyle(color: _textMuted, fontSize: 11, fontWeight: FontWeight.bold)),
-                                  const SizedBox(height: 4),
+                                  const Spacer(),
                                   Container(
-                                    padding: const EdgeInsets.all(12),
-                                    decoration: BoxDecoration(color: _bgCarbon.withOpacity(0.4), borderRadius: BorderRadius.circular(8), border: Border.all(color: _glassBorder)),
-                                    child: Row(
-                                      children: [
-                                        Expanded(child: Text(oldVal, style: const TextStyle(color: Colors.redAccent, decoration: TextDecoration.lineThrough, fontFamily: 'monospace'))),
-                                        const Padding(padding: EdgeInsets.symmetric(horizontal: 12), child: Icon(Icons.arrow_forward_rounded, color: _textMuted, size: 16)),
-                                        Expanded(child: Text(newVal, style: const TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold, fontFamily: 'monospace'))),
-                                      ],
-                                    ),
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                    decoration: BoxDecoration(color: diffColor.withOpacity(0.1), borderRadius: BorderRadius.circular(4), border: Border.all(color: diffColor.withOpacity(0.3))),
+                                    child: Text(action == 'INSERT' ? 'AJOUTÉ' : (action == 'DELETE' ? 'SUPPRIMÉ' : 'MODIFIÉ'), style: TextStyle(color: diffColor, fontSize: 9, fontWeight: FontWeight.bold)),
                                   ),
                                 ],
                               ),
-                            );
-                          }).toList(),
-                        )
-                      : Wrap(
-                          spacing: 20,
-                          runSpacing: 16,
-                          children: changedKeys.map((key) {
-                            final humanKey = _translateKey(key).toUpperCase();
-                            final val = action == 'DELETE' ? (oldData[key]?.toString() ?? 'Rien') : (newData[key]?.toString() ?? 'Rien');
-
-                            return SizedBox(
-                              width: 220,
-                              child: Container(
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(color: _bgCarbon.withOpacity(0.4), borderRadius: BorderRadius.circular(8), border: Border.all(color: _glassBorder)),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
+                              const SizedBox(height: 8),
+                              if (action == 'UPDATE') ...[
+                                Row(
                                   children: [
-                                    Text(humanKey, style: const TextStyle(color: _textMuted, fontSize: 11, fontWeight: FontWeight.bold)),
-                                    const SizedBox(height: 4),
-                                    Text(val, style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
+                                    Expanded(
+                                      child: Container(
+                                        padding: const EdgeInsets.all(8),
+                                        decoration: BoxDecoration(color: Colors.redAccent.withOpacity(0.1), borderRadius: BorderRadius.circular(4)),
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            const Text('ANCIEN', style: TextStyle(color: Colors.redAccent, fontSize: 9, fontWeight: FontWeight.bold)),
+                                            const SizedBox(height: 4),
+                                            Text(oldVal.isNotEmpty ? oldVal : '(vide)', style: TextStyle(color: Colors.redAccent.withOpacity(0.7), fontSize: 12, decoration: TextDecoration.lineThrough)),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    const Icon(Icons.arrow_forward_rounded, color: _textMuted, size: 16),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Container(
+                                        padding: const EdgeInsets.all(8),
+                                        decoration: BoxDecoration(color: _successNeon.withOpacity(0.1), borderRadius: BorderRadius.circular(4)),
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            const Text('NOUVEAU', style: TextStyle(color: _successNeon, fontSize: 9, fontWeight: FontWeight.bold)),
+                                            const SizedBox(height: 4),
+                                            Text(newVal.isNotEmpty ? newVal : '(vide)', style: const TextStyle(color: _successNeon, fontSize: 12, fontWeight: FontWeight.bold)),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
                                   ],
                                 ),
-                              ),
-                            );
-                          }).toList(),
-                        ),
+                              ] else ...[
+                                Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(color: diffColor.withOpacity(0.05), borderRadius: BorderRadius.circular(4)),
+                                  child: Text(
+                                    action == 'DELETE' ? (oldVal.isNotEmpty ? oldVal : newVal) : (newVal.isNotEmpty ? newVal : oldVal),
+                                    style: TextStyle(color: diffColor, fontSize: 12, fontWeight: FontWeight.bold),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        );
+                      }).toList(),
+                    ),
                   ),
                 ),
-                
-              const SizedBox(height: 24),
+
+              const SizedBox(height: 20),
               Align(
                 alignment: Alignment.centerRight,
                 child: TextButton(
@@ -463,5 +532,46 @@ class AuditScreen extends ConsumerWidget {
         ),
       ),
     );
+  }
+}
+
+Future<void> _exportCsv(BuildContext context, List<Map<String, dynamic>> logs) async {
+  if (logs.isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Aucune donnée à exporter'), backgroundColor: Colors.redAccent));
+    return;
+  }
+
+  try {
+    final rows = <List<String>>[];
+    rows.add(['Date', 'Action', 'Table', 'Utilisateur', 'Anciennes Données', 'Nouvelles Données', 'Notes']);
+
+    for (var log in logs) {
+      rows.add([
+        log['created_at']?.toString() ?? '',
+        _translateAction(log['action_type']?.toString() ?? ''),
+        _translateTable(log['table_name']?.toString() ?? ''),
+        log['worker_name']?.toString() ?? 'Système',
+        log['old_data']?.toString() ?? '',
+        log['new_data']?.toString() ?? '',
+        log['notes']?.toString() ?? '',
+      ]);
+    }
+
+    final csvData = const ListToCsvConverter().convert(rows);
+    final dir = await getApplicationDocumentsDirectory();
+    final file = File('${dir.path}/audit_logs_${DateTime.now().millisecondsSinceEpoch}.csv');
+    await file.writeAsString(csvData, encoding: utf8);
+
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Exporté: ${file.path}'),
+        backgroundColor: Colors.green,
+        duration: const Duration(seconds: 4),
+      ));
+    }
+  } catch (e) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur export: $e'), backgroundColor: Colors.redAccent));
+    }
   }
 }
