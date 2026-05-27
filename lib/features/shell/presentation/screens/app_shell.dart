@@ -8,6 +8,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'package:laidani_repair/core/providers/supabase_provider.dart';
+import 'package:laidani_repair/core/providers/theme_provider.dart';
 import 'package:laidani_repair/features/auth/data/models/profile_model.dart';
 import 'package:laidani_repair/features/auth/presentation/providers/auth_provider.dart';
 import 'package:laidani_repair/core/constants/app_constants.dart';
@@ -298,6 +299,18 @@ class _DesktopShellState extends ConsumerState<_DesktopShell> {
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
+                          IconButton(
+                            icon: Icon(
+                              ref.watch(themeProvider) == ThemeMode.light
+                                  ? Icons.dark_mode
+                                  : Icons.light_mode,
+                              color: _textMuted,
+                            ),
+                            tooltip: ref.watch(themeProvider) == ThemeMode.light
+                                ? 'Mode Sombre'
+                                : 'Mode Clair',
+                            onPressed: () => ref.read(themeProvider.notifier).toggle(),
+                          ),
                           IconButton(
                             icon: const Icon(Icons.search, color: _textMuted),
                             tooltip: 'Recherche globale',

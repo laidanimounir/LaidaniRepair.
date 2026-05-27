@@ -19,6 +19,207 @@ class AppTheme {
   static const Color success = Color(0xFF00D9C0);
   static const Color warning = Color(0xFFFFB74D);
 
+  static ThemeData get lightTheme {
+    return ThemeData(
+      useMaterial3: true,
+      brightness: Brightness.light,
+      colorScheme: const ColorScheme.light(
+        primary: primary,
+        primaryContainer: Color(0xFFE8E5FF),
+        secondary: secondary,
+        secondaryContainer: Color(0xFFB2F5EA),
+        surface: Colors.white,
+        surfaceContainerHighest: Color(0xFFF0F0F5),
+        onPrimary: Colors.white,
+        onSecondary: Colors.black,
+        onSurface: Color(0xFF1A1A2E),
+        error: error,
+        onError: Colors.white,
+      ),
+      scaffoldBackgroundColor: Colors.white,
+      textTheme: GoogleFonts.interTextTheme(ThemeData.light().textTheme).copyWith(
+        displayLarge: GoogleFonts.inter(
+          color: const Color(0xFF1A1A2E),
+          fontWeight: FontWeight.w700,
+          fontSize: 32,
+        ),
+        headlineLarge: GoogleFonts.inter(
+          color: const Color(0xFF1A1A2E),
+          fontWeight: FontWeight.w700,
+          fontSize: 24,
+        ),
+        headlineMedium: GoogleFonts.inter(
+          color: const Color(0xFF1A1A2E),
+          fontWeight: FontWeight.w600,
+          fontSize: 20,
+        ),
+        titleLarge: GoogleFonts.inter(
+          color: const Color(0xFF1A1A2E),
+          fontWeight: FontWeight.w600,
+          fontSize: 18,
+        ),
+        bodyLarge: GoogleFonts.inter(color: const Color(0xFF1A1A2E), fontSize: 16),
+        bodyMedium: GoogleFonts.inter(color: const Color(0xFF333355), fontSize: 14),
+        bodySmall: GoogleFonts.inter(color: const Color(0xFF777799), fontSize: 12),
+        labelLarge: GoogleFonts.inter(
+          color: const Color(0xFF1A1A2E),
+          fontWeight: FontWeight.w600,
+          fontSize: 14,
+        ),
+      ),
+      cardTheme: CardThemeData(
+        color: const Color(0xFFF5F5FA),
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: const BorderSide(color: Color(0xFFDDDDEE), width: 1),
+        ),
+        margin: const EdgeInsets.all(0),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: const Color(0xFFF0F0F5),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: Color(0xFFDDDDEE)),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: Color(0xFFDDDDEE)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: primary, width: 2),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: error, width: 1.5),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: error, width: 2),
+        ),
+        labelStyle: GoogleFonts.inter(color: const Color(0xFF777799)),
+        hintStyle: GoogleFonts.inter(color: const Color(0xFF777799)),
+        prefixIconColor: const Color(0xFF777799),
+        suffixIconColor: const Color(0xFF777799),
+        errorStyle: GoogleFonts.inter(color: error, fontSize: 12),
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: primary,
+          foregroundColor: Colors.white,
+          disabledBackgroundColor: const Color(0xFFC0C0D0),
+          disabledForegroundColor: const Color(0xFF777799),
+          padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 18),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+          textStyle: GoogleFonts.inter(
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.5,
+          ),
+          elevation: 0,
+        ),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: primary,
+          textStyle: GoogleFonts.inter(fontWeight: FontWeight.w600),
+        ),
+      ),
+      navigationRailTheme: const NavigationRailThemeData(
+        backgroundColor: Color(0xFFF5F5FA),
+        selectedIconTheme: IconThemeData(color: primary, size: 24),
+        selectedLabelTextStyle: TextStyle(
+          color: primary,
+          fontWeight: FontWeight.w600,
+          fontSize: 13,
+        ),
+        unselectedIconTheme: IconThemeData(color: Color(0xFF777799), size: 22),
+        unselectedLabelTextStyle: TextStyle(
+          color: Color(0xFF777799),
+          fontSize: 12,
+        ),
+        indicatorColor: Color(0x226C63FF),
+        indicatorShape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.all(Radius.circular(12)),
+        ),
+        labelType: NavigationRailLabelType.all,
+        groupAlignment: -1.0,
+        minWidth: 190,
+        minExtendedWidth: 220,
+      ),
+      bottomNavigationBarTheme: const BottomNavigationBarThemeData(
+        backgroundColor: Color(0xFFF5F5FA),
+        selectedItemColor: primary,
+        unselectedItemColor: Color(0xFF777799),
+        type: BottomNavigationBarType.fixed,
+        elevation: 0,
+        selectedLabelStyle: TextStyle(
+          fontWeight: FontWeight.w600,
+          fontSize: 11,
+        ),
+        unselectedLabelStyle: TextStyle(fontSize: 11),
+      ),
+      appBarTheme: AppBarTheme(
+        backgroundColor: const Color(0xFFF5F5FA),
+        foregroundColor: const Color(0xFF1A1A2E),
+        elevation: 0,
+        centerTitle: false,
+        titleTextStyle: GoogleFonts.inter(
+          color: const Color(0xFF1A1A2E),
+          fontWeight: FontWeight.w700,
+          fontSize: 20,
+        ),
+        iconTheme: const IconThemeData(color: Color(0xFF1A1A2E)),
+        actionsIconTheme: const IconThemeData(color: Color(0xFF777799)),
+        shape: const Border(
+          bottom: BorderSide(color: Color(0xFFDDDDEE), width: 1),
+        ),
+      ),
+      dividerTheme: const DividerThemeData(
+        color: Color(0xFFDDDDEE),
+        thickness: 1,
+        space: 1,
+      ),
+      snackBarTheme: SnackBarThemeData(
+        backgroundColor: const Color(0xFF333355),
+        contentTextStyle: GoogleFonts.inter(color: Colors.white),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        behavior: SnackBarBehavior.floating,
+        insetPadding: const EdgeInsets.all(16),
+      ),
+      chipTheme: ChipThemeData(
+        backgroundColor: const Color(0xFFF0F0F5),
+        selectedColor: const Color(0xFFE8E5FF),
+        labelStyle: GoogleFonts.inter(color: const Color(0xFF333355), fontSize: 13),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        side: const BorderSide(color: Color(0xFFDDDDEE)),
+      ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        elevation: 8,
+        titleTextStyle: GoogleFonts.inter(
+          color: const Color(0xFF1A1A2E),
+          fontWeight: FontWeight.w700,
+          fontSize: 20,
+        ),
+        contentTextStyle: GoogleFonts.inter(color: const Color(0xFF333355), fontSize: 14),
+      ),
+      floatingActionButtonTheme: const FloatingActionButtonThemeData(
+        backgroundColor: primary,
+        foregroundColor: Colors.white,
+        elevation: 4,
+        shape: CircleBorder(),
+      ),
+      iconTheme: const IconThemeData(color: Color(0xFF333355), size: 22),
+    );
+  }
+
   static ThemeData get darkTheme {
     return ThemeData(
       useMaterial3: true,
