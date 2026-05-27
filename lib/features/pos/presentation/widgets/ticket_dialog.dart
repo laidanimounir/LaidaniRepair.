@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:printing/printing.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
 import 'package:laidani_repair/core/providers/supabase_provider.dart';
 import 'package:laidani_repair/features/pos/presentation/providers/pos_provider.dart';
 
@@ -150,8 +153,62 @@ class _TicketDialogState extends ConsumerState<TicketDialog> {
                     icon: const Icon(Icons.print, size: 18, color: Colors.black),
                     label: const Text('Imprimer', style: TextStyle(color: Colors.black)),
                     style: OutlinedButton.styleFrom(side: const BorderSide(color: Colors.black26)),
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Impression lancée...')));
+                    onPressed: () async {
+                      final dateFormat = DateFormat('dd/MM/yyyy HH:mm');
+                      final dateStr = dateFormat.format(DateTime.now());
+                      final remainingDebt = (widget.cart.finalAmount - widget.amountPaid).clamp(0.0, double.infinity);
+                      await Printing.layoutPdf(
+                        onLayout: (format) async {
+                          final pdf = pw.Document();
+                          pdf.addPage(pw.Page(
+                            pageFormat: PdfPageFormat.roll80,
+                            build: (ctx) => pw.Column(
+                              children: [
+                                pw.Header(level: 0, text: 'LAIDANI REPAIR'),
+                                pw.Text('Réparation & Accessoires'),
+                                pw.Text(dateStr),
+                                pw.SizedBox(height: 8),
+                                if (widget.cart.selectedCustomer != null) ...[
+                                  pw.Text('Client: ${widget.cart.selectedCustomer!.fullName}'),
+                                  if (widget.cart.selectedCustomer!.phoneNumber != null)
+                                    pw.Text('Tél: ${widget.cart.selectedCustomer!.phoneNumber}'),
+                                ],
+                                pw.Divider(),
+                                ...widget.cart.items.map((item) => pw.Row(
+                                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    pw.Text('${item.quantity}x ${item.product.productName}'),
+                                    pw.Text('${item.subtotal.toStringAsFixed(0)} DA'),
+                                  ],
+                                )),
+                                pw.Divider(),
+                                pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
+                                  pw.Text('Sous-total'), pw.Text('${widget.cart.totalAmount.toStringAsFixed(0)} DA'),
+                                ]),
+                                if (widget.cart.discount > 0)
+                                  pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
+                                    pw.Text('Remise'), pw.Text('-${widget.cart.discount.toStringAsFixed(0)} DA'),
+                                  ]),
+                                pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
+                                  pw.Text('TOTAL', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                                  pw.Text('${widget.cart.finalAmount.toStringAsFixed(0)} DA', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                                ]),
+                                pw.Divider(),
+                                pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
+                                  pw.Text('Payé'), pw.Text('${widget.amountPaid.toStringAsFixed(0)} DA'),
+                                ]),
+                                if (remainingDebt > 0)
+                                  pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
+                                    pw.Text('Reste'), pw.Text('${remainingDebt.toStringAsFixed(0)} DA'),
+                                  ]),
+                                pw.SizedBox(height: 20),
+                                pw.Text('Merci de votre visite !'),
+                              ],
+                            ),
+                          ));
+                          return pdf.save();
+                        },
+                      );
                     },
                   ),
                 ),
