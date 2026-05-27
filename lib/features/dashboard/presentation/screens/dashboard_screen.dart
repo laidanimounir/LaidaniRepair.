@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 const Color _bgCarbon = Color(0xFF050914);
 const Color _panelDark = Color(0xFF0A0F1A);
+const Color _glassBorder = Color(0x1AFFFFFF);
 const Color _textMuted = Color(0xFF8A9BB4);
 const Color _neonCyan = Color(0xFF00E5FF);
 const Color _neonEmerald = Color(0xFF10B981);
@@ -39,6 +40,22 @@ final _dashboardStatsProvider = FutureProvider<Map<String, dynamic>>((ref) async
     todayRevenue += (inv['total'] as num?)?.toDouble() ?? 0;
   }
 
+  final newRepairsToday = allTickets.where((t) {
+    final d = DateTime.tryParse(t['created_at'] as String);
+    return d != null && !d.isBefore(todayStart) && d.isBefore(todayEnd);
+  }).length;
+
+  final todayExpenses = await client.from('expenses')
+      .select('amount')
+      .gte('expense_date', todayStart.toIso8601String())
+      .lt('expense_date', todayEnd.toIso8601String());
+  double expensesToday = 0;
+  for (final e in todayExpenses) {
+    expensesToday += (e['amount'] as num?)?.toDouble() ?? 0;
+  }
+
+  final netRevenue = todayRevenue - expensesToday;
+
   final stockItems = await client.from('stock').select('quantity');
   final lowStock = stockItems.where((s) => ((s['quantity'] as num?)?.toInt() ?? 0) <= 5).length;
 
@@ -62,6 +79,9 @@ final _dashboardStatsProvider = FutureProvider<Map<String, dynamic>>((ref) async
     'pendingSupplierAmount': pendingAmount,
     'warrantyPending': warrantyPending,
     'overdueCount': overdueCount,
+    'newRepairsToday': newRepairsToday,
+    'expensesToday': expensesToday,
+    'netRevenue': netRevenue,
   };
 });
 
@@ -164,9 +184,48 @@ class DashboardScreen extends ConsumerWidget {
                   color: (stats['pendingSupplierAmount'] as double) > 0 ? Colors.orangeAccent : _neonEmerald,
                 ),
               ]),
+              const SizedBox(height: 16),
+              _buildDailySummary(stats),
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildDailySummary(Map<String, dynamic> stats) {
+    final revenue = stats['todayRevenue'] as double;
+    final expenses = stats['expensesToday'] as double;
+    final net = stats['netRevenue'] as double;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(color: _panelDark, borderRadius: BorderRadius.circular(16), border: Border.all(color: _neonCyan.withOpacity(0.3))),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('RÉSUMÉ DU JOUR', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14, letterSpacing: 1)),
+          const SizedBox(height: 12),
+          _summaryRow('Ventes', '${revenue.toStringAsFixed(0)} DA', _neonAmber),
+          _summaryRow('Nouvelles réparations', '${stats['newRepairsToday']}', _neonCyan),
+          _summaryRow('Livrées', '${stats['todayDelivered']}', _neonEmerald),
+          _summaryRow('Dépenses', '${expenses.toStringAsFixed(0)} DA', Colors.redAccent),
+          const Divider(color: _glassBorder, height: 24),
+          _summaryRow('REVENU NET', '${net.toStringAsFixed(0)} DA', net >= 0 ? Colors.greenAccent : Colors.redAccent),
+        ],
+      ),
+    );
+  }
+
+  Widget _summaryRow(String label, String value, Color color) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: const TextStyle(color: _textMuted, fontSize: 13)),
+          Text(value, style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 14)),
+        ],
       ),
     );
   }
