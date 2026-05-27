@@ -28,16 +28,16 @@ final _dashboardStatsProvider = FutureProvider<Map<String, dynamic>>((ref) async
     return d != null && d.isBefore(DateTime.now());
   }).length;
 
-  final warrantyClaims = await client.from('warranty_claims').select('status');
-  final warrantyPending = warrantyClaims.where((w) => w['status'] == 'En attente').length;
+  final warrantyClaims = await client.from('warranty_claims').select('claim_status');
+  final warrantyPending = warrantyClaims.where((w) => w['claim_status'] == 'En attente').length;
 
-  final todayInvoices = await client.from('invoices')
-      .select('total')
-      .gte('created_at', todayStart.toIso8601String())
-      .lt('created_at', todayEnd.toIso8601String());
+  final todayInvoices = await client.from('sales_invoices')
+      .select('final_amount')
+      .gte('invoice_date', todayStart.toIso8601String())
+      .lt('invoice_date', todayEnd.toIso8601String());
   double todayRevenue = 0;
   for (final inv in todayInvoices) {
-    todayRevenue += (inv['total'] as num?)?.toDouble() ?? 0;
+    todayRevenue += (inv['final_amount'] as num?)?.toDouble() ?? 0;
   }
 
   final newRepairsToday = allTickets.where((t) {
@@ -56,18 +56,19 @@ final _dashboardStatsProvider = FutureProvider<Map<String, dynamic>>((ref) async
 
   final netRevenue = todayRevenue - expensesToday;
 
-  final stockItems = await client.from('stock').select('quantity');
-  final lowStock = stockItems.where((s) => ((s['quantity'] as num?)?.toInt() ?? 0) <= 5).length;
+  final stockItems = await client.from('products').select('stock_quantity');
+  final lowStock = stockItems.where((s) => ((s['stock_quantity'] as num?)?.toInt() ?? 0) <= 5).length;
 
   final clients = await client.from('customers').select('id');
   final totalClients = clients.length;
 
-  final pendingPayments = await client.from('supplier_payments')
-      .select('amount')
-      .eq('status', 'En attente');
+  final purchaseInvoices = await client.from('purchase_invoices')
+      .select('total_amount, paid_amount');
   double pendingAmount = 0;
-  for (final p in pendingPayments) {
-    pendingAmount += (p['amount'] as num?)?.toDouble() ?? 0;
+  for (final inv in purchaseInvoices) {
+    final total = (inv['total_amount'] as num?)?.toDouble() ?? 0;
+    final paid = (inv['paid_amount'] as num?)?.toDouble() ?? 0;
+    pendingAmount += (total - paid).clamp(0.0, double.infinity);
   }
 
   return {
