@@ -33,6 +33,7 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
   List<Map<String, dynamic>> _warrantyClaims = [];
   List<Map<String, dynamic>> _photos = [];
   List<Map<String, dynamic>> _notifications = [];
+  Map<String, dynamic>? _feedbackData;
 
   @override
   void initState() {
@@ -52,6 +53,7 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
       final warrantyData = await client.from('warranty_claims').select('*').or('original_ticket_id.eq.${widget.ticketId},claim_ticket_id.eq.${widget.ticketId}').order('claimed_at', ascending: false);
       final photosData = await client.from('repair_photos').select('*').eq('ticket_id', widget.ticketId).order('created_at', ascending: false);
       final notifData = await client.from('repair_notifications').select('*').eq('ticket_id', widget.ticketId).order('sent_at', ascending: false);
+      final feedbackRow = await client.from('customer_feedback').select('*').eq('ticket_id', widget.ticketId).maybeSingle();
 
       if (!mounted) return;
       setState(() {
@@ -61,6 +63,7 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
         _warrantyClaims = List<Map<String, dynamic>>.from(warrantyData);
         _photos = List<Map<String, dynamic>>.from(photosData);
         _notifications = List<Map<String, dynamic>>.from(notifData);
+        _feedbackData = feedbackRow;
         _isLoading = false;
       });
     } catch (e) {
@@ -803,6 +806,58 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
     }
   }
 
+  // --- Customer Feedback ---
+  Future<void> _showFeedbackDialog(Color color) async {
+    int rating = 5;
+    final commentCtrl = TextEditingController();
+    await showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          backgroundColor: _panelDark,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: _glassBorder)),
+          title: const Text('Avis client', style: TextStyle(color: Colors.white)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('Notez votre satisfaction', style: TextStyle(color: _textMuted)),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(5, (i) {
+                  final starRating = i + 1;
+                  return IconButton(
+                    icon: Icon(starRating <= rating ? Icons.star : Icons.star_border, color: Colors.amber, size: 36),
+                    onPressed: () => setDialogState(() => rating = starRating),
+                  );
+                }),
+              ),
+              const SizedBox(height: 12),
+              TextField(controller: commentCtrl, maxLines: 3, style: const TextStyle(color: Colors.white), decoration: const InputDecoration(labelText: 'Commentaire (optionnel)', labelStyle: TextStyle(color: _textMuted))),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Annuler', style: TextStyle(color: _textMuted))),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.amber, foregroundColor: _bgCarbon),
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('ENREGISTRER'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    final client = ref.read(supabaseClientProvider);
+    await client.from('customer_feedback').insert({
+      'ticket_id': widget.ticketId,
+      'rating': rating,
+      'comment': commentCtrl.text.trim().isEmpty ? null : commentCtrl.text.trim(),
+    });
+    _fetchFullData();
+    _showToast('Avis enregistré', Colors.green);
+  }
+
   // --- Handover (Remise au client) ---
   Future<void> _showHandoverDialog(Color color) async {
     final accessoriesRaw = _ticket?['accessories_included'];
@@ -1399,6 +1454,8 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
         const SizedBox(height: 16),
         _buildHandoverSection(color),
         const SizedBox(height: 16),
+        _buildFeedbackSection(color),
+        const SizedBox(height: 16),
         _buildFinancialSummary(color),
       ],
     );
@@ -1435,6 +1492,43 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
           ),
           if (!isCanceled && !handoverConfirmed)
             _buildActionChip('Confirmer remise', Icons.check_circle, _neonEmerald, () => _showHandoverDialog(color)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFeedbackSection(Color color) {
+    final isCanceled = _ticket?['status'] == 'Annulé';
+    final handoverConfirmed = _ticket?['handover_confirmed_at'] != null;
+    if (!handoverConfirmed || isCanceled) return const SizedBox.shrink();
+
+    final feedback = _feedbackData;
+    final hasFeedback = feedback != null;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(color: _panelDark, borderRadius: BorderRadius.circular(16), border: Border.all(color: color.withOpacity(0.3))),
+      child: Row(
+        children: [
+          Icon(Icons.star, color: hasFeedback ? Colors.amber : _textMuted, size: 20),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('SATISFACTION CLIENT', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+                if (hasFeedback) ...[
+                  Row(children: List.generate(5, (i) => Icon(i < (_feedbackData!['rating'] as int? ?? 0) ? Icons.star : Icons.star_border, color: Colors.amber, size: 16))),
+                  if (_feedbackData!['comment'] != null)
+                    Text('${_feedbackData!['comment']}', style: const TextStyle(color: _textMuted, fontSize: 11)),
+                ] else ...[
+                  const Text('Aucun avis', style: TextStyle(color: _textMuted, fontSize: 11)),
+                ],
+              ],
+            ),
+          ),
+          if (!hasFeedback)
+            _buildActionChip('Noter', Icons.star_rate, Colors.amber, () => _showFeedbackDialog(color)),
         ],
       ),
     );
