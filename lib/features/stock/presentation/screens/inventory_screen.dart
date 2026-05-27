@@ -1,6 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:fl_chart/fl_chart.dart';
 import 'package:laidani_repair/core/providers/supabase_provider.dart';
 import 'package:laidani_repair/core/utils/csv_export.dart';
 import 'package:laidani_repair/core/services/groq_service.dart';
@@ -20,8 +21,21 @@ class InventoryScreen extends ConsumerStatefulWidget {
   ConsumerState<InventoryScreen> createState() => _InventoryScreenState();
 }
 
-class _InventoryScreenState extends ConsumerState<InventoryScreen> {
+class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTickerProviderStateMixin {
   bool _lowStockOnly = false;
+  late final TabController _tabCtrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabCtrl = TabController(length: 2, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabCtrl.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -89,24 +103,161 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                       ],
                     ),
                   ),
+                TabBar(
+                  controller: _tabCtrl,
+                  indicatorColor: _neonPurple,
+                  labelColor: _neonPurple,
+                  unselectedLabelColor: _textMuted,
+                  dividerColor: Colors.transparent,
+                  tabs: const [
+                    Tab(icon: Icon(Icons.inventory_2), text: 'Produits'),
+                    Tab(icon: Icon(Icons.analytics), text: 'Analytiques'),
+                  ],
+                ),
               ],
             ),
           ),
           _buildLowStockBanner(ref),
           Expanded(
-            child: productsAsync.when(
-              loading: () => const Center(child: CircularProgressIndicator(color: _neonPurple)),
-              error: (e, _) => Center(child: Text('Erreur: $e', style: const TextStyle(color: Colors.redAccent))),
-              data: (list) {
-                final filtered = _lowStockOnly
-                    ? list.where((p) => (p['stock_quantity'] ?? 0) <= (p['min_stock'] ?? 5)).toList()
-                    : list;
-                if (filtered.isEmpty) return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(_lowStockOnly ? Icons.check_circle_outline : Icons.inventory_2_outlined, size: 64, color: _textMuted.withOpacity(0.2)), const SizedBox(height: 16), Text(_lowStockOnly ? 'Aucun produit en rupture.' : 'Aucun produit en stock.', style: const TextStyle(color: _textMuted))]));
-                return isDesktop ? _buildDesktopTable(context, ref, filtered) : _buildMobileList(context, ref, filtered);
-              },
+            child: TabBarView(
+              controller: _tabCtrl,
+              children: [
+                _buildProductList(ref, productsAsync, isDesktop),
+                _buildAnalyticsTab(ref),
+              ],
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildProductList(WidgetRef ref, AsyncValue<List<Map<String, dynamic>>> productsAsync, bool isDesktop) {
+    return productsAsync.when(
+      loading: () => const Center(child: CircularProgressIndicator(color: _neonPurple)),
+      error: (e, _) => Center(child: Text('Erreur: $e', style: const TextStyle(color: Colors.redAccent))),
+      data: (list) {
+        final filtered = _lowStockOnly
+            ? list.where((p) => (p['stock_quantity'] ?? 0) <= (p['min_stock'] ?? 5)).toList()
+            : list;
+        if (filtered.isEmpty) return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(_lowStockOnly ? Icons.check_circle_outline : Icons.inventory_2_outlined, size: 64, color: _textMuted.withOpacity(0.2)), const SizedBox(height: 16), Text(_lowStockOnly ? 'Aucun produit en rupture.' : 'Aucun produit en stock.', style: const TextStyle(color: _textMuted))]));
+        return isDesktop ? _buildDesktopTable(context, ref, filtered) : _buildMobileList(context, ref, filtered);
+      },
+    );
+  }
+
+  Widget _buildAnalyticsTab(WidgetRef ref) {
+    final productsAsync = ref.watch(inventoryListProvider);
+    return productsAsync.when(
+      loading: () => const Center(child: CircularProgressIndicator(color: _neonPurple)),
+      error: (e, _) => Center(child: Text('Erreur: $e', style: const TextStyle(color: Colors.redAccent))),
+      data: (products) {
+        if (products.isEmpty) {
+          return const Center(child: Text('Aucune donnée disponible', style: TextStyle(color: _textMuted)));
+        }
+
+        final sortedBySales = List<Map<String, dynamic>>.from(products)
+          ..sort((a, b) => ((b['stock_quantity'] as num?)?.toInt() ?? 0).compareTo((a['stock_quantity'] as num?)?.toInt() ?? 0));
+        final top10 = sortedBySales.take(10).toList();
+
+        final slowMoving = products.where((p) => (p['stock_quantity'] as num?)?.toInt() ?? 0 > (p['min_stock'] as num?)?.toInt() ?? 5).toList();
+        final slowMovingSorted = List<Map<String, dynamic>>.from(slowMoving)
+          ..sort((a, b) => ((a['stock_quantity'] as num?)?.toInt() ?? 0).compareTo((b['stock_quantity'] as num?)?.toInt() ?? 0));
+        final slowest10 = slowMovingSorted.take(10).toList();
+
+        final totalStock = products.fold<int>(0, (s, p) => s + ((p['stock_quantity'] as num?)?.toInt() ?? 0));
+        final totalValue = products.fold<double>(0, (s, p) => s + ((p['reference_price'] as num?)?.toDouble() ?? 0) * ((p['stock_quantity'] as num?)?.toInt() ?? 0));
+
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  _buildKpiCard('Produits totaux', '${products.length}', _neonPurple),
+                  const SizedBox(width: 12),
+                  _buildKpiCard('Stock total', '$totalStock unités', _neonCyan),
+                  const SizedBox(width: 12),
+                  _buildKpiCard('Valeur totale', '${totalValue.toStringAsFixed(0)} DA', Color(0xFF00E676)),
+                ],
+              ),
+              const SizedBox(height: 24),
+              const Text('TOP 10 - PRODUITS LES PLUS STOCKÉS', style: TextStyle(color: _neonPurple, fontWeight: FontWeight.bold, fontSize: 14, letterSpacing: 1)),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(color: _panelDark, borderRadius: BorderRadius.circular(12), border: Border.all(color: _glassBorder)),
+                child: SizedBox(
+                  height: 200,
+                  child: BarChart(
+                    BarChartData(
+                      alignment: BarChartAlignment.spaceAround,
+                      maxY: (top10.isNotEmpty ? (top10.first['stock_quantity'] as num?)?.toDouble() ?? 50 : 50) + 10,
+                      barTouchData: BarTouchData(enabled: false),
+                      titlesData: FlTitlesData(
+                        show: true,
+                        bottomTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, getTitlesWidget: (v, m) {
+                          final idx = v.toInt();
+                          if (idx >= 0 && idx < top10.length) {
+                            final name = top10[idx]['product_name']?.toString() ?? '';
+                            return Padding(
+                              padding: const EdgeInsets.only(top: 8),
+                              child: Text(name.length > 6 ? '${name.substring(0, 6)}..' : name, style: const TextStyle(color: _textMuted, fontSize: 8), textAlign: TextAlign.center),
+                            );
+                          }
+                          return const SizedBox();
+                        }, reservedSize: 30)),
+                        leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, reservedSize: 30, getTitlesWidget: (v, m) => Text(v.toInt().toString(), style: const TextStyle(color: _textMuted, fontSize: 10)))),
+                        topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                        rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                      ),
+                      gridData: FlGridData(show: true, drawVerticalLine: false, horizontalInterval: 10, getDrawingHorizontalLine: (v) => FlLine(color: _glassBorder, strokeWidth: 0.5)),
+                      borderData: FlBorderData(show: false),
+                      barGroups: top10.asMap().entries.map((e) {
+                        return BarChartGroupData(x: e.key, barRods: [BarChartRodData(toY: (e.value['stock_quantity'] as num?)?.toDouble() ?? 0, color: _neonPurple, width: 16, borderRadius: const BorderRadius.vertical(top: Radius.circular(4)))]);
+                      }).toList(),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+              const Text('PRODUITS À FAIBLE MOUVEMENT', style: TextStyle(color: Colors.orangeAccent, fontWeight: FontWeight.bold, fontSize: 14, letterSpacing: 1)),
+              const SizedBox(height: 12),
+              if (slowest10.isNotEmpty)
+                ...slowest10.map((p) => Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(color: _bgCarbon, borderRadius: BorderRadius.circular(8), border: Border.all(color: _glassBorder)),
+                  child: Row(
+                    children: [
+                      Expanded(child: Text(p['product_name']?.toString() ?? '', style: const TextStyle(color: Colors.white, fontSize: 13))),
+                      Text('Stock: ${p['stock_quantity'] ?? 0}, Min: ${p['min_stock'] ?? 5}', style: const TextStyle(color: _textMuted, fontSize: 11)),
+                    ],
+                  ),
+                )),
+              const SizedBox(height: 8),
+              const Row(children: [Icon(Icons.info_outline, size: 12, color: _textMuted), SizedBox(width: 4), Text('Données basées sur les quantités en stock actuelles', style: TextStyle(color: _textMuted, fontSize: 10, fontStyle: FontStyle.italic))]),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildKpiCard(String label, String value, Color color) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(color: _panelDark, borderRadius: BorderRadius.circular(12), border: Border.all(color: color.withOpacity(0.3))),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label, style: const TextStyle(color: _textMuted, fontSize: 11)),
+            const SizedBox(height: 4),
+            Text(value, style: TextStyle(color: color, fontSize: 18, fontWeight: FontWeight.w900)),
+          ],
+        ),
       ),
     );
   }
