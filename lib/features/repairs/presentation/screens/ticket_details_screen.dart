@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:laidani_repair/core/providers/supabase_provider.dart';
 import 'package:laidani_repair/features/auth/presentation/providers/auth_provider.dart';
@@ -1439,9 +1440,66 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
     );
   }
 
+  Widget _buildQRCodeSection(Color color) {
+    final qrHash = _ticket?['qr_code_hash'] as String?;
+    if (qrHash == null) return const SizedBox.shrink();
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(color: _panelDark, borderRadius: BorderRadius.circular(16), border: Border.all(color: color.withOpacity(0.3))),
+      child: Row(
+        children: [
+          QrImageView(data: qrHash, version: QrVersions.auto, size: 100, backgroundColor: Colors.white, padding: EdgeInsets.zero),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('QR CODE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+                const SizedBox(height: 4),
+                Text(qrHash, style: TextStyle(color: _textMuted, fontSize: 11, fontFamily: 'monospace')),
+                const SizedBox(height: 8),
+                Text('Scannez pour suivre la réparation', style: TextStyle(color: _textMuted, fontSize: 11)),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: Icon(Icons.print, color: color),
+            tooltip: 'Imprimer',
+            onPressed: () => _printQR(context, qrHash),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _printQR(BuildContext context, String data) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: _panelDark,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: _glassBorder)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('QR Code', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+            const SizedBox(height: 16),
+            QrImageView(data: data, version: QrVersions.auto, size: 250, backgroundColor: Colors.white),
+            const SizedBox(height: 16),
+            Text('Hash: $data', style: const TextStyle(color: _textMuted, fontSize: 12)),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Fermer', style: TextStyle(color: _textMuted))),
+        ],
+      ),
+    );
+  }
+
   Widget _buildMainOperations(Color color) {
     return Column(
       children: [
+        _buildQRCodeSection(color),
+        const SizedBox(height: 16),
         Expanded(child: _buildPartsSection(color)),
         const SizedBox(height: 16),
         _buildPaymentsSection(color),
