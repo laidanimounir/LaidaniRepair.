@@ -29,6 +29,28 @@ final _paymentsProvider = FutureProvider.family<List<Map<String, dynamic>>, Stri
   },
 );
 
+final _customerInvoicesProvider = FutureProvider.family<List<Map<String, dynamic>>, String>(
+  (ref, customerId) async {
+    final client = ref.watch(supabaseClientProvider);
+    return await client.from('sales_invoices')
+        .select('id, total_amount, final_amount, discount, invoice_date')
+        .eq('customer_id', customerId)
+        .order('invoice_date', ascending: false)
+        .limit(20);
+  },
+);
+
+final _customerRepairsProvider = FutureProvider.family<List<Map<String, dynamic>>, String>(
+  (ref, customerId) async {
+    final client = ref.watch(supabaseClientProvider);
+    return await client.from('repair_tickets')
+        .select('id, device_name, status, estimated_cost, final_cost, created_at, paid_amount')
+        .eq('customer_id', customerId)
+        .order('created_at', ascending: false)
+        .limit(20);
+  },
+);
+
 // ─── Clients Screen ───────────────────────────────────────────────────────────
 
 class ClientsScreen extends ConsumerWidget {
@@ -147,93 +169,127 @@ class _CustomerDetailPanel extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final debt = (customer['total_debt'] as num?)?.toDouble() ?? 0.0;
     final paymentsAsync = ref.watch(_paymentsProvider(customer['id'] as String));
+    final invoicesAsync = ref.watch(_customerInvoicesProvider(customer['id'] as String));
+    final repairsAsync = ref.watch(_customerRepairsProvider(customer['id'] as String));
 
-    return Padding(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header
-          Row(
-            children: [
-              CircleAvatar(
-                radius: 24,
-                backgroundColor: AppTheme.primary.withOpacity(0.2),
-                child: Text(
-                  (customer['full_name'] ?? '?')[0].toUpperCase(),
-                  style: const TextStyle(color: AppTheme.primaryLight, fontWeight: FontWeight.w700, fontSize: 20),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(customer['full_name'] ?? '', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: AppTheme.onBackground)),
-                    Text(customer['phone_number'] ?? '—', style: const TextStyle(color: AppTheme.onSurfaceMuted)),
-                  ],
-                ),
-              ),
-              // Debt badge
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                decoration: BoxDecoration(
-                  color: debt > 0 ? AppTheme.error.withOpacity(0.15) : Colors.greenAccent.withOpacity(0.15),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Text(
-                  'Dette: ${debt.toStringAsFixed(0)} DA',
-                  style: TextStyle(
-                    color: debt > 0 ? AppTheme.error : Colors.greenAccent,
-                    fontWeight: FontWeight.w700,
+    return DefaultTabController(
+      length: 3,
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                CircleAvatar(
+                  radius: 24,
+                  backgroundColor: AppTheme.primary.withOpacity(0.2),
+                  child: Text(
+                    (customer['full_name'] ?? '?')[0].toUpperCase(),
+                    style: const TextStyle(color: AppTheme.primaryLight, fontWeight: FontWeight.w700, fontSize: 20),
                   ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          // Pay debt button
-          if (debt > 0)
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: () => _showPayDebtDialog(context, ref, customer),
-                icon: const Icon(Icons.payment, size: 18),
-                label: const Text('Enregistrer un paiement'),
-                style: ElevatedButton.styleFrom(backgroundColor: AppTheme.secondary, foregroundColor: Colors.black87),
-              ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(customer['full_name'] ?? '', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: AppTheme.onBackground)),
+                      Text(customer['phone_number'] ?? '—', style: const TextStyle(color: AppTheme.onSurfaceMuted)),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: debt > 0 ? AppTheme.error.withOpacity(0.15) : Colors.greenAccent.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    'Dette: ${debt.toStringAsFixed(0)} DA',
+                    style: TextStyle(
+                      color: debt > 0 ? AppTheme.error : Colors.greenAccent,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
             ),
-          const SizedBox(height: 16),
-          const Text('Historique des paiements', style: TextStyle(color: AppTheme.onBackground, fontWeight: FontWeight.w600)),
-          const SizedBox(height: 8),
-          Expanded(
-            child: paymentsAsync.when(
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (e, _) => Text('Erreur: $e', style: const TextStyle(color: AppTheme.error)),
-              data: (payments) {
-                if (payments.isEmpty) {
-                  return const Center(child: Text('Aucun paiement', style: TextStyle(color: AppTheme.onSurfaceMuted)));
-                }
-                return ListView.separated(
-                  itemCount: payments.length,
-                  separatorBuilder: (_, __) => const Divider(height: 1),
-                  itemBuilder: (_, i) {
-                    final p = payments[i];
+            const SizedBox(height: 16),
+            if (debt > 0)
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () => _showPayDebtDialog(context, ref, customer),
+                  icon: const Icon(Icons.payment, size: 18),
+                  label: const Text('Enregistrer un paiement'),
+                  style: ElevatedButton.styleFrom(backgroundColor: AppTheme.secondary, foregroundColor: Colors.black87),
+                ),
+              ),
+            const SizedBox(height: 16),
+            const TabBar(
+              labelColor: AppTheme.primary,
+              unselectedLabelColor: AppTheme.onSurfaceMuted,
+              indicatorColor: AppTheme.primary,
+              tabs: [
+                Tab(text: 'Achats'),
+                Tab(text: 'Réparations'),
+                Tab(text: 'Paiements'),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Expanded(
+              child: TabBarView(
+                children: [
+                  _listView(invoicesAsync, 'Aucun achat', (i) {
+                    final date = DateTime.tryParse(i['invoice_date'] ?? '')?.toString().substring(0, 10) ?? '';
+                    final total = (i['final_amount'] as num?)?.toDouble() ?? 0;
+                    return ListTile(
+                      leading: const Icon(Icons.receipt_outlined, color: Colors.amber, size: 20),
+                      title: Text('${total.toStringAsFixed(0)} DA', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+                      subtitle: Text(date, style: const TextStyle(color: AppTheme.onSurfaceMuted, fontSize: 11)),
+                    );
+                  }),
+                  _listView(repairsAsync, 'Aucune réparation', (r) {
+                    final date = DateTime.tryParse(r['created_at'] ?? '')?.toString().substring(0, 10) ?? '';
+                    final cost = (r['final_cost'] as num?)?.toDouble() ?? (r['estimated_cost'] as num?)?.toDouble() ?? 0;
+                    final paid = (r['paid_amount'] as num?)?.toDouble() ?? 0;
+                    final status = r['status'] ?? '';
+                    return ListTile(
+                      leading: const Icon(Icons.build_circle_outlined, color: AppTheme.primary, size: 20),
+                      title: Text(r['device_name'] ?? '', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+                      subtitle: Text('$date • $status • ${cost.toStringAsFixed(0)} DA (Payé: ${paid.toStringAsFixed(0)} DA)', style: const TextStyle(color: AppTheme.onSurfaceMuted, fontSize: 11)),
+                    );
+                  }),
+                  _listView(paymentsAsync, 'Aucun paiement', (p) {
                     final date = DateTime.tryParse(p['payment_date'] ?? '')?.toString().substring(0, 16) ?? '';
                     return ListTile(
                       leading: const Icon(Icons.payments_outlined, color: Colors.greenAccent, size: 20),
-                      title: Text('${(p['amount_paid'] as num).toStringAsFixed(0)} DA',
-                          style: const TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.w700)),
-                      subtitle: Text('$date • ${p['profiles']?['full_name'] ?? ''}',
-                          style: const TextStyle(color: AppTheme.onSurfaceMuted, fontSize: 11)),
+                      title: Text('${(p['amount_paid'] as num).toStringAsFixed(0)} DA', style: const TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.w700)),
+                      subtitle: Text('$date • ${p['profiles']?['full_name'] ?? ''}', style: const TextStyle(color: AppTheme.onSurfaceMuted, fontSize: 11)),
                     );
-                  },
-                );
-              },
+                  }),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
+    );
+  }
+
+  Widget _listView(AsyncValue<List<Map<String, dynamic>>> async, String emptyText, Widget Function(Map<String, dynamic>) itemBuilder) {
+    return async.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e, _) => Text('Erreur: $e', style: const TextStyle(color: AppTheme.error)),
+      data: (items) {
+        if (items.isEmpty) return Center(child: Text(emptyText, style: const TextStyle(color: AppTheme.onSurfaceMuted)));
+        return ListView.separated(
+          itemCount: items.length,
+          separatorBuilder: (_, __) => const Divider(height: 1),
+          itemBuilder: (_, i) => itemBuilder(items[i]),
+        );
+      },
     );
   }
 }
