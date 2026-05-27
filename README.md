@@ -367,16 +367,83 @@ lib/
 ### 🚧 En cours
 - 🚧 Tests automatisés (unitaires et d'intégration)
 
-### 🔮 Planifié
-- 🔮 Application mobile client (suivi, historique, notifications)
-- 🔮 API d'envoi automatique WhatsApp/SMS (via fournisseur API)
-- 🔮 BI avancée (Business Intelligence : tendances, prédictions, rapports visuels)
-- 🔮 Intégration API fournisseurs réelles (EDI, catalogue temps réel)
+### 🔮 Planifié — Feuille de Route Complète
+
+#### 🔴 Qualité & Performance
+- 🔮 Tests unitaires, d'intégration et de widgets (couverture complète)
+- 🔮 CI/CD via GitHub Actions (lint + test + build automatique)
+- 🔮 Error tracking via Sentry
+- 🔮 Optimisation des requêtes Supabase + indexes
+- 🔮 Rapport de couverture de code
+- 🔮 flutter_lints strict (règles de code unifiées)
+- 🔮 Audit des dépendances (packages obsolètes ou vulnérables)
+- 🔮 Pagination sur toutes les listes longues
+- 🔮 Cache des images (photos de réparation)
+- 🔮 Lazy loading des écrans lourds
+
+#### 🛡️ Sécurité
+- 🔮 Rate limiting (anti-spam sur les requêtes)
+- 🔮 Session timeout automatique après inactivité
+- 🔮 Chiffrement local des clés API (Groq, etc.)
+- 🔮 Audit complet des politiques RLS Supabase
+
+#### 📱 Expérience Utilisateur
+- 🔮 Écran d'onboarding pour les nouveaux utilisateurs
+- 🔮 États vides illustrés (listes vides, pas de résultats)
+- 🔮 Squelettes de chargement (loading skeletons)
+- 🔮 Annulation des dernières actions (Undo)
+- 🔮 Retour haptique sur mobile
+
+#### 📊 Monitoring
+- 🔮 Tableau de bord analytique (écrans les plus utilisés, utilisateurs actifs)
+- 🔮 Rapports de crash automatiques
+- 🔮 Monitoring des performances par écran
+
+#### 💰 Finance
+- 🔮 Caisse par succursale (solde d'ouverture, dépôt, retrait)
+- 🔮 Rapport Z de fin de journée par caisse
+- 🔮 Rapprochement caisse (espèces réelles vs système)
+- 🔮 Retours et remboursements de ventes
+- 🔮 Clôture journalière par succursale
+- 🔮 Rapports P&L centralisés (toutes succursales confondues)
+
+#### 📦 Stock Inter-Succursales
+- 🔮 Visibilité du stock de toutes les succursales en temps réel
+- 🔮 Demandes de transfert de stock entre succursales
+- 🔮 Entrepôt central (Warehouse) distribuant vers les succursales
+
+#### 👥 Ressources Humaines
+- 🔮 Transfert d'employé entre succursales (temporaire ou permanent)
+- 🔮 Gestion des salaires et commissions (ventes + réparations)
+- 🔮 Demandes de congé avec validation par le propriétaire
+- 🔮 Suivi du temps de réparation par technicien
+- 🔮 Calcul du coût réel de la main-d'œuvre (coût horaire × temps)
+
+#### 🔧 Réparations Avancées
+- 🔮 Checklist d'accueil standardisée (points de contrôle visuels)
+- 🔮 Workflow spécifique PC/Laptop (différent du smartphone)
+- 🔮 Transfert de ticket entre succursales
+- 🔮 Tarification différente par succursale
+
+#### 📲 Communication
+- 🔮 SMS automatique via API (Twilio ou équivalent)
+- 🔮 Envoi de facture/garantie par email
+- 🔮 Lien d'avis Google Maps après remise de l'appareil
+
+#### 🛒 Point de Vente Avancé
+- 🔮 Pré-commande pour produit hors stock
+- 🔮 Tarification en gros (prix spécial par quantité)
+- 🔮 Ventes groupées / bundles (ex: téléphone + coque + verre = prix réduit)
+
+#### 🚀 Expansion
+- 🔮 Application mobile client (suivi, historique, notifications push)
+- 🔮 API WhatsApp/SMS automatique (envoi sans intervention manuelle)
+- 🔮 Business Intelligence avancée (tendances, prédictions, rapports visuels)
+- 🔮 Intégration API fournisseurs réelle (catalogue temps réel, commande EDI)
 - 🔮 Impression cloud (envoi vers imprimante réseau distante)
-- 🔮 Améliorations sync hors-ligne (conflits, fusion, indicateur détaillé)
+- 🔮 Mode hors-ligne complet avec Isar (sync conflits, fusion intelligente)
 - 🔮 Notifications push mobiles
-- 🔮 Paiement en ligne (CIB / Dahabia)
-- 🔮 Module E-commerce complet (site vitrine + vente en ligne + paiement)
+- 🔮 Module E-commerce complet (site vitrine + vente en ligne)
 
 ---
 
