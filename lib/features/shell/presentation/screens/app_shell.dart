@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'package:laidani_repair/core/providers/supabase_provider.dart';
@@ -764,6 +765,36 @@ class _GlobalSearchDelegate extends SearchDelegate<String?> {
 
   _GlobalSearchDelegate({required this.ref});
 
+  Future<List<String>> _getHistory() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getStringList('search_history') ?? [];
+  }
+
+  Future<void> _saveToHistory(String query) async {
+    final prefs = await SharedPreferences.getInstance();
+    final history = prefs.getStringList('search_history') ?? [];
+    history.remove(query);
+    history.insert(0, query);
+    if (history.length > 10) history.removeLast();
+    await prefs.setStringList('search_history', history);
+  }
+
+  bool _fuzzyMatch(String text, String query) {
+    final t = text.toLowerCase();
+    final q = query.toLowerCase();
+    if (t.contains(q)) return true;
+    final words = t.split(RegExp(r'[\s\-_]+'));
+    for (final word in words) {
+      if (word.contains(q)) return true;
+    }
+    if (q.length >= 3) {
+      for (int i = 0; i <= q.length - 2; i++) {
+        if (t.contains(q.substring(i, i + 2))) return true;
+      }
+    }
+    return false;
+  }
+
   @override
   List<Widget>? buildActions(BuildContext context) => [
     IconButton(
@@ -786,95 +817,168 @@ class _GlobalSearchDelegate extends SearchDelegate<String?> {
 
   Widget _buildSearchList(BuildContext context) {
     if (query.isEmpty) {
-      return const Center(
-        child: Text('Tapez pour rechercher des produits, clients, réparations...',
-            style: TextStyle(color: _textMuted)),
+      return FutureBuilder<List<String>>(
+        future: _getHistory(),
+        builder: (ctx, snap) {
+          final history = snap.data ?? [];
+          if (history.isEmpty) {
+            return const Center(
+              child: Text('Tapez pour rechercher des produits, clients, réparations...',
+                  style: TextStyle(color: _textMuted)),
+            );
+          }
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('Recherches récentes', style: TextStyle(color: _textMuted, fontWeight: FontWeight.bold, fontSize: 12)),
+                    TextButton(
+                      onPressed: () async {
+                        await SharedPreferences.getInstance().then((p) => p.remove('search_history'));
+                        query = '';
+                      },
+                      child: const Text('Effacer', style: TextStyle(color: _textMuted, fontSize: 11)),
+                    ),
+                  ],
+                ),
+              ),
+              ...history.map((h) => ListTile(
+                leading: const Icon(Icons.history, color: _textMuted, size: 18),
+                title: Text(h, style: const TextStyle(color: Colors.white, fontSize: 14)),
+                onTap: () {
+                  query = h;
+                  showResults(context);
+                },
+              )),
+            ],
+          );
+        },
       );
     }
 
     return FutureBuilder(
       future: _search(),
-      builder: (context, AsyncSnapshot<List<_SearchResult>> snapshot) {
+      builder: (context, AsyncSnapshot<Map<String, List<_SearchResult>>> snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator(color: _ownerNeon));
         }
-        final results = snapshot.data ?? [];
-        if (results.isEmpty) {
+        final groups = snapshot.data ?? {};
+        if (groups.isEmpty) {
           return const Center(
             child: Text('Aucun résultat', style: TextStyle(color: _textMuted)),
           );
         }
-        return ListView.separated(
-          itemCount: results.length,
-          separatorBuilder: (_, __) => const Divider(color: _glassBorder, height: 1),
-          itemBuilder: (_, i) {
-            final r = results[i];
-            return ListTile(
-              leading: Icon(r.icon, color: _ownerNeon),
-              title: Text(r.title, style: const TextStyle(color: Colors.white)),
-              subtitle: r.subtitle != null
-                  ? Text(r.subtitle!, style: const TextStyle(color: _textMuted, fontSize: 12))
-                  : null,
-              onTap: () {
-                close(context, null);
-                context.go(r.route);
-              },
-            );
-          },
+        return ListView(
+          children: [
+            for (final entry in groups.entries) ...[
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                child: Row(
+                  children: [
+                    _groupIcon(entry.key),
+                    const SizedBox(width: 8),
+                    Text('${entry.key} (${entry.value.length})', style: const TextStyle(color: _ownerNeon, fontWeight: FontWeight.bold, fontSize: 12)),
+                  ],
+                ),
+              ),
+              ...entry.value.map((r) => ListTile(
+                leading: Icon(r.icon, color: _ownerNeon),
+                title: Text(r.title, style: const TextStyle(color: Colors.white)),
+                subtitle: r.subtitle != null ? Text(r.subtitle!, style: const TextStyle(color: _textMuted, fontSize: 12)) : null,
+                onTap: () {
+                  close(context, null);
+                  context.go(r.route);
+                },
+              )),
+              const Divider(color: _glassBorder, height: 1),
+            ],
+          ],
         );
       },
     );
   }
 
-  Future<List<_SearchResult>> _search() async {
+  Widget _groupIcon(String group) {
+    switch (group) {
+      case 'Produits': return const Icon(Icons.inventory_2, color: _ownerNeon, size: 18);
+      case 'Clients': return const Icon(Icons.people, color: _ownerNeon, size: 18);
+      case 'Réparations': return const Icon(Icons.build, color: _ownerNeon, size: 18);
+      default: return const Icon(Icons.search, color: _ownerNeon, size: 18);
+    }
+  }
+
+  Future<Map<String, List<_SearchResult>>> _search() async {
     final q = query.toLowerCase();
     final client = ref.read(supabaseClientProvider);
-    final results = <_SearchResult>[];
+
+    _saveToHistory(query);
 
     final products = await client
         .from('products')
         .select('id, product_name, barcode')
-        .or('product_name.ilike.%$q%,barcode.ilike.%$q%')
-        .limit(5);
-    for (final p in products) {
-      results.add(_SearchResult(
-        icon: Icons.inventory_2,
-        title: p['product_name'] as String,
-        subtitle: p['barcode'] != null ? 'Code: ${p['barcode']}' : null,
-        route: '/shell/inventory',
-      ));
-    }
+        .limit(20);
 
     final customers = await client
         .from('customers')
         .select('id, full_name, phone_number')
-        .or('full_name.ilike.%$q%,phone_number.ilike.%$q%')
-        .limit(5);
-    for (final c in customers) {
-      results.add(_SearchResult(
-        icon: Icons.person,
-        title: c['full_name'] as String,
-        subtitle: c['phone_number'] != null ? 'Tél: ${c['phone_number']}' : null,
-        route: '/shell/clients',
-      ));
-    }
+        .eq('is_registered', true)
+        .limit(20);
 
     final repairs = await client
-        .from('repairs')
-        .select('id, device_model, issue_description, status')
-        .or('device_model.ilike.%$q%,issue_description.ilike.%$q%')
-        .limit(5);
-    for (final r in repairs) {
-      results.add(_SearchResult(
-        icon: Icons.build,
-        title: r['device_model'] as String,
-        subtitle: '${r['issue_description']} — ${r['status']}',
-        route: '/shell/repairs',
-      ));
+        .from('repair_tickets')
+        .select('id, device_name, issue_description, status')
+        .limit(20);
+
+    final grouped = <String, List<_SearchResult>>{};
+
+    for (final p in products) {
+      final name = (p['product_name'] ?? '').toString();
+      final barcode = p['barcode']?.toString() ?? '';
+      if (_fuzzyMatch(name, q) || _fuzzyMatch(barcode, q)) {
+        grouped.putIfAbsent('Produits', () => []).add(_SearchResult(
+          icon: Icons.inventory_2,
+          title: name,
+          subtitle: barcode.isNotEmpty ? 'Code: $barcode' : null,
+          route: '/shell/inventory',
+        ));
+      }
     }
 
-    results.sort((a, b) => a.title.compareTo(b.title));
-    return results;
+    for (final c in customers) {
+      final name = (c['full_name'] ?? '').toString();
+      final phone = c['phone_number']?.toString() ?? '';
+      if (_fuzzyMatch(name, q) || _fuzzyMatch(phone, q)) {
+        grouped.putIfAbsent('Clients', () => []).add(_SearchResult(
+          icon: Icons.person,
+          title: name,
+          subtitle: phone.isNotEmpty ? 'Tél: $phone' : null,
+          route: '/shell/clients',
+        ));
+      }
+    }
+
+    for (final r in repairs) {
+      final device = (r['device_name'] ?? '').toString();
+      final issue = (r['issue_description'] ?? '').toString();
+      if (_fuzzyMatch(device, q) || _fuzzyMatch(issue, q)) {
+        grouped.putIfAbsent('Réparations', () => []).add(_SearchResult(
+          icon: Icons.build,
+          title: device,
+          subtitle: '$issue — ${r['status'] ?? ''}',
+          route: '/shell/repairs',
+        ));
+      }
+    }
+
+    for (final entry in grouped.entries) {
+      entry.value.sort((a, b) => a.title.compareTo(b.title));
+    }
+
+    return grouped;
   }
 }
 
