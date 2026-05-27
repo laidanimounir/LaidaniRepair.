@@ -15,11 +15,16 @@ final _dashboardStatsProvider = FutureProvider<Map<String, dynamic>>((ref) async
   final todayStart = DateTime(now.year, now.month, now.day);
   final todayEnd = todayStart.add(const Duration(days: 1));
 
-  final allTickets = await client.from('repair_tickets').select('status, created_at');
+  final allTickets = await client.from('repair_tickets').select('status, created_at, estimated_completion_date');
   final activeRepairs = allTickets.where((t) => ['En attente', 'En cours'].contains(t['status'])).length;
   final todayDelivered = allTickets.where((t) => t['status'] == 'Livré').where((t) {
     final d = DateTime.tryParse(t['created_at'] as String);
     return d != null && !d.isBefore(todayStart) && d.isBefore(todayEnd);
+  }).length;
+  final overdueCount = allTickets.where((t) {
+    if (['Terminé', 'Livré'].contains(t['status'])) return false;
+    final d = DateTime.tryParse(t['estimated_completion_date'] as String? ?? '');
+    return d != null && d.isBefore(DateTime.now());
   }).length;
 
   final warrantyClaims = await client.from('warranty_claims').select('status');
@@ -56,6 +61,7 @@ final _dashboardStatsProvider = FutureProvider<Map<String, dynamic>>((ref) async
     'totalClients': totalClients,
     'pendingSupplierAmount': pendingAmount,
     'warrantyPending': warrantyPending,
+    'overdueCount': overdueCount,
   };
 });
 
@@ -92,6 +98,15 @@ class DashboardScreen extends ConsumerWidget {
                   color: _neonEmerald,
                 ),
               ]),
+              if ((stats['overdueCount'] as int) > 0) ...[
+                const SizedBox(height: 12),
+                _StatCard(
+                  icon: Icons.warning_amber_rounded,
+                  label: 'Tickets en retard',
+                  value: '${stats['overdueCount']}',
+                  color: Colors.redAccent,
+                ),
+              ],
               const SizedBox(height: 12),
               _buildStatRow([
                 _StatCard(

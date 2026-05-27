@@ -224,7 +224,10 @@ class _CyberTableRow extends StatelessWidget {
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-      decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: _glassBorder, width: 0.5))),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: _glassBorder, width: 0.5)),
+        color: _isOverdue(ticket) ? Colors.redAccent.withOpacity(0.05) : null,
+      ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
@@ -372,9 +375,9 @@ class _MobileTicketCard extends StatelessWidget {
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: _panelDark.withOpacity(0.5),
+        color: _isOverdue(ticket) ? Colors.redAccent.withOpacity(0.08) : _panelDark.withOpacity(0.5),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _glassBorder),
+        border: Border.all(color: _isOverdue(ticket) ? Colors.redAccent.withOpacity(0.3) : _glassBorder),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -537,6 +540,16 @@ IconData _statusIcon(String? status) {
   }
 }
 
+bool _isOverdue(Map<String, dynamic> ticket) {
+  final status = ticket['status'] as String?;
+  if (status == 'Terminé' || status == 'Livré') return false;
+  final estimated = ticket['estimated_completion_date'] as String?;
+  if (estimated == null) return false;
+  final date = DateTime.tryParse(estimated);
+  if (date == null) return false;
+  return date.isBefore(DateTime.now());
+}
+
 // ─── New Ticket Dialog (Two-Column Cyber Layout - Responsive) ─────────────────────────────
 
 void _showNewTicketDialog(BuildContext context, WidgetRef ref) {
@@ -577,7 +590,8 @@ class _NewTicketFormState extends State<_NewTicketForm> {
   
   final _costCtrl = TextEditingController();
   final _advanceCtrl = TextEditingController();
-  final _laborCtrl = TextEditingController(); 
+  final _laborCtrl = TextEditingController();
+  DateTime? _estimatedCompletionDate; 
 
   bool _isLoading = false;
 
@@ -777,6 +791,27 @@ class _NewTicketFormState extends State<_NewTicketForm> {
               Expanded(child: _buildTextField(_laborCtrl, 'Main d\'œuvre (M.O)', icon: Icons.handyman_outlined, isNumber: true, suffix: 'DA')),
             ],
           ),
+          const SizedBox(height: 16),
+          InkWell(
+            onTap: () async {
+              final picked = await showDatePicker(
+                context: context,
+                initialDate: DateTime.now().add(const Duration(days: 3)),
+                firstDate: DateTime.now(),
+                lastDate: DateTime.now().add(const Duration(days: 365)),
+              );
+              if (picked != null) setState(() => _estimatedCompletionDate = picked);
+            },
+            child: InputDecorator(
+              decoration: _inputDecoration('Date fin estimée (SLA)', Icons.schedule).copyWith(suffixIcon: const Icon(Icons.date_range, color: _textMuted, size: 18)),
+              child: Text(
+                _estimatedCompletionDate != null
+                    ? '${_estimatedCompletionDate!.day.toString().padLeft(2, '0')}/${_estimatedCompletionDate!.month.toString().padLeft(2, '0')}/${_estimatedCompletionDate!.year}'
+                    : 'Sélectionner une date',
+                style: TextStyle(color: _estimatedCompletionDate != null ? Colors.white : _textMuted, fontSize: 14),
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -860,6 +895,7 @@ class _NewTicketFormState extends State<_NewTicketForm> {
         'labor_cost': labor,
         'qr_code_hash': qrHash,
         'status': 'En attente',
+        'estimated_completion_date': _estimatedCompletionDate?.toIso8601String().substring(0, 10),
       });
       
       widget.ref.invalidate(_ticketsProvider);
