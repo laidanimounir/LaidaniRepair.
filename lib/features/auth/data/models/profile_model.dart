@@ -1,10 +1,12 @@
-/// Dart model for the `profiles` table joined with `roles`.
+import 'package:laidani_repair/features/auth/data/models/technician_permissions.dart';
+
 class ProfileModel {
   final String id;
   final String fullName;
-  final String roleName; // 'owner' | 'worker'
+  final String roleName;
   final String? phoneNumber;
   final bool isActive;
+  final TechnicianPermissions permissions;
 
   const ProfileModel({
     required this.id,
@@ -12,19 +14,20 @@ class ProfileModel {
     required this.roleName,
     this.phoneNumber,
     required this.isActive,
+    this.permissions = const TechnicianPermissions(),
   });
 
-  /// True when the user is an owner (has access to all screens).
   bool get isOwner => roleName == 'owner';
 
-  /// Parses the result of:
-  ///   supabase.from('profiles').select('*, roles(role_name)').single()
   factory ProfileModel.fromJson(Map<String, dynamic> json) {
-    // roles column is returned as a nested Map by Supabase
     final rolesData = json['roles'];
     final roleName = (rolesData is Map<String, dynamic>)
         ? (rolesData['role_name'] as String? ?? 'worker')
         : 'worker';
+
+    final perms = json['permissions'] is Map
+        ? Map<String, dynamic>.from(json['permissions'] as Map)
+        : null;
 
     return ProfileModel(
       id: json['id'] as String,
@@ -32,6 +35,7 @@ class ProfileModel {
       roleName: roleName,
       phoneNumber: json['phone_number'] as String?,
       isActive: json['is_active'] as bool? ?? true,
+      permissions: TechnicianPermissions.fromJson(perms),
     );
   }
 

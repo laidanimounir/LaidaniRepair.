@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'package:laidani_repair/core/providers/supabase_provider.dart';
 import 'package:laidani_repair/features/auth/data/models/profile_model.dart';
+import 'package:laidani_repair/features/auth/data/models/technician_permissions.dart';
 import 'package:laidani_repair/features/auth/data/repositories/auth_repository.dart';
 
 // ─── Auth State Stream ─────────────────────────────────────────────────────
@@ -37,10 +38,17 @@ final profileProvider = FutureProvider<ProfileModel?>((ref) async {
   return repo.fetchProfile(user.id);
 });
 
+// ─── Technician Permissions ────────────────────────────────────────────────
+
+final technicianPermissionsProvider = Provider<TechnicianPermissions>((ref) {
+  return ref.watch(profileProvider).maybeWhen(
+        data: (profile) => profile?.permissions ?? const TechnicianPermissions(),
+        orElse: () => const TechnicianPermissions(),
+      );
+});
+
 // ─── Derived Role Helpers ──────────────────────────────────────────────────
 
-/// Synchronous convenience: is the current user an owner?
-/// Returns false while the profile is still loading.
 final isOwnerProvider = Provider<bool>((ref) {
   return ref.watch(profileProvider).maybeWhen(
         data: (profile) => profile?.isOwner ?? false,

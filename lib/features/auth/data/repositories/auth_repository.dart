@@ -35,7 +35,7 @@ class AuthRepository {
     try {
       final data = await _client
           .from('profiles')
-          .select('id, full_name, phone_number, is_active, roles(role_name)')
+          .select('id, full_name, phone_number, is_active, permissions, roles(role_name)')
           .eq('id', userId)
           .single();
       return ProfileModel.fromJson(data);

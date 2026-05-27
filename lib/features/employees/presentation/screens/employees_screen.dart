@@ -89,72 +89,124 @@ class EmployeesScreen extends ConsumerWidget {
     int? selectedRoleId = existing?['role_id'] as int?;
     bool isActive = existing?['is_active'] as bool? ?? true;
 
+    final perms = existing?['permissions'] as Map?;
+    bool canSeePrices = perms?['can_see_prices'] as bool? ?? false;
+    bool canEditTicket = perms?['can_edit_ticket'] as bool? ?? false;
+    bool canAddParts = perms?['can_add_parts'] as bool? ?? false;
+    bool canSeeOther = perms?['can_see_other_tickets'] as bool? ?? false;
+
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: _panelDark,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: _glassBorder)),
-        title: Text(existing != null ? 'MODIFIER EMPLOYÉ' : 'AJOUTER EMPLOYÉ', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-        content: SizedBox(
-          width: 400,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(controller: nameCtrl, style: const TextStyle(color: Colors.white), decoration: const InputDecoration(labelText: 'Nom complet', labelStyle: TextStyle(color: _textMuted))),
-              const SizedBox(height: 12),
-              TextField(controller: phoneCtrl, style: const TextStyle(color: Colors.white), decoration: const InputDecoration(labelText: 'Téléphone', labelStyle: TextStyle(color: _textMuted))),
-              const SizedBox(height: 12),
-              FutureBuilder(
-                future: ref.read(_rolesProvider.future),
-                builder: (ctx, snap) {
-                  if (!snap.hasData) return const CircularProgressIndicator();
-                  final roles = snap.data as List;
-                  return DropdownButtonFormField<int>(
-                    value: selectedRoleId,
-                    dropdownColor: _panelDark,
-                    style: const TextStyle(color: Colors.white),
-                    decoration: const InputDecoration(labelText: 'Rôle', labelStyle: TextStyle(color: _textMuted)),
-                    items: roles.map((r) => DropdownMenuItem(value: r['id'] as int, child: Text(r['role_name'] ?? ''))).toList(),
-                    onChanged: (v) => selectedRoleId = v,
-                  );
-                },
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          backgroundColor: _panelDark,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: _glassBorder)),
+          title: Text(existing != null ? 'MODIFIER EMPLOYÉ' : 'AJOUTER EMPLOYÉ', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          content: SizedBox(
+            width: 400,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(controller: nameCtrl, style: const TextStyle(color: Colors.white), decoration: const InputDecoration(labelText: 'Nom complet', labelStyle: TextStyle(color: _textMuted))),
+                  const SizedBox(height: 12),
+                  TextField(controller: phoneCtrl, style: const TextStyle(color: Colors.white), decoration: const InputDecoration(labelText: 'Téléphone', labelStyle: TextStyle(color: _textMuted))),
+                  const SizedBox(height: 12),
+                  FutureBuilder(
+                    future: ref.read(_rolesProvider.future),
+                    builder: (ctx, snap) {
+                      if (!snap.hasData) return const CircularProgressIndicator();
+                      final roles = snap.data as List;
+                      return DropdownButtonFormField<int>(
+                        value: selectedRoleId,
+                        dropdownColor: _panelDark,
+                        style: const TextStyle(color: Colors.white),
+                        decoration: const InputDecoration(labelText: 'Rôle', labelStyle: TextStyle(color: _textMuted)),
+                        items: roles.map((r) => DropdownMenuItem(value: r['id'] as int, child: Text(r['role_name'] ?? ''))).toList(),
+                        onChanged: (v) => selectedRoleId = v,
+                      );
+                    },
+                  ),
+                  if (existing != null) ...[
+                    const SizedBox(height: 12),
+                    SwitchListTile(
+                      title: const Text('Actif', style: TextStyle(color: Colors.white)),
+                      value: isActive,
+                      activeColor: _neonEmerald,
+                      contentPadding: EdgeInsets.zero,
+                      onChanged: (v) => setDialogState(() => isActive = v),
+                    ),
+                    const SizedBox(height: 8),
+                    const Divider(color: _glassBorder),
+                    const Padding(
+                      padding: EdgeInsets.only(top: 8),
+                      child: Align(alignment: Alignment.centerLeft, child: Text('PERMISSIONS', style: TextStyle(color: _neonCyan, fontWeight: FontWeight.bold, fontSize: 12, letterSpacing: 2))),
+                    ),
+                    SwitchListTile(
+                      title: const Text('Voir les prix', style: TextStyle(color: Colors.white, fontSize: 14)),
+                      value: canSeePrices,
+                      activeColor: _neonCyan,
+                      contentPadding: EdgeInsets.zero,
+                      dense: true,
+                      onChanged: (v) => setDialogState(() => canSeePrices = v),
+                    ),
+                    SwitchListTile(
+                      title: const Text('Modifier tickets', style: TextStyle(color: Colors.white, fontSize: 14)),
+                      value: canEditTicket,
+                      activeColor: _neonCyan,
+                      contentPadding: EdgeInsets.zero,
+                      dense: true,
+                      onChanged: (v) => setDialogState(() => canEditTicket = v),
+                    ),
+                    SwitchListTile(
+                      title: const Text('Ajouter pièces', style: TextStyle(color: Colors.white, fontSize: 14)),
+                      value: canAddParts,
+                      activeColor: _neonCyan,
+                      contentPadding: EdgeInsets.zero,
+                      dense: true,
+                      onChanged: (v) => setDialogState(() => canAddParts = v),
+                    ),
+                    SwitchListTile(
+                      title: const Text('Voir autres tickets', style: TextStyle(color: Colors.white, fontSize: 14)),
+                      value: canSeeOther,
+                      activeColor: _neonCyan,
+                      contentPadding: EdgeInsets.zero,
+                      dense: true,
+                      onChanged: (v) => setDialogState(() => canSeeOther = v),
+                    ),
+                  ],
+                ],
               ),
-              if (existing != null) ...[
-                const SizedBox(height: 12),
-                SwitchListTile(
-                  title: const Text('Actif', style: TextStyle(color: Colors.white)),
-                  value: isActive,
-                  activeColor: _neonEmerald,
-                  contentPadding: EdgeInsets.zero,
-                  onChanged: (v) => isActive = v,
-                ),
-              ],
-            ],
+            ),
           ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Annuler', style: TextStyle(color: _textMuted))),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: _neonCyan, foregroundColor: _bgCarbon),
+              onPressed: () async {
+                final client = ref.read(supabaseClientProvider);
+                final data = <String, dynamic>{
+                  'full_name': nameCtrl.text.trim(),
+                  'phone_number': phoneCtrl.text.trim(),
+                  'role_id': selectedRoleId,
+                };
+                if (existing != null) {
+                  data['is_active'] = isActive;
+                  data['permissions'] = {
+                    'can_see_prices': canSeePrices,
+                    'can_edit_ticket': canEditTicket,
+                    'can_add_parts': canAddParts,
+                    'can_see_other_tickets': canSeeOther,
+                  };
+                  await client.from('profiles').update(data).eq('id', existing['id']);
+                }
+                ref.invalidate(_employeesProvider);
+                if (ctx.mounted) Navigator.pop(ctx);
+              },
+              child: Text(existing != null ? 'MODIFIER' : 'AJOUTER', style: const TextStyle(fontWeight: FontWeight.bold)),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Annuler', style: TextStyle(color: _textMuted))),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: _neonCyan, foregroundColor: _bgCarbon),
-            onPressed: () async {
-              final client = ref.read(supabaseClientProvider);
-              final data = <String, dynamic>{
-                'full_name': nameCtrl.text.trim(),
-                'phone_number': phoneCtrl.text.trim(),
-                'role_id': selectedRoleId,
-              };
-              if (existing == null) {
-                // Creating a new employee requires the auth user to exist first - not implemented in UI
-              } else {
-                data['is_active'] = isActive;
-                await client.from('profiles').update(data).eq('id', existing['id']);
-              }
-              ref.invalidate(_employeesProvider);
-              if (ctx.mounted) Navigator.pop(ctx);
-            },
-            child: Text(existing != null ? 'MODIFIER' : 'AJOUTER', style: const TextStyle(fontWeight: FontWeight.bold)),
-          ),
-        ],
       ),
     );
   }
