@@ -29,6 +29,7 @@ final _ticketsProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async 
 });
 
 final _statusFilter = StateProvider<String?>((ref) => null);
+final _slaFilter = StateProvider<String?>((ref) => null);
 
 // ─── Repairs Screen (Responsive) ────────────────────────────────────────
 
@@ -39,6 +40,7 @@ class RepairsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final ticketsAsync = ref.watch(_ticketsProvider);
     final statusF = ref.watch(_statusFilter);
+    final slaF = ref.watch(_slaFilter);
 
     ref.listen(newTicketRequestProvider, (_, __) {
       _showNewTicketDialog(context, ref);
@@ -122,6 +124,12 @@ class RepairsScreen extends ConsumerWidget {
                       _StatusChip(label: 'Terminé', value: 'Terminé', current: statusF, ref: ref),
                       _StatusChip(label: 'Livré', value: 'Livré', current: statusF, ref: ref),
                       _StatusChip(label: '📋 Historique', value: '__history__', current: statusF, ref: ref),
+                      const SizedBox(width: 16),
+                      Container(width: 1, height: 24, color: _glassBorder),
+                      const SizedBox(width: 16),
+                      _SlaChip(label: '🟢 Dans les temps', value: 'green', ref: ref),
+                      _SlaChip(label: '🟡 Urgent (<24h)', value: 'yellow', ref: ref),
+                      _SlaChip(label: '🔴 En retard', value: 'red', ref: ref),
                     ],
                   ),
                 ),
@@ -138,8 +146,16 @@ class RepairsScreen extends ConsumerWidget {
                 final filtered = statusF == null ? tickets : statusF == '__history__'
                     ? tickets.where((t) => t['status'] == 'Terminé' || t['status'] == 'Livré').toList()
                     : tickets.where((t) => t['status'] == statusF).toList();
+
+                List<Map<String, dynamic>> slaFiltered = filtered;
+                if (slaF != null) {
+                  slaFiltered = filtered.where((t) {
+                    final sla = _getSlaStatus(t);
+                    return sla == slaF;
+                  }).toList();
+                }
                 
-                if (filtered.isEmpty) return _buildEmptyState();
+                if (slaFiltered.isEmpty) return _buildEmptyState();
 
                 return Column(
                   children: [
@@ -161,12 +177,12 @@ class RepairsScreen extends ConsumerWidget {
                       ),
                     Expanded(
                       child: ListView.builder(
-                        itemCount: filtered.length,
+                        itemCount: slaFiltered.length,
                         itemBuilder: (context, index) {
                           // 🌟 اختيار طريقة العرض المناسبة 🌟
                           return isDesktop 
-                              ? _CyberTableRow(ticket: filtered[index], ref: ref)
-                              : _MobileTicketCard(ticket: filtered[index], ref: ref);
+                              ? _CyberTableRow(ticket: slaFiltered[index], ref: ref)
+                              : _MobileTicketCard(ticket: slaFiltered[index], ref: ref);
                         },
                       ),
                     ),
@@ -232,7 +248,7 @@ class _CyberTableRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
       decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: _glassBorder, width: 0.5)),
-        color: _isOverdue(ticket) ? Colors.redAccent.withOpacity(0.05) : null,
+        color: _getSlaRowColor(ticket),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
@@ -400,9 +416,9 @@ class _MobileTicketCard extends StatelessWidget {
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: _isOverdue(ticket) ? Colors.redAccent.withOpacity(0.08) : _panelDark.withOpacity(0.5),
+        color: _getSlaCardColor(ticket),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _isOverdue(ticket) ? Colors.redAccent.withOpacity(0.3) : _glassBorder),
+        border: Border.all(color: _getSlaBorderColor(ticket)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -548,6 +564,56 @@ class _StatusChip extends StatelessWidget {
   }
 }
 
+class _SlaChip extends StatelessWidget {
+  final String label;
+  final String value;
+  final WidgetRef ref;
+
+  const _SlaChip({required this.label, required this.value, required this.ref});
+
+  @override
+  Widget build(BuildContext context) {
+    final selected = ref.watch(_slaFilter) == value;
+    Color color;
+    switch (value) {
+      case 'green': color = Colors.greenAccent; break;
+      case 'yellow': color = Colors.orangeAccent; break;
+      case 'red': color = Colors.redAccent; break;
+      default: color = _textMuted;
+    }
+    
+    return Padding(
+      padding: const EdgeInsets.only(right: 12),
+      child: InkWell(
+        onTap: () => ref.read(_slaFilter.notifier).state = selected ? null : value,
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: selected ? color.withOpacity(0.15) : Colors.transparent,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: selected ? color : _glassBorder),
+          ),
+          child: Text(label, style: TextStyle(color: selected ? color : _textMuted, fontWeight: selected ? FontWeight.bold : FontWeight.normal, fontSize: 12)),
+        ),
+      ),
+    );
+  }
+}
+
+String _getSlaStatus(Map<String, dynamic> ticket) {
+  final status = ticket['status'] as String?;
+  if (status == 'Terminé' || status == 'Livré') return 'green';
+  final estimated = ticket['estimated_completion_date'] as String?;
+  if (estimated == null) return 'green';
+  final date = DateTime.tryParse(estimated);
+  if (date == null) return 'green';
+  final now = DateTime.now();
+  if (date.isBefore(now)) return 'red';
+  if (date.difference(now).inHours < 24) return 'yellow';
+  return 'green';
+}
+
 Color _statusColor(String? status) {
   switch (status) {
     case 'En attente': return Colors.orangeAccent;
@@ -576,6 +642,30 @@ bool _isOverdue(Map<String, dynamic> ticket) {
   final date = DateTime.tryParse(estimated);
   if (date == null) return false;
   return date.isBefore(DateTime.now());
+}
+
+Color _getSlaRowColor(Map<String, dynamic> ticket) {
+  switch (_getSlaStatus(ticket)) {
+    case 'red': return Colors.redAccent.withOpacity(0.05);
+    case 'yellow': return Colors.orangeAccent.withOpacity(0.04);
+    default: return _panelDark;
+  }
+}
+
+Color _getSlaCardColor(Map<String, dynamic> ticket) {
+  switch (_getSlaStatus(ticket)) {
+    case 'red': return Colors.redAccent.withOpacity(0.08);
+    case 'yellow': return Colors.orangeAccent.withOpacity(0.06);
+    default: return _panelDark.withOpacity(0.5);
+  }
+}
+
+Color _getSlaBorderColor(Map<String, dynamic> ticket) {
+  switch (_getSlaStatus(ticket)) {
+    case 'red': return Colors.redAccent.withOpacity(0.5);
+    case 'yellow': return Colors.orangeAccent.withOpacity(0.4);
+    default: return _glassBorder;
+  }
 }
 
 // ─── New Ticket Dialog (Two-Column Cyber Layout - Responsive) ─────────────────────────────
