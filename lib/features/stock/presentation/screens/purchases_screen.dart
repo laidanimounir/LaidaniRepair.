@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:laidani_repair/core/providers/supabase_provider.dart';
+import 'package:laidani_repair/core/services/supplier_api_service.dart';
 import 'package:laidani_repair/features/stock/presentation/providers/stock_providers.dart';
 
 // --- Cyber Glass Theme Constants ---
@@ -76,6 +77,19 @@ class _PurchasesScreenState extends ConsumerState<PurchasesScreen> with SingleTi
                         const Text('ACHATS & FOURNISSEURS', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 18, letterSpacing: 1.5)),
                         const Spacer(),
                         ElevatedButton.icon(
+                          onPressed: () => _showSupplierCatalogDialog(context, ref),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.greenAccent.withOpacity(0.1),
+                            foregroundColor: Colors.greenAccent,
+                            elevation: 0,
+                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                            side: BorderSide(color: Colors.greenAccent.withOpacity(0.5)),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
+                          icon: const Icon(Icons.language),
+                          label: const Text('COMMANDER EN LIGNE', style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1)),
+                        ),
+                        ElevatedButton.icon(
                           onPressed: () => _showAddDialog(context, ref),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: _neonPurple.withOpacity(0.1),
@@ -118,10 +132,126 @@ class _PurchasesScreenState extends ConsumerState<PurchasesScreen> with SingleTi
       ),
     );
   }
+}
 
-  String _getAddButtonLabel() {
-    return _tabController.index == 0 ? 'NOUVEL ACHAT' : 'NOUVEAU FOURNISSEUR';
-  }
+void _showSupplierCatalogDialog(BuildContext context, WidgetRef ref) {
+  showDialog(
+    context: context,
+    barrierColor: Colors.black87,
+    builder: (ctx) => StatefulBuilder(
+      builder: (ctx, setDialogState) {
+        String? selectedSupplier;
+        final cart = <Map<String, dynamic>>[];
+
+        return Dialog(
+          backgroundColor: _panelDark.withOpacity(0.95),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: _glassBorder, width: 1.5)),
+          child: Container(
+            width: 800,
+            height: 600,
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Row(children: [Icon(Icons.language, color: Colors.greenAccent), SizedBox(width: 12), Text('COMMANDER EN LIGNE', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold))]),
+                const Divider(color: _glassBorder, height: 24),
+                DropdownButtonFormField<String>(
+                  value: selectedSupplier,
+                  dropdownColor: _panelDark,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
+                    labelText: 'Sélectionner un fournisseur en ligne',
+                    labelStyle: const TextStyle(color: _textMuted),
+                    prefixIcon: const Icon(Icons.store, color: _textMuted),
+                    filled: true, fillColor: _bgCarbon.withOpacity(0.5),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: _glassBorder)),
+                  ),
+                  items: mockSuppliers.map((s) => DropdownMenuItem<String>(value: s['id'] as String, child: Text(s['name'] as String))).toList(),
+                  onChanged: (v) => setDialogState(() => selectedSupplier = v),
+                ),
+                const SizedBox(height: 16),
+                if (selectedSupplier != null)
+                  Expanded(
+                    child: Container(
+                      decoration: BoxDecoration(border: Border.all(color: _glassBorder), borderRadius: BorderRadius.circular(8)),
+                      child: ListView.builder(
+                        itemCount: mockCatalog.where((p) => p['supplierId'] == selectedSupplier).length,
+                        itemBuilder: (ctx, i) {
+                          final item = mockCatalog.where((p) => p['supplierId'] == selectedSupplier).toList()[i];
+                          return ListTile(
+                            leading: const Icon(Icons.inventory_2, color: _neonPurple),
+                            title: Text(item['name'] as String, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                            subtitle: Text('${item['brand']} • Stock: ${item['stock']}', style: const TextStyle(color: _textMuted)),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text('${item['price']} DA', style: const TextStyle(color: _neonPurple, fontWeight: FontWeight.bold)),
+                                const SizedBox(width: 8),
+                                ElevatedButton(
+                                  style: ElevatedButton.styleFrom(backgroundColor: _neonPurple.withOpacity(0.1), foregroundColor: _neonPurple, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6)),
+                                  onPressed: () {
+                                    cart.add(item);
+                                    ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text('${item['name']} ajouté au panier'), backgroundColor: Colors.green));
+                                  },
+                                  child: const Text('Ajouter', style: TextStyle(fontSize: 11)),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  )
+                else
+                  const Expanded(
+                    child: Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.store_outlined, size: 48, color: _textMuted),
+                          SizedBox(height: 12),
+                          Text('Sélectionnez un fournisseur pour parcourir le catalogue', style: TextStyle(color: _textMuted)),
+                          SizedBox(height: 8),
+                          Text('Cette fonctionnalité sera disponible avec les API fournisseurs réelles', style: TextStyle(color: _textMuted, fontSize: 11, fontStyle: FontStyle.italic)),
+                        ],
+                      ),
+                    ),
+                  ),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Fermer', style: TextStyle(color: _textMuted))),
+                    const SizedBox(width: 16),
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(backgroundColor: _neonPurple, foregroundColor: Colors.white),
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                        if (cart.isNotEmpty) {
+                          showDialog(
+                            context: context,
+                            builder: (ctx) => AlertDialog(
+                              backgroundColor: _panelDark,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: _glassBorder)),
+                              title: const Text('Commande en ligne', style: TextStyle(color: Colors.white)),
+                              content: Text('${cart.length} article(s) ajoutés au panier.\n\nL\'intégration avec les API fournisseurs sera disponible dans une prochaine mise à jour.', style: const TextStyle(color: _textMuted)),
+                              actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('OK', style: TextStyle(color: _neonPurple)))],
+                            ),
+                          );
+                        }
+                      },
+                      child: const Text('VALIDER LA COMMANDE'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    ),
+  );
+}
 
   void _showAddDialog(BuildContext context, WidgetRef ref) {
     if (_tabController.index == 0) {
