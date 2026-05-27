@@ -464,6 +464,121 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
     _showToast('CQ réinitialisé', Colors.orangeAccent);
   }
 
+  // --- Handover (Remise au client) ---
+  Future<void> _showHandoverDialog(Color color) async {
+    final accessoriesRaw = _ticket?['accessories_included'];
+    List<String> allAccessories = [];
+    if (accessoriesRaw is List) {
+      allAccessories = accessoriesRaw.cast<String>();
+    } else if (accessoriesRaw is String && accessoriesRaw.isNotEmpty) {
+      allAccessories = accessoriesRaw.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+    }
+
+    final returnedNotifier = ValueNotifier<Set<String>>({});
+    final notesCtrl = TextEditingController(text: _ticket?['handover_notes'] as String? ?? '');
+    final notifiedCtrl = TextEditingController(text: _ticket?['last_notification_method'] as String? ?? '');
+    String? selectedCondition = _ticket?['device_condition_at_handover'] as String? ?? 'Bon';
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          backgroundColor: _panelDark,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: _glassBorder)),
+          title: const Text('Confirmer la remise', style: TextStyle(color: Colors.white)),
+          content: SizedBox(
+            width: 400,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('État de l\'appareil', style: TextStyle(color: _textMuted, fontSize: 12)),
+                  const SizedBox(height: 8),
+                  DropdownButtonFormField<String>(
+                    value: selectedCondition,
+                    dropdownColor: _panelDark,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: const InputDecoration(
+                      filled: true, fillColor: _bgCarbon,
+                      border: OutlineInputBorder(),
+                    ),
+                    items: ['Excellent', 'Bon', 'Acceptable', 'Avec réserve']
+                        .map((c) => DropdownMenuItem(value: c, child: Text(c)))
+                        .toList(),
+                    onChanged: (v) => setDialogState(() => selectedCondition = v),
+                  ),
+                  const SizedBox(height: 16),
+                  if (allAccessories.isNotEmpty) ...[
+                    const Text('Accessoires rendus', style: TextStyle(color: _textMuted, fontSize: 12)),
+                    const SizedBox(height: 8),
+                    ...allAccessories.map((acc) => CheckboxListTile(
+                      title: Text(acc, style: const TextStyle(color: Colors.white, fontSize: 13)),
+                      value: returnedNotifier.value.contains(acc),
+                      activeColor: _neonEmerald,
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      controlAffinity: ListTileControlAffinity.leading,
+                      onChanged: (v) {
+                        final s = Set<String>.from(returnedNotifier.value);
+                        if (v == true) { s.add(acc); } else { s.remove(acc); }
+                        returnedNotifier.value = s;
+                      },
+                    )),
+                    const SizedBox(height: 16),
+                  ],
+                  TextField(
+                    controller: notesCtrl,
+                    maxLines: 2,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: const InputDecoration(labelText: 'Notes de remise', labelStyle: TextStyle(color: _textMuted)),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: notifiedCtrl,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: const InputDecoration(labelText: 'Client notifié via (WhatsApp, Appel...)', labelStyle: TextStyle(color: _textMuted)),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Annuler', style: TextStyle(color: _textMuted))),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: _neonEmerald, foregroundColor: _bgCarbon),
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('CONFIRMER LA REMISE'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    final client = ref.read(supabaseClientProvider);
+    final user = Supabase.instance.client.auth.currentUser;
+    final returnedAccessories = returnedNotifier.value.toList();
+    await client.from('repair_tickets').update({
+      'device_condition_at_handover': selectedCondition,
+      'handover_notes': notesCtrl.text.trim(),
+      'handover_confirmed_at': DateTime.now().toIso8601String(),
+      'accessories_returned': returnedAccessories,
+      'last_notification_method': notifiedCtrl.text.trim().isNotEmpty ? notifiedCtrl.text.trim() : null,
+      'last_notification_at': DateTime.now().toIso8601String(),
+      'customer_notified': notifiedCtrl.text.trim().isNotEmpty,
+    }).eq('id', widget.ticketId);
+    await client.from('repair_ticket_events').insert({
+      'ticket_id': widget.ticketId,
+      'event_type': 'handover_confirmed',
+      'old_value': null,
+      'new_value': selectedCondition,
+      'created_by': user?.id,
+      'notes': 'Remise confirmée. État: $selectedCondition',
+    });
+    _fetchFullData();
+    _showToast('Remise confirmée', Colors.green);
+  }
+
   // --- 5. إلغاء التذكرة بالكامل (الدرع الواقي) ---
   Future<void> _cancelTicket() async {
     final confirm = await showDialog<bool>(
@@ -851,8 +966,46 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
         const SizedBox(height: 16),
         _buildQCSection(color),
         const SizedBox(height: 16),
+        _buildHandoverSection(color),
+        const SizedBox(height: 16),
         _buildFinancialSummary(color),
       ],
+    );
+  }
+
+  Widget _buildHandoverSection(Color color) {
+    final status = _ticket?['status'] as String? ?? '';
+    final isDelivered = status == 'Livré';
+    final isCanceled = status == 'Annulé';
+    final handoverConfirmed = _ticket?['handover_confirmed_at'] != null;
+    final condition = _ticket?['device_condition_at_handover'] as String?;
+
+    if (!isDelivered && !handoverConfirmed) return const SizedBox.shrink();
+
+    Color sectionColor = handoverConfirmed ? _neonEmerald : Colors.orangeAccent;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(color: _panelDark, borderRadius: BorderRadius.circular(16), border: Border.all(color: sectionColor.withOpacity(0.3))),
+      child: Row(
+        children: [
+          Icon(handoverConfirmed ? Icons.task_alt : Icons.swap_horiz, color: sectionColor, size: 20),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('REMISE AU CLIENT', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+                Text(handoverConfirmed ? 'Remise confirmée: $condition' : 'En attente de remise', style: TextStyle(color: sectionColor, fontSize: 11)),
+                if (_ticket?['handover_notes'] != null && handoverConfirmed)
+                  Padding(padding: const EdgeInsets.only(top: 4), child: Text('Note: ${_ticket!['handover_notes']}', style: const TextStyle(color: _textMuted, fontSize: 11))),
+              ],
+            ),
+          ),
+          if (!isCanceled && !handoverConfirmed)
+            _buildActionChip('Confirmer remise', Icons.check_circle, _neonEmerald, () => _showHandoverDialog(color)),
+        ],
+      ),
     );
   }
 
