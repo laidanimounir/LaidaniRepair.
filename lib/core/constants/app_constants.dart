@@ -27,6 +27,7 @@ class AppConstants {
   static const String routeTechnicianBoard = '/shell/technician-board';
   static const String routeAttendance = '/shell/attendance';
   static const String routeEmployees = '/shell/employees';
+  static const String routePromotions = '/shell/promotions';
 
   /// Routes accessible only by 'owner' role
   static const List<String> ownerOnlyRoutes = [
@@ -35,5 +36,6 @@ class AppConstants {
     routeExpenses,
     routeAudit,
     routeEmployees,
+    routePromotions,
   ];
 }

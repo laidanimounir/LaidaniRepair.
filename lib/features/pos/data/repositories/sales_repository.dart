@@ -13,6 +13,7 @@ class SalesRepository {
     required String workerId,
     required List<CartItem> items,
     required double discount,
+    String? promoCode,
     required double amountPaid,
   }) async {
     final totalAmount = items.fold<double>(
@@ -30,7 +31,7 @@ class SalesRepository {
           'worker_id': workerId,
           'total_amount': totalAmount,
           'discount': discount,
-          'final_amount': finalAmount,
+          'final_amount': finalAmount - discount,
         })
         .select('id')
         .single();
@@ -47,7 +48,19 @@ class SalesRepository {
 
     await _client.from('sales_items').insert(itemsPayload);
 
-
+    if (promoCode != null) {
+      final promo = await _client
+          .from('promotions')
+          .select('used_count')
+          .eq('code', promoCode)
+          .maybeSingle();
+      if (promo != null) {
+        await _client
+            .from('promotions')
+            .update({'used_count': (promo['used_count'] as num).toInt() + 1})
+            .eq('code', promoCode);
+      }
+    }
 
     if (customerId != null) {
       await _client.from('customer_payments').insert({

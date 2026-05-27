@@ -15,11 +15,15 @@ class CartState {
   final List<CartItem> items;
   final CustomerModel? selectedCustomer; // null = anonymous walk-in
   final double discount;
+  final String? promoCode;
+  final double promoDiscount;
 
   const CartState({
     this.items = const [],
     this.selectedCustomer,
     this.discount = 0.0,
+    this.promoCode,
+    this.promoDiscount = 0.0,
   });
 
   double get totalAmount =>
@@ -28,7 +32,7 @@ class CartState {
   double get totalDiscount =>
       items.fold(0.0, (sum, item) => sum + (item.discountAmount * item.quantity));
 
-  double get finalAmount => totalAmount;
+  double get finalAmount => totalAmount - discount - promoDiscount;
 
   bool get isEmpty => items.isEmpty;
   int get itemCount => items.fold(0, (sum, item) => sum + item.quantity);
@@ -37,6 +41,8 @@ class CartState {
     List<CartItem>? items,
     Object? selectedCustomer = _sentinel,
     double? discount,
+    Object? promoCode = _sentinel,
+    double? promoDiscount,
   }) {
     return CartState(
       items: items ?? this.items,
@@ -44,6 +50,8 @@ class CartState {
           ? this.selectedCustomer
           : selectedCustomer as CustomerModel?,
       discount: discount ?? this.discount,
+      promoCode: promoCode == _sentinel ? this.promoCode : promoCode as String?,
+      promoDiscount: promoDiscount ?? this.promoDiscount,
     );
   }
 }
@@ -143,6 +151,20 @@ class CartNotifier extends StateNotifier<CartState> {
     state = const CartState();
   }
 
+  void applyPromoCode(String code, double discountValue) {
+    state = state.copyWith(
+      promoCode: code,
+      promoDiscount: discountValue,
+    );
+  }
+
+  void clearPromoCode() {
+    state = state.copyWith(
+      promoCode: null,
+      promoDiscount: 0.0,
+    );
+  }
+
   void _updateQty(String productId, int delta) {
     final idx = state.items.indexWhere((i) => i.product.id == productId);
     if (idx < 0) return;
@@ -182,7 +204,8 @@ class CheckoutNotifier extends StateNotifier<AsyncValue<String?>> {
         customerId: cart.selectedCustomer?.id,
         workerId: user.id,
         items: cart.items,
-        discount: cart.totalDiscount,
+        discount: cart.totalDiscount + cart.promoDiscount,
+        promoCode: cart.promoCode,
         amountPaid: amountPaid,
       );
       

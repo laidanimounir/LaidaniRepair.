@@ -20,6 +20,7 @@ import 'package:laidani_repair/features/audit/presentation/screens/audit_screen.
 import 'package:laidani_repair/features/reports/presentation/screens/sales_reports_screen.dart';
 import 'package:laidani_repair/features/reports/presentation/screens/repairs_report_screen.dart';
 import 'package:laidani_repair/features/attendance/presentation/screens/attendance_screen.dart';
+import 'package:laidani_repair/features/promotions/presentation/screens/promotions_screen.dart';
 import 'package:laidani_repair/features/dashboard/presentation/screens/dashboard_screen.dart';
 import 'package:laidani_repair/features/tracking/presentation/screens/tracking_screen.dart';
 import 'package:laidani_repair/core/constants/app_constants.dart';
@@ -172,6 +173,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: AppConstants.routeDashboard,
             builder: (_, __) => const DashboardScreen(),
+          ),
+          GoRoute(
+            path: AppConstants.routePromotions,
+            builder: (_, __) => const PromotionsScreen(),
           ),
           // المسار الجديد مضاف هنا بشكل صحيح
           GoRoute(

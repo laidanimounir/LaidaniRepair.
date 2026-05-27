@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:laidani_repair/core/theme/app_theme.dart';
+import 'package:laidani_repair/core/providers/supabase_provider.dart';
 import 'package:laidani_repair/features/pos/data/repositories/product_repository.dart';
 import 'package:laidani_repair/features/pos/presentation/providers/pos_provider.dart';
 
@@ -87,6 +88,40 @@ class _CheckoutDialogState extends ConsumerState<CheckoutDialog> {
               ),
             ),
             const SizedBox(height: 20),
+
+            // Promo Code
+            cart.promoCode != null
+                ? Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.greenAccent.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.greenAccent.withOpacity(0.3)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.local_offer, color: Colors.greenAccent, size: 16),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Code: ${cart.promoCode} (-${cart.promoDiscount.toStringAsFixed(0)} DA)',
+                            style: const TextStyle(color: Colors.greenAccent, fontSize: 12, fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                        GestureDetector(
+                          onTap: () => ref.read(cartProvider.notifier).clearPromoCode(),
+                          child: const Icon(Icons.close, size: 16, color: Colors.greenAccent),
+                        ),
+                      ],
+                    ),
+                  )
+                : TextButton.icon(
+                    icon: const Icon(Icons.local_offer, size: 16),
+                    label: const Text('Code promo'),
+                    onPressed: () => _showPromoInput(context),
+                    style: TextButton.styleFrom(foregroundColor: AppTheme.primary),
+                  ),
+            const SizedBox(height: 12),
 
             // Amount paid input
             TextFormField(
@@ -179,6 +214,102 @@ class _CheckoutDialogState extends ConsumerState<CheckoutDialog> {
         ),
       ],
     );
+  }
+
+  Future<void> _showPromoInput(BuildContext context) async {
+    final controller = TextEditingController();
+    final code = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Code promo'),
+        backgroundColor: AppTheme.surfaceContainerHigh,
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(
+            hintText: 'Entrez le code promo',
+            prefixIcon: Icon(Icons.local_offer),
+          ),
+          style: const TextStyle(color: Colors.white),
+          onSubmitted: (v) => Navigator.pop(ctx, v),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Annuler'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, controller.text),
+            child: const Text('Valider'),
+          ),
+        ],
+      ),
+    );
+
+    if (code == null || code.isEmpty || !mounted) return;
+
+    final client = ref.read(supabaseClientProvider);
+    final result = await client
+        .from('promotions')
+        .select()
+        .eq('code', code)
+        .eq('is_active', true)
+        .maybeSingle();
+
+    if (result == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Code promo invalide ou expiré')),
+        );
+      }
+      return;
+    }
+
+    final now = DateTime.now().toUtc();
+    final expiresAt = result['expires_at'] != null
+        ? DateTime.tryParse(result['expires_at'].toString())
+        : null;
+    if (expiresAt != null && now.isAfter(expiresAt)) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Ce code promo a expiré')),
+        );
+      }
+      return;
+    }
+
+    final maxUses = result['max_uses'] as int?;
+    final usedCount = (result['used_count'] as num?)?.toInt() ?? 0;
+    if (maxUses != null && usedCount >= maxUses) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Ce code promo a atteint sa limite d\'utilisation')),
+        );
+      }
+      return;
+    }
+
+    final cart = ref.read(cartProvider);
+    final minPurchase = (result['min_purchase'] as num?)?.toDouble() ?? 0;
+    if (cart.finalAmount < minPurchase) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Montant minimum requis: ${minPurchase.toStringAsFixed(0)} DA')),
+        );
+      }
+      return;
+    }
+
+    final discountType = result['discount_type'] as String;
+    final discountValue = (result['discount_value'] as num).toDouble();
+    double promoDiscount;
+    if (discountType == 'percentage') {
+      promoDiscount = cart.finalAmount * discountValue / 100;
+    } else {
+      promoDiscount = discountValue;
+    }
+
+    ref.read(cartProvider.notifier).applyPromoCode(code, promoDiscount);
   }
 
   Future<void> _submit(BuildContext context) async {
