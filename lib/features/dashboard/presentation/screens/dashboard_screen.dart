@@ -83,6 +83,24 @@ class DashboardScreen extends ConsumerWidget {
             padding: const EdgeInsets.all(20),
             children: [
               _buildHeader(),
+              if ((stats['lowStock'] as int) > 0)
+                Container(
+                  width: double.infinity,
+                  margin: const EdgeInsets.only(top: 16),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: Colors.redAccent.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.redAccent.withOpacity(0.3)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.warning_amber_rounded, color: Colors.redAccent, size: 20),
+                      const SizedBox(width: 12),
+                      Text('${stats['lowStock']} produit(s) en rupture de stock', style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold, fontSize: 13)),
+                    ],
+                  ),
+                ),
               const SizedBox(height: 24),
               _buildStatRow([
                 _StatCard(

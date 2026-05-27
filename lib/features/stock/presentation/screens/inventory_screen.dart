@@ -19,6 +19,8 @@ class InventoryScreen extends ConsumerStatefulWidget {
 }
 
 class _InventoryScreenState extends ConsumerState<InventoryScreen> {
+  bool _lowStockOnly = false;
+
   @override
   Widget build(BuildContext context) {
     final isDesktop = MediaQuery.of(context).size.width >= 850;
@@ -78,18 +80,54 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
               ],
             ),
           ),
+          _buildLowStockBanner(ref),
           Expanded(
             child: productsAsync.when(
               loading: () => const Center(child: CircularProgressIndicator(color: _neonPurple)),
               error: (e, _) => Center(child: Text('Erreur: $e', style: const TextStyle(color: Colors.redAccent))),
               data: (list) {
-                if (list.isEmpty) return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.inventory_2_outlined, size: 64, color: _textMuted.withOpacity(0.2)), const SizedBox(height: 16), const Text('Aucun produit en stock.', style: TextStyle(color: _textMuted))]));
-                return isDesktop ? _buildDesktopTable(context, ref, list) : _buildMobileList(context, ref, list);
+                final filtered = _lowStockOnly
+                    ? list.where((p) => (p['stock_quantity'] ?? 0) <= (p['min_stock'] ?? 5)).toList()
+                    : list;
+                if (filtered.isEmpty) return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(_lowStockOnly ? Icons.check_circle_outline : Icons.inventory_2_outlined, size: 64, color: _textMuted.withOpacity(0.2)), const SizedBox(height: 16), Text(_lowStockOnly ? 'Aucun produit en rupture.' : 'Aucun produit en stock.', style: const TextStyle(color: _textMuted))]));
+                return isDesktop ? _buildDesktopTable(context, ref, filtered) : _buildMobileList(context, ref, filtered);
               },
             ),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildLowStockBanner(WidgetRef ref) {
+    return ref.watch(inventoryListProvider).when(
+      data: (list) {
+        final lowStockCount = list.where((p) => (p['stock_quantity'] ?? 0) <= (p['min_stock'] ?? 5)).length;
+        if (lowStockCount == 0) return const SizedBox.shrink();
+        return Container(
+          width: double.infinity,
+          margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(
+            color: Colors.redAccent.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.redAccent.withOpacity(0.3)),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.warning_amber_rounded, color: Colors.redAccent, size: 20),
+              const SizedBox(width: 12),
+              Expanded(child: Text('$lowStockCount produit(s) en rupture de stock', style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold, fontSize: 13))),
+              TextButton(
+                onPressed: () => setState(() => _lowStockOnly = !_lowStockOnly),
+                child: Text(_lowStockOnly ? 'Voir tout' : 'Voir', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              ),
+            ],
+          ),
+        );
+      },
+      loading: () => const SizedBox.shrink(),
+      error: (_, __) => const SizedBox.shrink(),
     );
   }
 
@@ -185,7 +223,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
   }
 }
 
-void _showProductDialog(BuildContext context, WidgetRef ref, {Map<String, dynamic>? existing}) {
+
+  void _showProductDialog(BuildContext context, WidgetRef ref, {Map<String, dynamic>? existing}) {
   showDialog(
     context: context,
     barrierColor: Colors.black87,
