@@ -780,6 +780,8 @@ class _NewTicketFormState extends State<_NewTicketForm> {
           _buildTextField(_issueCtrl, 'Problème signalé par le client *', icon: Icons.warning_amber_rounded, maxLines: 2),
           const SizedBox(height: 12),
           _buildDiagnosticAIButton(),
+          const SizedBox(height: 8),
+          _buildPriceEstimatorButton(),
         ],
       ),
     );
@@ -1000,6 +1002,130 @@ class _NewTicketFormState extends State<_NewTicketForm> {
       if (mounted) setState(() => _isLoading = false);
     }
   }
+
+  Widget _buildPriceEstimatorButton() {
+    final device = _deviceCtrl.text.trim();
+    final brand = _brandCtrl.text.trim();
+    final issue = _issueCtrl.text.trim();
+    final hasInfo = device.isNotEmpty && issue.isNotEmpty;
+
+    return Opacity(
+      opacity: hasInfo ? 1.0 : 0.5,
+      child: OutlinedButton.icon(
+        onPressed: hasInfo ? _estimatePriceIA : null,
+        style: OutlinedButton.styleFrom(
+          foregroundColor: const Color(0xFF00BCD4),
+          side: const BorderSide(color: Color(0xFF00BCD4)),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        ),
+        icon: const Icon(Icons.attach_money, size: 18),
+        label: const Text('Estimer le prix (IA)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+      ),
+    );
+  }
+
+  Future<void> _estimatePriceIA() async {
+    final device = _deviceCtrl.text.trim();
+    final issue = _issueCtrl.text.trim();
+    final brand = _brandCtrl.text.trim();
+
+    setState(() => _isLoading = true);
+    try {
+      final result = await GroqService().estimatePrice(
+        deviceType: _deviceType ?? 'Appareil',
+        brand: brand.isEmpty ? 'Inconnu' : brand,
+        problemDescription: issue,
+      );
+
+      if (!mounted) return;
+
+      final minPrice = (result['minPrice'] as num?)?.toDouble() ?? 0;
+      final maxPrice = (result['maxPrice'] as num?)?.toDouble() ?? 0;
+      final estimatedTime = result['estimatedTime'] ?? 'Non spécifié';
+      final confidence = result['confidence'] ?? 'Moyenne';
+
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: _panelDark,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: _neonCyan.withOpacity(0.5))),
+          title: const Row(
+            children: [
+              Icon(Icons.attach_money, color: Color(0xFF00BCD4)),
+              SizedBox(width: 8),
+              Text('Estimation IA', style: TextStyle(color: Colors.white)),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(color: _bgCarbon, borderRadius: BorderRadius.circular(12), border: Border.all(color: _glassBorder)),
+                child: Column(
+                  children: [
+                    Text('${minPrice.toStringAsFixed(0)} - ${maxPrice.toStringAsFixed(0)} DA', style: const TextStyle(color: _neonCyan, fontSize: 24, fontWeight: FontWeight.w900)),
+                    const SizedBox(height: 4),
+                    Text('Fourchette de prix estimée', style: const TextStyle(color: _textMuted, fontSize: 11)),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              _estimationInfoRow(Icons.timer, 'Temps estimé', estimatedTime),
+              const SizedBox(height: 8),
+              _estimationInfoRow(Icons.verified, 'Confiance', confidence),
+              const SizedBox(height: 12),
+              const Row(
+                children: [
+                  Icon(Icons.info_outline, size: 12, color: _textMuted),
+                  SizedBox(width: 4),
+                  Expanded(child: Text('Estimation générée par IA. Ajustez selon votre expertise.', style: TextStyle(color: _textMuted, fontSize: 10, fontStyle: FontStyle.italic))),
+                ],
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Ignorer', style: TextStyle(color: _textMuted)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00BCD4), foregroundColor: _bgCarbon),
+              onPressed: () {
+                Navigator.pop(ctx);
+                final avgPrice = ((minPrice + maxPrice) / 2).round().toDouble();
+                _costCtrl.text = avgPrice.toStringAsFixed(0);
+              },
+              child: const Text('Appliquer le prix moyen', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erreur estimation: $e'), backgroundColor: Colors.redAccent),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Widget _estimationInfoRow(IconData icon, String label, String value) {
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: _textMuted),
+        const SizedBox(width: 8),
+        Text('$label: ', style: const TextStyle(color: _textMuted, fontSize: 12)),
+        Text(value, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+      ],
+    );
+  }
+
+  Widget _buildSectionTitle(String title, IconData icon) {
 
   Widget _buildSectionTitle(String title, IconData icon) {
     return Padding(
