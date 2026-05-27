@@ -27,6 +27,7 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
   bool _isLoading = true;
   Map<String, dynamic>? _ticket;
   List<Map<String, dynamic>> _parts = [];
+  List<Map<String, dynamic>> _payments = [];
 
   @override
   void initState() {
@@ -42,11 +43,13 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
       final client = ref.read(supabaseClientProvider);
       final ticketData = await client.from('repair_tickets').select('*, customers(full_name, phone_number)').eq('id', widget.ticketId).maybeSingle();
       final partsData = await client.from('repair_parts').select('*, products(product_name, reference_price)').eq('ticket_id', widget.ticketId);
+      final paymentsData = await client.from('repair_payments').select('*').eq('ticket_id', widget.ticketId).order('paid_at', ascending: false);
 
       if (!mounted) return;
       setState(() {
         _ticket = ticketData;
-        _parts = List<Map<String, dynamic>>.from(partsData ?? []);
+        _parts = List<Map<String, dynamic>>.from(partsData);
+        _payments = List<Map<String, dynamic>>.from(paymentsData);
         _isLoading = false;
       });
     } catch (e) {
@@ -195,6 +198,136 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
     );
   }
 
+  // --- 6. Paiements ---
+  double get _totalPartsCost {
+    double total = 0;
+    for (var p in _parts) {
+      if (p['part_status'] == 'Utilisé') {
+        total += (p['charged_price'] as num).toDouble();
+      }
+    }
+    return total;
+  }
+
+  double get _totalPayments {
+    double total = (_ticket?['advance_payment'] as num?)?.toDouble() ?? 0;
+    for (var p in _payments) {
+      total += (p['amount'] as num).toDouble();
+    }
+    return total;
+  }
+
+  double get _remainingBalance {
+    final labor = (_ticket?['labor_cost'] as num?)?.toDouble() ?? 0;
+    final discount = (_ticket?['discount'] as num?)?.toDouble() ?? 0;
+    return (_totalPartsCost + labor - discount) - _totalPayments;
+  }
+
+  Future<void> _recordPayment(double amount, String method, String? notes) async {
+    final client = ref.read(supabaseClientProvider);
+    final user = Supabase.instance.client.auth.currentUser;
+    try {
+      await client.from('repair_payments').insert({
+        'ticket_id': widget.ticketId,
+        'amount': amount,
+        'payment_method': method,
+        'notes': notes,
+        'created_by': user?.id,
+      });
+      _fetchFullData();
+      _showToast('Paiement de $amount DA enregistré', _neonEmerald);
+    } catch (e) {
+      _showToast('Erreur: $e', Colors.redAccent);
+    }
+  }
+
+  Future<void> _showPaymentDialog(Color color) async {
+    final amountCtrl = TextEditingController();
+    String selectedMethod = 'Espèces';
+    final notesCtrl = TextEditingController();
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: _panelDark,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: _glassBorder)),
+        title: const Text('Enregistrer un paiement', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        content: SizedBox(
+          width: 400,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('Reste à payer: ${_remainingBalance.toStringAsFixed(0)} DA',
+                  style: const TextStyle(color: _neonCyan, fontWeight: FontWeight.w900, fontSize: 18)),
+              const SizedBox(height: 16),
+              StatefulBuilder(
+                builder: (context, setLocalState) => Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: amountCtrl,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[\d.]'))],
+                      style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
+                      textAlign: TextAlign.center,
+                      autofocus: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Montant (DA)',
+                        prefixIcon: Icon(Icons.attach_money, color: _textMuted),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    DropdownButtonFormField<String>(
+                      value: selectedMethod,
+                      dropdownColor: _panelDark,
+                      style: const TextStyle(color: Colors.white),
+                      decoration: const InputDecoration(
+                        labelText: 'Méthode de paiement',
+                        prefixIcon: Icon(Icons.payment, color: _textMuted),
+                      ),
+                      items: const [
+                        DropdownMenuItem(value: 'Espèces', child: Text('Espèces')),
+                        DropdownMenuItem(value: 'Carte', child: Text('Carte bancaire')),
+                        DropdownMenuItem(value: 'Virement', child: Text('Virement')),
+                        DropdownMenuItem(value: 'Chèque', child: Text('Chèque')),
+                      ],
+                      onChanged: (v) => setLocalState(() => selectedMethod = v!),
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: notesCtrl,
+                      style: const TextStyle(color: Colors.white),
+                      decoration: const InputDecoration(
+                        labelText: 'Notes (optionnel)',
+                        prefixIcon: Icon(Icons.notes, color: _textMuted),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Annuler', style: TextStyle(color: _textMuted))),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: _neonEmerald, foregroundColor: Colors.white),
+            onPressed: () {
+              final amount = double.tryParse(amountCtrl.text) ?? 0;
+              if (amount <= 0) {
+                _showToast('Montant invalide', Colors.redAccent);
+                return;
+              }
+              Navigator.pop(ctx);
+              _recordPayment(amount, selectedMethod, notesCtrl.text.trim().isEmpty ? null : notesCtrl.text.trim());
+            },
+            child: const Text('Confirmer le paiement', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isOwner = ref.watch(isOwnerProvider);
@@ -297,7 +430,9 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
     return Column(
       children: [
         Expanded(child: _buildPartsSection(color)),
-        const SizedBox(height: 24),
+        const SizedBox(height: 16),
+        _buildPaymentsSection(color),
+        const SizedBox(height: 16),
         _buildFinancialSummary(color),
       ],
     );
@@ -369,18 +504,65 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
     );
   }
 
+  Widget _buildPaymentsSection(Color color) {
+    final isCanceled = _ticket?['status'] == 'Annulé';
+    return Container(
+      decoration: BoxDecoration(color: _panelDark.withOpacity(0.5), borderRadius: BorderRadius.circular(16), border: Border.all(color: _glassBorder)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('PAIEMENTS', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                if (!isCanceled)
+                  ElevatedButton.icon(
+                    onPressed: () => _showPaymentDialog(color),
+                    icon: const Icon(Icons.payment, size: 16),
+                    label: const Text('AJOUTER PAIEMENT'),
+                    style: ElevatedButton.styleFrom(backgroundColor: _neonEmerald.withOpacity(0.1), foregroundColor: _neonEmerald),
+                  ),
+              ],
+            ),
+          ),
+          const Divider(color: _glassBorder, height: 1),
+          if (_payments.isEmpty && ((_ticket?['advance_payment'] as num?)?.toDouble() ?? 0) <= 0)
+            const Padding(
+              padding: EdgeInsets.all(24),
+              child: Center(child: Text('Aucun paiement enregistré', style: TextStyle(color: _textMuted))),
+            )
+          else
+            ...List.generate(_payments.length + (((_ticket?['advance_payment'] as num?)?.toDouble() ?? 0) > 0 ? 1 : 0), (index) {
+              final isAdvance = ((_ticket?['advance_payment'] as num?)?.toDouble() ?? 0) > 0 && index == 0;
+              final payment = isAdvance ? null : _payments[index - (((_ticket?['advance_payment'] as num?)?.toDouble() ?? 0) > 0 ? 1 : 0)];
+              final amount = isAdvance ? (_ticket?['advance_payment'] as num?)?.toDouble() ?? 0 : (payment!['amount'] as num).toDouble();
+              final method = isAdvance ? 'Avance' : (payment!['payment_method'] ?? 'Espèces');
+              final date = isAdvance ? (_ticket?['created_at'] ?? '') : (payment!['paid_at'] ?? '');
+
+              return ListTile(
+                dense: true,
+                leading: Container(
+                  width: 36, height: 36,
+                  decoration: BoxDecoration(color: isAdvance ? color.withOpacity(0.15) : _neonEmerald.withOpacity(0.15), borderRadius: BorderRadius.circular(8)),
+                  child: Icon(isAdvance ? Icons.payments_outlined : Icons.check_circle_outline, color: isAdvance ? color : _neonEmerald, size: 18),
+                ),
+                title: Text('${amount.toStringAsFixed(0)} DA', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+                subtitle: Text('$method • ${DateTime.tryParse(date.toString())?.toString().substring(0, 16) ?? ''}', style: const TextStyle(color: _textMuted, fontSize: 12)),
+              );
+            }).toList(),
+        ],
+      ),
+    );
+  }
+
   Widget _buildFinancialSummary(Color color) {
-    double partsTotal = 0;
-    for (var p in _parts) { 
-      // القطع التالفة أو المرجعة لا تحسب على الزبون
-      if (p['part_status'] == 'Utilisé') {
-        partsTotal += (p['charged_price'] as num).toDouble(); 
-      }
-    }
-    double labor = (_ticket?['labor_cost'] as num?)?.toDouble() ?? 0;
-    double discount = (_ticket?['discount'] as num?)?.toDouble() ?? 0;
-    double advance = (_ticket?['advance_payment'] as num?)?.toDouble() ?? 0;
-    double remaining = (partsTotal + labor - discount) - advance;
+    final partsTotal = _totalPartsCost;
+    final labor = (_ticket?['labor_cost'] as num?)?.toDouble() ?? 0;
+    final discount = (_ticket?['discount'] as num?)?.toDouble() ?? 0;
+    final totalPaid = _totalPayments;
+    final remaining = _remainingBalance;
 
     final isCanceled = _ticket?['status'] == 'Annulé';
 
@@ -393,7 +575,7 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
           _buildMoneyStat('PIÈCES', partsTotal, _textMuted),
           _buildEditableMoneyStat('M.O (Main d\'œuvre)', labor, _textMuted, isCanceled ? null : () => _updateFinance('labor_cost', 'la Main d\'œuvre', labor)),
           _buildEditableMoneyStat('REMISE', discount, Colors.redAccent, isCanceled ? null : () => _updateFinance('discount', 'la Remise', discount)),
-          _buildMoneyStat('ACOMPTE', advance, Colors.greenAccent),
+          _buildMoneyStat('PAYÉ', totalPaid, _neonEmerald),
           Container(width: 1, height: 40, color: _glassBorder),
           _buildMoneyStat(isCanceled ? 'ANNULÉ' : 'RESTE', isCanceled ? 0 : remaining, isCanceled ? Colors.redAccent : color, isBig: true),
         ],
