@@ -1121,6 +1121,22 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
     return (_totalPartsCost + labor - discount) - _totalPayments;
   }
 
+  double get _totalCost {
+    final labor = (_ticket?['labor_cost'] as num?)?.toDouble() ?? 0;
+    return _totalPartsCost + labor;
+  }
+
+  double get _netProfit {
+    final finalCost = (_ticket?['final_cost'] as num?)?.toDouble() ?? 0;
+    return finalCost - _totalCost;
+  }
+
+  double get _profitMarginPercent {
+    final finalCost = (_ticket?['final_cost'] as num?)?.toDouble() ?? 0;
+    if (finalCost <= 0) return 0;
+    return (_netProfit / finalCost) * 100;
+  }
+
   Future<void> _recordPayment(double amount, String method, String? notes) async {
     final client = ref.read(supabaseClientProvider);
     final user = Supabase.instance.client.auth.currentUser;
@@ -1255,7 +1271,7 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
                 child: Row(
                   children: [
                     _buildLeftSidebar(activeNeon),
-                    Expanded(child: _buildMainOperations(activeNeon)),
+                    Expanded(child: _buildMainOperations(activeNeon, isOwner)),
                   ],
                 ),
               ),
@@ -1512,7 +1528,7 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
     );
   }
 
-  Widget _buildMainOperations(Color color) {
+  Widget _buildMainOperations(Color color, bool isOwner) {
     return Column(
       children: [
         _buildQRCodeSection(color),
@@ -1532,9 +1548,63 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
         _buildFeedbackSection(color),
         const SizedBox(height: 16),
         _buildFinancialSummary(color),
+        if (isOwner && _isNotCanceled) ...[
+          const SizedBox(height: 16),
+          _buildProfitMarginCard(color),
+        ],
       ],
     );
   }
+
+  Widget _buildProfitMarginCard(Color color) {
+    final totalCost = _totalCost;
+    final netProfit = _netProfit;
+    final margin = _profitMarginPercent;
+    final isPositive = netProfit >= 0;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: _panelDark,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: isPositive ? Colors.greenAccent.withOpacity(0.3) : Colors.redAccent.withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(isPositive ? Icons.trending_up : Icons.trending_down, color: isPositive ? Colors.greenAccent : Colors.redAccent, size: 20),
+              const SizedBox(width: 8),
+              const Text('MARGE BÉNÉFICIAIRE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+              const Spacer(),
+              Text('${margin.toStringAsFixed(1)}%', style: TextStyle(color: isPositive ? Colors.greenAccent : Colors.redAccent, fontWeight: FontWeight.w900, fontSize: 22)),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _buildMiniStat('Coût total', '${totalCost.toStringAsFixed(0)} DA', _textMuted),
+              _buildMiniStat('Bénéfice net', '${netProfit.toStringAsFixed(0)} DA', isPositive ? Colors.greenAccent : Colors.redAccent),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMiniStat(String label, String value, Color valueColor) {
+    return Column(
+      children: [
+        Text(label, style: const TextStyle(color: _textMuted, fontSize: 11)),
+        const SizedBox(height: 4),
+        Text(value, style: TextStyle(color: valueColor, fontWeight: FontWeight.bold, fontSize: 16)),
+      ],
+    );
+  }
+
+  bool get _isNotCanceled => _ticket?['status'] != 'Annulé';
 
   Widget _buildHandoverSection(Color color) {
     final status = _ticket?['status'] as String? ?? '';
