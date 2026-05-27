@@ -171,6 +171,18 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
           await client.from('repair_parts').update({'part_status': 'Retourné'}).eq('id', p['id']);
         }
       }
+      // تسجيل الحدث
+      final user = Supabase.instance.client.auth.currentUser;
+      final oldStatus = _ticket?['status'] as String? ?? 'En attente';
+      await client.from('repair_ticket_events').insert({
+        'ticket_id': widget.ticketId,
+        'event_type': 'status_change',
+        'old_value': oldStatus,
+        'new_value': 'Annulé',
+        'created_by': user?.id,
+        'notes': 'Annulation du dossier',
+      });
+
       // تغيير حالة التذكرة
       await client.from('repair_tickets').update({'status': 'Annulé'}).eq('id', widget.ticketId);
       _fetchFullData();

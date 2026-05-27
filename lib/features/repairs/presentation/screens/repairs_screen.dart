@@ -319,6 +319,16 @@ class _CyberTableRow extends StatelessWidget {
                         .toList(),
                     onSelected: (newStatus) async {
                       final client = ref.read(supabaseClientProvider);
+                      final user = Supabase.instance.client.auth.currentUser;
+                      final oldStatus = ticket['status'] as String? ?? 'En attente';
+                      await client.from('repair_ticket_events').insert({
+                        'ticket_id': ticket['id'],
+                        'event_type': 'status_change',
+                        'old_value': oldStatus,
+                        'new_value': newStatus,
+                        'created_by': user?.id,
+                        'notes': 'Changement de statut: $oldStatus → $newStatus',
+                      });
                       final updates = <String, dynamic>{'status': newStatus};
                       if (newStatus == 'Livré') updates['delivered_at'] = DateTime.now().toIso8601String();
                       await client.from('repair_tickets').update(updates).eq('id', ticket['id']);
@@ -430,6 +440,16 @@ class _MobileTicketCard extends StatelessWidget {
                         .toList(),
                     onSelected: (newStatus) async {
                       final client = ref.read(supabaseClientProvider);
+                      final user = Supabase.instance.client.auth.currentUser;
+                      final oldStatus = ticket['status'] as String? ?? 'En attente';
+                      await client.from('repair_ticket_events').insert({
+                        'ticket_id': ticket['id'],
+                        'event_type': 'status_change',
+                        'old_value': oldStatus,
+                        'new_value': newStatus,
+                        'created_by': user?.id,
+                        'notes': 'Changement de statut: $oldStatus → $newStatus',
+                      });
                       final updates = <String, dynamic>{'status': newStatus};
                       if (newStatus == 'Livré') updates['delivered_at'] = DateTime.now().toIso8601String();
                       await client.from('repair_tickets').update(updates).eq('id', ticket['id']);
