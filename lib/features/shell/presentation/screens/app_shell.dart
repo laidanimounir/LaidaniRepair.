@@ -61,6 +61,13 @@ const _navItems = <_NavItem>[
     route: AppConstants.routeAttendance,
   ),
   _NavItem(
+    label: 'Employés',
+    icon: Icons.badge_outlined,
+    activeIcon: Icons.badge,
+    route: AppConstants.routeEmployees,
+    ownerOnly: true,
+  ),
+  _NavItem(
     label: 'Clients & Dettes',
     icon: Icons.people_outline,
     activeIcon: Icons.people,

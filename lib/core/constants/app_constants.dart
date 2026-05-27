@@ -34,5 +34,6 @@ class AppConstants {
     routePurchases,
     routeExpenses,
     routeAudit,
+    routeEmployees,
   ];
 }
