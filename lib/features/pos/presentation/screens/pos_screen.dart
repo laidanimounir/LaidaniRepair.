@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
 
 import 'package:laidani_repair/core/theme/app_theme.dart';
 import 'package:laidani_repair/core/providers/supabase_provider.dart';
@@ -338,6 +339,29 @@ class _ProductsPanelState extends ConsumerState<_ProductsPanel> {
     }
   }
 
+  void _showBarcodeScanner(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.black,
+        contentPadding: EdgeInsets.zero,
+        content: SizedBox(
+          width: 400,
+          height: 300,
+          child: MobileScanner(
+            onDetect: (capture) {
+              final barcode = capture.barcodes.firstOrNull?.rawValue;
+              if (barcode == null || barcode.isEmpty) return;
+              Navigator.pop(ctx);
+              _searchController.text = barcode;
+              _handleSearchSubmit(barcode);
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     ref.listen(searchFocusRequestProvider, (_, __) => _searchFocus.requestFocus());
@@ -377,16 +401,28 @@ class _ProductsPanelState extends ConsumerState<_ProductsPanel> {
               ),
               const SizedBox(height: 10),
               // Search bar
-              TextField(
-                controller: _searchController,
-                focusNode: _searchFocus,
-                decoration: const InputDecoration(
-                  hintText: 'Rechercher un produit ou scanner un code-barres...',
-                  prefixIcon: Icon(Icons.search, size: 20),
-                  isDense: true,
-                ),
-                onChanged: (v) => ref.read(productSearchProvider.notifier).state = v,
-                onSubmitted: _handleSearchSubmit,
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _searchController,
+                      focusNode: _searchFocus,
+                      decoration: const InputDecoration(
+                        hintText: 'Rechercher un produit ou scanner un code-barres...',
+                        prefixIcon: Icon(Icons.search, size: 20),
+                        isDense: true,
+                      ),
+                      onChanged: (v) => ref.read(productSearchProvider.notifier).state = v,
+                      onSubmitted: _handleSearchSubmit,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    icon: const Icon(Icons.qr_code_scanner, color: AppTheme.primary),
+                    tooltip: 'Scanner un code-barres',
+                    onPressed: () => _showBarcodeScanner(context),
+                  ),
+                ],
               ),
             ],
           ),
