@@ -11,6 +11,7 @@ import 'package:laidani_repair/core/providers/supabase_provider.dart';
 import 'package:laidani_repair/core/providers/shortcuts_provider.dart';
 import 'package:laidani_repair/features/auth/presentation/providers/auth_provider.dart';
 import 'package:laidani_repair/core/utils/invoice_pdf.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 // --- Cyber Glass Theme Constants ---
 const Color _bgCarbon = Color(0xFF050914);
@@ -738,6 +739,104 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
     }
   }
 
+  // --- WhatsApp Auto-Notification ---
+  String _getWhatsAppTemplate(String status) {
+    final device = _ticket?['device_name'] ?? 'votre appareil';
+    switch (status) {
+      case 'en_diagnostic':
+        return '🔧 Votre $device est en cours de diagnostic chez LaidaniRepair. Nous vous tiendrons informé de l\'évolution.';
+      case 'en_reparation':
+        return '🛠️ La réparation de votre $device a commencé chez LaidaniRepair. Notre technicien est à l\'œuvre!';
+      case 'pret':
+        return '✅ Bonne nouvelle! Votre $device est prêt! Vous pouvez venir le récupérer à l\'atelier LaidaniRepair.';
+      case 'livre':
+        return '🚀 Merci! Votre $device a été livré et réparé avec soin par LaidaniRepair. N\'hésitez pas à nous laisser un avis!';
+      default:
+        return '📱 Votre dossier $device chez LaidaniRepair est maintenant: $status.';
+    }
+  }
+
+  String _getWhatsAppUrl(String phone, String message) {
+    final cleaned = phone.replaceAll(RegExp(r'[^\d+]'), '');
+    final encoded = Uri.encodeComponent(message);
+    return 'https://wa.me/$cleaned?text=$encoded';
+  }
+
+  Future<void> _sendWhatsAppNotification(String status) async {
+    final client = ref.read(supabaseClientProvider);
+    final user = Supabase.instance.client.auth.currentUser;
+    final message = _getWhatsAppTemplate(status);
+    String? phone;
+    if (_ticket?['customers']?['phone_number'] != null) {
+      phone = _ticket!['customers']!['phone_number'].toString();
+    } else if (_ticket?['client_phone_temp'] != null) {
+      phone = _ticket!['client_phone_temp'].toString();
+    }
+    if (phone == null || phone.isEmpty) return;
+
+    await client.from('repair_notifications').insert({
+      'ticket_id': widget.ticketId,
+      'notification_method': 'WhatsApp',
+      'notification_status': 'Envoyé',
+      'notes': 'Auto: $status - "$message"',
+      'sent_by': user?.id,
+    });
+    await client.from('repair_tickets').update({
+      'last_notification_at': DateTime.now().toIso8601String(),
+      'last_notification_method': 'WhatsApp',
+      'customer_notified': true,
+    }).eq('id', widget.ticketId);
+
+    final url = _getWhatsAppUrl(phone, message);
+    try {
+      await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+    } catch (_) {
+      await launchUrl(Uri.parse(url), mode: LaunchMode.platformDefault);
+    }
+    _fetchFullData();
+    _showToast('WhatsApp envoyé: $status', _neonEmerald);
+  }
+
+  void _showWhatsAppStatusDialog() {
+    final status = _ticket?['status'] as String? ?? 'En attente';
+    final phone = _ticket?['customers']?['phone_number']?.toString() ?? _ticket?['client_phone_temp']?.toString();
+    if (phone == null || phone.isEmpty) return;
+    final message = _getWhatsAppTemplate(status);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: _panelDark,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: _glassBorder)),
+        title: const Row(children: [Icon(Icons.chat, color: Color(0xFF25D366)), SizedBox(width: 8), Text('WhatsApp Client', style: TextStyle(color: Colors.white))]),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Message qui sera envoyé:', style: TextStyle(color: _textMuted, fontSize: 11)),
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(color: const Color(0xFF075E54).withOpacity(0.2), borderRadius: BorderRadius.circular(8)),
+              child: Text(message, style: const TextStyle(color: Colors.white, fontSize: 13)),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Annuler', style: TextStyle(color: _textMuted))),
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF25D366), foregroundColor: Colors.white),
+            icon: const Icon(Icons.send),
+            label: const Text('ENVOYER WHATSAPP'),
+            onPressed: () {
+              Navigator.pop(ctx);
+              _sendWhatsAppNotification(status);
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
   // --- Notification Tracking ---
   Future<void> _showNotificationDialog(Color color) async {
     String? method = 'WhatsApp';
@@ -1400,16 +1499,30 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
             const SizedBox(height: 24),
             _buildSectionHeader('NOTIFICATIONS CLIENT', Icons.notifications, color),
             SizedBox(
-              height: _notifications.isEmpty ? 50 : 100,
+              height: _notifications.isEmpty ? 80 : 120,
               child: _notifications.isEmpty
                 ? Center(
-                    child: GestureDetector(
-                      onTap: () => _showNotificationDialog(color),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                        decoration: BoxDecoration(color: _neonCyan.withOpacity(0.1), borderRadius: BorderRadius.circular(8), border: Border.all(color: _neonCyan.withOpacity(0.3))),
-                        child: const Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.add_alert, color: _neonCyan, size: 16), SizedBox(width: 8), Text('Nouvelle notification', style: TextStyle(color: _neonCyan, fontSize: 12))]),
-                      ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        GestureDetector(
+                          onTap: () => _showNotificationDialog(color),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                            decoration: BoxDecoration(color: _neonCyan.withOpacity(0.1), borderRadius: BorderRadius.circular(8), border: Border.all(color: _neonCyan.withOpacity(0.3))),
+                            child: const Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.add_alert, color: _neonCyan, size: 16), SizedBox(width: 8), Text('Nouvelle notification', style: TextStyle(color: _neonCyan, fontSize: 12))]),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        GestureDetector(
+                          onTap: () => _showWhatsAppStatusDialog(),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                            decoration: BoxDecoration(color: const Color(0xFF25D366).withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
+                            child: const Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.chat, color: Color(0xFF25D366), size: 12), SizedBox(width: 4), Text('Envoyer WA', style: TextStyle(color: Color(0xFF25D366), fontSize: 10))]),
+                          ),
+                        ),
+                      ],
                     ),
                   )
                 : Column(
