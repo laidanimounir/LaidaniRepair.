@@ -157,6 +157,41 @@ class RepairsScreen extends ConsumerWidget {
                 
                 if (slaFiltered.isEmpty) return _buildEmptyState();
 
+                final kioskTickets = slaFiltered.where((t) => t['source'] == 'kiosk').toList();
+
+                return Column(
+                  children: [
+                    if (kioskTickets.isNotEmpty)
+                      Container(
+                        width: double.infinity,
+                        margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: _neonCyan.withOpacity(0.05),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: _neonCyan.withOpacity(0.3)),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.qr_code_scanner, color: _neonCyan, size: 20),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                '${kioskTickets.length} dépôt(s) borne automatique en attente',
+                                style: const TextStyle(color: _neonCyan, fontWeight: FontWeight.bold, fontSize: 13),
+                              ),
+                            ),
+                            TextButton(
+                              onPressed: () {
+                                ref.read(_statusFilter.notifier).state = null;
+                                ref.read(_slaFilter.notifier).state = null;
+                              },
+                              child: const Text('Voir tout', style: TextStyle(color: Colors.white, fontSize: 12)),
+                            ),
+                          ],
+                        ),
+                      ),
+
                 return Column(
                   children: [
                     // 🌟 إظهار رأس الجدول للحاسوب فقط 🌟
