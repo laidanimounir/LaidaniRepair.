@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:laidani_repair/core/theme/app_theme.dart';
 import 'package:laidani_repair/core/providers/supabase_provider.dart';
+import 'package:laidani_repair/core/providers/shortcuts_provider.dart';
 import 'package:laidani_repair/core/utils/csv_export.dart';
 import 'package:laidani_repair/features/reports/presentation/widgets/report_filter_bar.dart';
 import 'package:laidani_repair/features/reports/presentation/widgets/report_summary_card.dart';
@@ -51,6 +52,10 @@ class SalesReportsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    ref.listen(exportCsvRequestProvider, (_, __) {
+      _exportCsv(context, ref);
+    });
+
     return Scaffold(
       backgroundColor: AppTheme.background,
       appBar: AppBar(

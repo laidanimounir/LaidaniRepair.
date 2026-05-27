@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:laidani_repair/core/providers/supabase_provider.dart';
+import 'package:laidani_repair/core/providers/shortcuts_provider.dart';
 import 'package:laidani_repair/core/utils/csv_export.dart';
 
 const Color _bgCarbon = Color(0xFF050914);
@@ -76,6 +77,10 @@ class _RepairsReportScreenState extends ConsumerState<RepairsReportScreen> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen(exportCsvRequestProvider, (_, __) {
+      _exportCsv(context);
+    });
+
     final totalRepairs = _tickets.length;
     final completed = _tickets.where((t) => t['status'] == 'Terminé' || t['status'] == 'Livré').length;
     final totalRevenue = _tickets.fold<double>(0, (sum, t) => sum + ((t['final_cost'] as num?)?.toDouble() ?? 0));

@@ -8,6 +8,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:laidani_repair/core/providers/supabase_provider.dart';
+import 'package:laidani_repair/core/providers/shortcuts_provider.dart';
 import 'package:laidani_repair/features/auth/presentation/providers/auth_provider.dart';
 import 'package:laidani_repair/core/utils/invoice_pdf.dart';
 
@@ -1232,6 +1233,15 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
 
     if (_isLoading) return const Scaffold(backgroundColor: _bgCarbon, body: Center(child: CircularProgressIndicator(color: _neonCyan)));
     if (_ticket == null) return Scaffold(backgroundColor: _bgCarbon, body: Center(child: TextButton(onPressed: () => context.pop(), child: const Text('TICKET INTROUVABLE - RETOUR', style: TextStyle(color: Colors.redAccent)))));
+
+    ref.listen(printRequestProvider, (_, __) async {
+      try {
+        final client = ref.read(supabaseClientProvider);
+        final parts = List<Map<String, dynamic>>.from(_parts);
+        final updatedTicket = await client.from('repair_tickets').select('*, customers(full_name, phone_number)').eq('id', widget.ticketId).single();
+        await previewOrPrintPdf(updatedTicket, parts);
+      } catch (_) {}
+    });
 
     return Scaffold(
       backgroundColor: _bgCarbon,

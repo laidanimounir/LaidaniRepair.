@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'package:laidani_repair/core/providers/supabase_provider.dart';
+import 'package:laidani_repair/core/providers/shortcuts_provider.dart';
 
 // --- Cyber Glass Theme Constants ---
 const Color _bgCarbon = Color(0xFF050914);
@@ -37,7 +38,11 @@ class RepairsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final ticketsAsync = ref.watch(_ticketsProvider);
     final statusF = ref.watch(_statusFilter);
-    
+
+    ref.listen(newTicketRequestProvider, (_, __) {
+      _showNewTicketDialog(context, ref);
+    });
+
     // تحديد نوع الجهاز (حاسوب أم هاتف)
     final isDesktop = MediaQuery.of(context).size.width >= 850;
 
