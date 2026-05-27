@@ -147,6 +147,13 @@ const _navItems = <_NavItem>[
     route: AppConstants.routeBackup,
     ownerOnly: true,
   ),
+  _NavItem(
+    label: 'Succursales',
+    icon: Icons.business_outlined,
+    activeIcon: Icons.business,
+    route: AppConstants.routeBranches,
+    ownerOnly: true,
+  ),
 ];
 
 // ─── Theme Constants for Cyber Glass ──────────────────────────────────────
