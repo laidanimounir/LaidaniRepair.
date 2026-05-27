@@ -154,6 +154,13 @@ const _navItems = <_NavItem>[
     route: AppConstants.routeBranches,
     ownerOnly: true,
   ),
+  _NavItem(
+    label: 'Paramètres',
+    icon: Icons.settings_outlined,
+    activeIcon: Icons.settings,
+    route: AppConstants.routeSettings,
+    ownerOnly: true,
+  ),
 ];
 
 // ─── Theme Constants for Cyber Glass ──────────────────────────────────────

@@ -27,6 +27,7 @@ import 'package:laidani_repair/features/website/presentation/screens/shop_websit
 import 'package:laidani_repair/features/dashboard/presentation/screens/dashboard_screen.dart';
 import 'package:laidani_repair/features/tracking/presentation/screens/tracking_screen.dart';
 import 'package:laidani_repair/features/settings/presentation/screens/backup_screen.dart';
+import 'package:laidani_repair/features/settings/presentation/screens/settings_screen.dart';
 import 'package:laidani_repair/features/branches/presentation/screens/branches_screen.dart';
 import 'package:laidani_repair/core/constants/app_constants.dart';
 // تأكد من وجود هذا السطر تحديداً
@@ -217,6 +218,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: AppConstants.routeBranches,
             builder: (_, __) => const BranchesScreen(),
+          ),
+          GoRoute(
+            path: AppConstants.routeSettings,
+            builder: (_, __) => const SettingsScreen(),
           ),
           // المسار الجديد مضاف هنا بشكل صحيح
           GoRoute(
