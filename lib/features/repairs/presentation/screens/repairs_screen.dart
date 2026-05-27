@@ -115,6 +115,7 @@ class RepairsScreen extends ConsumerWidget {
                       _StatusChip(label: 'En cours', value: 'En cours', current: statusF, ref: ref),
                       _StatusChip(label: 'Terminé', value: 'Terminé', current: statusF, ref: ref),
                       _StatusChip(label: 'Livré', value: 'Livré', current: statusF, ref: ref),
+                      _StatusChip(label: '📋 Historique', value: '__history__', current: statusF, ref: ref),
                     ],
                   ),
                 ),
@@ -128,7 +129,9 @@ class RepairsScreen extends ConsumerWidget {
               loading: () => const Center(child: CircularProgressIndicator(color: _neonCyan)),
               error: (e, _) => Center(child: Text('Erreur: $e', style: const TextStyle(color: Colors.redAccent))),
               data: (tickets) {
-                final filtered = statusF == null ? tickets : tickets.where((t) => t['status'] == statusF).toList();
+                final filtered = statusF == null ? tickets : statusF == '__history__'
+                    ? tickets.where((t) => t['status'] == 'Terminé' || t['status'] == 'Livré').toList()
+                    : tickets.where((t) => t['status'] == statusF).toList();
                 
                 if (filtered.isEmpty) return _buildEmptyState();
 
