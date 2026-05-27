@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:laidani_repair/core/providers/supabase_provider.dart';
 import 'package:laidani_repair/core/utils/csv_export.dart';
+import 'package:laidani_repair/core/services/groq_service.dart';
 import 'package:laidani_repair/features/stock/presentation/providers/stock_providers.dart';
 
 // --- Cyber Glass Theme Constants ---
@@ -66,6 +67,11 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                           icon: const Icon(Icons.file_download, color: _textMuted),
                           tooltip: 'Exporter CSV',
                           onPressed: () => _exportInventoryCsv(context, ref),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.psychology, color: _textMuted),
+                          tooltip: 'Analyse IA des stocks',
+                          onPressed: () => _analyzeStockIA(context, ref),
                         ),
                         ElevatedButton.icon(
                           onPressed: () => _showProductDialog(context, ref),
@@ -244,6 +250,89 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     ]).toList();
     final csv = await exportToCsv(headers: headers, rows: rows);
     await shareCsv(context, csv, 'inventaire_${DateTime.now().millisecondsSinceEpoch}.csv');
+  }
+
+  Future<void> _analyzeStockIA(BuildContext context, WidgetRef ref) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => const AlertDialog(
+        backgroundColor: _panelDark,
+        content: Row(children: [CircularProgressIndicator(color: _neonPurple), SizedBox(width: 16), Text('Analyse IA en cours...', style: TextStyle(color: Colors.white))]),
+      ),
+    );
+    try {
+      final products = ref.read(inventoryListProvider).valueOrNull ?? [];
+      final result = await GroqService().suggestReorder(products);
+      if (!context.mounted) return;
+      Navigator.pop(context);
+
+      final Map<String, Color> urgencyColors = {
+        'Haute': Colors.redAccent,
+        'Moyenne': Colors.orangeAccent,
+        'Basse': Colors.greenAccent,
+      };
+
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: _panelDark,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: _neonPurple.withOpacity(0.5))),
+          title: const Row(children: [Icon(Icons.psychology, color: _neonPurple), SizedBox(width: 8), Text('Analyse IA - Réapprovisionnement', style: TextStyle(color: Colors.white))]),
+          content: SizedBox(
+            width: 500,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Recommandations de l\'IA:', style: TextStyle(color: _textMuted, fontSize: 12)),
+                const SizedBox(height: 12),
+                ...result.take(10).map((r) {
+                  final urgency = r['urgency']?.toString() ?? 'Moyenne';
+                  final color = urgencyColors[urgency] ?? _neonPurple;
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(color: _bgCarbon.withOpacity(0.5), borderRadius: BorderRadius.circular(8), border: Border.all(color: _glassBorder)),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(r['productName']?.toString() ?? '', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+                              const SizedBox(height: 4),
+                              Text('Qté suggérée: ${r['suggestedQuantity'] ?? 0}', style: const TextStyle(color: _textMuted, fontSize: 11)),
+                            ],
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(4), border: Border.all(color: color.withOpacity(0.5))),
+                          child: Text(urgency, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.bold)),
+                        ),
+                      ],
+                    ),
+                  );
+                }),
+                if (result.isEmpty)
+                  const Text('Aucune recommandation spécifique pour le moment.', style: TextStyle(color: _textMuted, fontSize: 12)),
+                const SizedBox(height: 8),
+                const Row(children: [Icon(Icons.info_outline, size: 12, color: _textMuted), SizedBox(width: 4), Expanded(child: Text('Analyse générée par IA. Ajustez selon votre expertise.', style: TextStyle(color: _textMuted, fontSize: 10, fontStyle: FontStyle.italic)))]),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Fermer', style: TextStyle(color: _textMuted))),
+          ],
+        ),
+      );
+    } catch (e) {
+      if (context.mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur IA: $e'), backgroundColor: Colors.redAccent));
+      }
+    }
   }
 
   void _showProductDialog(BuildContext context, WidgetRef ref, {Map<String, dynamic>? existing}) {
