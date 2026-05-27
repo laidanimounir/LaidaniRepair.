@@ -193,6 +193,55 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
     }
   }
 
+  Future<void> _showAssignTechnicianDialog(List<Map<String, dynamic>> profiles, String? currentId, Color color) async {
+    final client = ref.read(supabaseClientProvider);
+    final selected = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: _panelDark,
+        title: const Text('Affecter un technicien', style: TextStyle(color: Colors.white)),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: ListView(
+            shrinkWrap: true,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.person_off, color: _textMuted),
+                title: const Text('Non affecté', style: TextStyle(color: _textMuted)),
+                selected: currentId == null,
+                onTap: () => Navigator.pop(ctx, '__unassign__'),
+              ),
+              const Divider(color: _glassBorder),
+              ...profiles.map((p) => ListTile(
+                leading: const Icon(Icons.person_pin, color: _neonEmerald),
+                title: Text(p['full_name'] ?? 'Sans nom', style: const TextStyle(color: Colors.white)),
+                selected: p['id'] == currentId,
+                onTap: () => Navigator.pop(ctx, p['id'] as String),
+              )),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (selected == null) return;
+    final newValue = selected == '__unassign__' ? null : selected;
+    final oldValue = _ticket?['assigned_technician_id'] as String?;
+
+    await client.from('repair_tickets').update({'assigned_technician_id': newValue}).eq('id', widget.ticketId);
+    final user = Supabase.instance.client.auth.currentUser;
+    await client.from('repair_ticket_events').insert({
+      'ticket_id': widget.ticketId,
+      'event_type': 'technician_assignment',
+      'old_value': oldValue,
+      'new_value': newValue,
+      'created_by': user?.id,
+      'notes': newValue == null ? 'Technicien désaffecté' : 'Technicien affecté',
+    });
+    _fetchFullData();
+    _showToast(newValue == null ? 'Technicien désaffecté' : 'Technicien affecté', Colors.green);
+  }
+
   void _showToast(String msg, Color color) {
     if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), backgroundColor: color));
   }
@@ -432,6 +481,40 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
             _buildSectionHeader('CLIENT', Icons.person, color),
             Text(clientName, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
             Text(clientPhone, style: const TextStyle(color: _textMuted, fontSize: 13)),
+            const SizedBox(height: 24),
+            _buildSectionHeader('TECHNICIEN AFFECTÉ', Icons.build, color),
+            FutureBuilder<List<Map<String, dynamic>>>(
+              future: ref.read(supabaseClientProvider).from('profiles').select('id, full_name').order('full_name'),
+              builder: (ctx, snap) {
+                final profiles = snap.data ?? [];
+                final currentId = _ticket?['assigned_technician_id'] as String?;
+                final currentName = profiles.where((p) => p['id'] == currentId).map((p) => p['full_name'] as String).firstOrNull ?? 'Non affecté';
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    InkWell(
+                      onTap: _ticket?['status'] == 'Annulé' ? null : () => _showAssignTechnicianDialog(profiles, currentId, color),
+                      borderRadius: BorderRadius.circular(8),
+                      child: Row(
+                        children: [
+                          Icon(Icons.person_pin, color: currentId != null ? _neonEmerald : _textMuted, size: 16),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(currentName, style: TextStyle(color: currentId != null ? Colors.white : _textMuted, fontSize: 13)),
+                          ),
+                          if (_ticket?['status'] != 'Annulé') ...[
+                            const SizedBox(width: 4),
+                            const Icon(Icons.edit, size: 12, color: _textMuted),
+                          ],
+                        ],
+                      ),
+                    ),
+                    if (snap.hasError)
+                      Text('Erreur: ${snap.error}', style: const TextStyle(color: Colors.redAccent, fontSize: 11)),
+                  ],
+                );
+              },
+            ),
           ],
         ),
       ),
