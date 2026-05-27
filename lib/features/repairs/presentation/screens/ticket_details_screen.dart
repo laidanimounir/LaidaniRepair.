@@ -1,8 +1,10 @@
+import 'dart:io';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:laidani_repair/core/providers/supabase_provider.dart';
 import 'package:laidani_repair/features/auth/presentation/providers/auth_provider.dart';
@@ -29,6 +31,7 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
   List<Map<String, dynamic>> _parts = [];
   List<Map<String, dynamic>> _payments = [];
   List<Map<String, dynamic>> _warrantyClaims = [];
+  List<Map<String, dynamic>> _photos = [];
 
   @override
   void initState() {
@@ -46,6 +49,7 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
       final partsData = await client.from('repair_parts').select('*, products(product_name, reference_price)').eq('ticket_id', widget.ticketId);
       final paymentsData = await client.from('repair_payments').select('*').eq('ticket_id', widget.ticketId).order('paid_at', ascending: false);
       final warrantyData = await client.from('warranty_claims').select('*').or('original_ticket_id.eq.${widget.ticketId},claim_ticket_id.eq.${widget.ticketId}').order('claimed_at', ascending: false);
+      final photosData = await client.from('repair_photos').select('*').eq('ticket_id', widget.ticketId).order('created_at', ascending: false);
 
       if (!mounted) return;
       setState(() {
@@ -53,6 +57,7 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
         _parts = List<Map<String, dynamic>>.from(partsData);
         _payments = List<Map<String, dynamic>>.from(paymentsData);
         _warrantyClaims = List<Map<String, dynamic>>.from(warrantyData);
+        _photos = List<Map<String, dynamic>>.from(photosData);
         _isLoading = false;
       });
     } catch (e) {
@@ -605,6 +610,125 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
     );
   }
 
+  // --- Device Photos ---
+  Future<void> _uploadPhoto(Color color) async {
+    final picker = ImagePicker();
+    final file = await picker.pickImage(source: ImageSource.gallery, maxWidth: 1024, maxHeight: 1024);
+    if (file == null) return;
+
+    final captionCtrl = TextEditingController();
+    String? photoType = 'intake';
+    await showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          backgroundColor: _panelDark,
+          title: const Text('Ajouter une photo', style: TextStyle(color: Colors.white)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              DropdownButtonFormField<String>(
+                value: photoType,
+                dropdownColor: _panelDark,
+                style: const TextStyle(color: Colors.white),
+                decoration: const InputDecoration(labelText: 'Type', labelStyle: TextStyle(color: _textMuted)),
+                items: ['intake', 'repair', 'handover'].map((t) => DropdownMenuItem(value: t, child: Text(t == 'intake' ? 'Réception' : t == 'repair' ? 'Réparation' : 'Remise'))).toList(),
+                onChanged: (v) => setDialogState(() => photoType = v),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: captionCtrl,
+                style: const TextStyle(color: Colors.white),
+                decoration: const InputDecoration(labelText: 'Légende (optionnelle)', labelStyle: TextStyle(color: _textMuted)),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Annuler', style: TextStyle(color: _textMuted))),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: _neonCyan, foregroundColor: _bgCarbon),
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('TÉLÉCHARGER'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    setState(() => _isLoading = true);
+    try {
+      final client = ref.read(supabaseClientProvider);
+      final user = Supabase.instance.client.auth.currentUser;
+      final ext = file.path.split('.').last;
+      final storagePath = '${widget.ticketId}/${DateTime.now().millisecondsSinceEpoch}.$ext';
+
+      await Supabase.instance.client.storage.from('repair-photos').upload(storagePath, File(file.path));
+
+      await client.from('repair_photos').insert({
+        'ticket_id': widget.ticketId,
+        'storage_path': storagePath,
+        'caption': captionCtrl.text.trim().isEmpty ? null : captionCtrl.text.trim(),
+        'photo_type': photoType ?? 'intake',
+        'uploaded_by': user?.id,
+      });
+
+      _fetchFullData();
+      _showToast('Photo ajoutée', Colors.green);
+    } catch (e) {
+      _showToast('Erreur: $e', Colors.redAccent);
+      _fetchFullData();
+    }
+  }
+
+  Future<void> _viewPhoto(String path, String? caption) async {
+    final url = Supabase.instance.client.storage.from('repair-photos').getPublicUrl(path);
+    await showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: Image.network(url, fit: BoxFit.contain, height: 400),
+            ),
+            if (caption != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: Text(caption, style: const TextStyle(color: Colors.white), textAlign: TextAlign.center),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _deletePhoto(Map<String, dynamic> photo, Color color) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: _panelDark,
+        title: const Text('Supprimer cette photo ?', style: TextStyle(color: Colors.redAccent)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Non', style: TextStyle(color: _textMuted))),
+          ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent, foregroundColor: Colors.white), onPressed: () => Navigator.pop(ctx, true), child: const Text('Oui')),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+
+    try {
+      final path = photo['storage_path'] as String? ?? '';
+      await Supabase.instance.client.storage.from('repair-photos').remove([path]);
+      await ref.read(supabaseClientProvider).from('repair_photos').delete().eq('id', photo['id']);
+      _fetchFullData();
+      _showToast('Photo supprimée', Colors.orangeAccent);
+    } catch (e) {
+      _showToast('Erreur: $e', Colors.redAccent);
+    }
+  }
+
   // --- Handover (Remise au client) ---
   Future<void> _showHandoverDialog(Color color) async {
     final accessoriesRaw = _ticket?['accessories_included'];
@@ -1052,7 +1176,51 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
             const SizedBox(height: 24),
             _buildSectionHeader('DIAGNOSTIC INITIAL', Icons.visibility, color),
             Text(_ticket?['pre_diagnostic'] ?? 'Aucun constat.', style: const TextStyle(color: _textMuted, fontSize: 13, height: 1.5)),
-            const SizedBox(height: 32),
+            const SizedBox(height: 24),
+            _buildSectionHeader('PHOTOS', Icons.camera_alt, color),
+            SizedBox(
+              height: 80,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: ListView.builder(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: _photos.length + 1,
+                      itemBuilder: (ctx, i) {
+                        if (i == 0) {
+                          return GestureDetector(
+                            onTap: () => _uploadPhoto(color),
+                            child: Container(
+                              width: 70, height: 70, margin: const EdgeInsets.only(right: 8),
+                              decoration: BoxDecoration(color: _bgCarbon, borderRadius: BorderRadius.circular(8), border: Border.all(color: _glassBorder, style: BorderStyle.solid)),
+                              child: const Icon(Icons.add_a_photo, color: _textMuted, size: 24),
+                            ),
+                          );
+                        }
+                        final photo = _photos[i - 1];
+                        final path = photo['storage_path'] as String? ?? '';
+                        return GestureDetector(
+                          onTap: () => _viewPhoto(path, photo['caption'] as String?),
+                          onLongPress: () => _deletePhoto(photo, color),
+                          child: Container(
+                            width: 70, height: 70, margin: const EdgeInsets.only(right: 8),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: _glassBorder),
+                              image: DecorationImage(
+                                image: NetworkImage(Supabase.instance.client.storage.from('repair-photos').getPublicUrl(path)),
+                                fit: BoxFit.cover,
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
             _buildSectionHeader('CLIENT', Icons.person, color),
             Text(clientName, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
             Text(clientPhone, style: const TextStyle(color: _textMuted, fontSize: 13)),
