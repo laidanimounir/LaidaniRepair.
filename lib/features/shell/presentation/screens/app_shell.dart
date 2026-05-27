@@ -138,6 +138,13 @@ const _navItems = <_NavItem>[
     route: AppConstants.routeReminders,
     ownerOnly: true,
   ),
+  _NavItem(
+    label: 'Sauvegarde',
+    icon: Icons.backup_outlined,
+    activeIcon: Icons.backup,
+    route: AppConstants.routeBackup,
+    ownerOnly: true,
+  ),
 ];
 
 // ─── Theme Constants for Cyber Glass ──────────────────────────────────────

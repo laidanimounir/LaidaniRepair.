@@ -26,6 +26,7 @@ import 'package:laidani_repair/features/maintenance/presentation/screens/reminde
 import 'package:laidani_repair/features/website/presentation/screens/shop_website_screen.dart';
 import 'package:laidani_repair/features/dashboard/presentation/screens/dashboard_screen.dart';
 import 'package:laidani_repair/features/tracking/presentation/screens/tracking_screen.dart';
+import 'package:laidani_repair/features/settings/presentation/screens/backup_screen.dart';
 import 'package:laidani_repair/core/constants/app_constants.dart';
 // تأكد من وجود هذا السطر تحديداً
 import 'package:laidani_repair/features/repairs/presentation/screens/ticket_details_screen.dart';
@@ -199,6 +200,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: AppConstants.routeReminders,
             builder: (_, __) => const RemindersScreen(),
+          ),
+          GoRoute(
+            path: AppConstants.routeBackup,
+            builder: (_, __) => const BackupScreen(),
           ),
           // المسار الجديد مضاف هنا بشكل صحيح
           GoRoute(
