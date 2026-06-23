@@ -758,21 +758,27 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
       return null;
     }
 
-    // Compress
-    final compressedBytes = await FlutterImageCompress.compressWithFile(
-      _imageFile!.path,
-      minWidth: 400,
-      minHeight: 400,
-      quality: 75,
-      format: CompressFormat.jpeg,
-    );
-    if (compressedBytes == null) return null;
-
     final storagePath = '$productId.jpg';
     final tempDir = Directory.systemTemp;
     final tempFile = File('${tempDir.path}/product_upload_$productId.jpg');
-    await tempFile.writeAsBytes(compressedBytes);
+
     try {
+      if (Platform.isAndroid || Platform.isIOS) {
+        // Mobile: compress then upload
+        final compressedBytes = await FlutterImageCompress.compressWithFile(
+          _imageFile!.path,
+          minWidth: 400,
+          minHeight: 400,
+          quality: 75,
+          format: CompressFormat.jpeg,
+        );
+        if (compressedBytes == null) return null;
+        await tempFile.writeAsBytes(compressedBytes);
+      } else {
+        // Desktop: upload raw file without compression
+        await _imageFile!.copy(tempFile.path);
+      }
+
       await Supabase.instance.client.storage
           .from('product-images')
           .upload(storagePath, tempFile,
