@@ -21,7 +21,16 @@ const Color _neonCyan = Color(0xFF00E5FF);
 
 // ─── Providers ────────────────────────────────────────────────────────────────
 
+final _realtimeRepairsTicker = StreamProvider<int>((ref) {
+  final client = ref.watch(supabaseClientProvider);
+  return client
+      .from('repair_tickets')
+      .stream(primaryKey: ['id'])
+      .map((_) => DateTime.now().millisecondsSinceEpoch);
+});
+
 final _ticketsProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
+  ref.watch(_realtimeRepairsTicker);
   final client = ref.watch(supabaseClientProvider);
   return await client
       .from('repair_tickets')

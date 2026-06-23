@@ -223,13 +223,114 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
 
   // --- 1. إضافة قطعة (خصم من المخزون) ---
   Future<void> _addPartToTicket(Map<String, dynamic> product) async {
+    final name = product['product_name']?.toString() ?? 'Produit';
+    final stockQty = (product['stock_quantity'] as num?)?.toInt() ?? 0;
+    final refPrice = (product['reference_price'] as num?)?.toDouble() ?? 0;
+
+    final qtyCtrl = TextEditingController(text: '1');
+    final priceCtrl = TextEditingController(text: refPrice.toStringAsFixed(0));
+
+    final result = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: _panelDark,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: _glassBorder)),
+        title: Row(
+          children: [
+            const Icon(Icons.build_circle, color: _neonCyan, size: 20),
+            const SizedBox(width: 12),
+            Expanded(child: Text('Ajouter: $name', style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold))),
+          ],
+        ),
+        content: SizedBox(
+          width: 320,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: qtyCtrl,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                      style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+                      textAlign: TextAlign.center,
+                      decoration: InputDecoration(
+                        labelText: 'Quantité',
+                        labelStyle: const TextStyle(color: _textMuted),
+                        helperText: 'Stock dispo: $stockQty',
+                        helperStyle: const TextStyle(color: _textMuted, fontSize: 10),
+                        filled: true,
+                        fillColor: _bgCarbon.withOpacity(0.5),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: _glassBorder)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: TextField(
+                      controller: priceCtrl,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[\d.]'))],
+                      style: const TextStyle(color: Colors.greenAccent, fontSize: 20, fontWeight: FontWeight.bold),
+                      textAlign: TextAlign.center,
+                      decoration: InputDecoration(
+                        labelText: 'Prix unitaire',
+                        suffixText: 'DA',
+                        labelStyle: const TextStyle(color: _textMuted),
+                        filled: true,
+                        fillColor: _bgCarbon.withOpacity(0.5),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: _glassBorder)),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Total: ${(refPrice * (int.tryParse(qtyCtrl.text) ?? 1)).toStringAsFixed(0)} DA',
+                style: const TextStyle(color: _neonCyan, fontWeight: FontWeight.w900, fontSize: 16),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Annuler', style: TextStyle(color: _textMuted))),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: _neonCyan, foregroundColor: _bgCarbon),
+            onPressed: () {
+              final qty = int.tryParse(qtyCtrl.text);
+              final price = double.tryParse(priceCtrl.text);
+              if (qty == null || qty <= 0) {
+                ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text('Quantité invalide'), backgroundColor: Colors.redAccent));
+                return;
+              }
+              if (price == null || price <= 0) {
+                ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text('Prix invalide'), backgroundColor: Colors.redAccent));
+                return;
+              }
+              if (qty > stockQty) {
+                ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text('Stock insuffisant (dispo: $stockQty)'), backgroundColor: Colors.redAccent));
+                return;
+              }
+              Navigator.pop(ctx, {'quantity': qty, 'charged_price': price});
+            },
+            child: const Text('Ajouter', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+
+    if (result == null) return;
+
     final client = ref.read(supabaseClientProvider);
     try {
       await client.from('repair_parts').insert({
         'ticket_id': widget.ticketId,
         'product_id': product['id'],
-        'quantity': 1,
-        'charged_price': product['reference_price'],
+        'quantity': result['quantity'],
+        'charged_price': result['charged_price'],
         'part_status': 'Utilisé'
       });
       _fetchFullData();
@@ -1420,7 +1521,9 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
     double total = 0;
     for (var p in _parts) {
       if (p['part_status'] == 'Utilisé') {
-        total += (p['charged_price'] as num).toDouble();
+        final price = (p['charged_price'] as num).toDouble();
+        final qty = (p['quantity'] as num?)?.toInt() ?? 1;
+        total += price * qty;
       }
     }
     return total;
