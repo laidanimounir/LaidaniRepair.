@@ -7,6 +7,7 @@ class ProductModel {
   final double referencePrice;
   final double purchasePrice;
   final int minStock;
+  final String? imagePath;
 
   const ProductModel({
     required this.id,
@@ -17,11 +18,14 @@ class ProductModel {
     required this.referencePrice,
     this.purchasePrice = 0.0,
     this.minStock = 5,
+    this.imagePath,
   });
 
   bool get inStock => stockQuantity > 0;
 
   bool get isLowStock => stockQuantity <= minStock;
+
+  bool get hasImage => imagePath != null && imagePath!.isNotEmpty;
 
   factory ProductModel.fromJson(Map<String, dynamic> json) {
     return ProductModel(
@@ -33,6 +37,7 @@ class ProductModel {
       referencePrice: (json['reference_price'] as num?)?.toDouble() ?? 0.0,
       purchasePrice: (json['purchase_price'] as num?)?.toDouble() ?? 0.0,
       minStock: (json['min_stock'] as num?)?.toInt() ?? 5,
+      imagePath: json['image_path'] as String?,
     );
   }
 
@@ -45,6 +50,7 @@ class ProductModel {
     double? referencePrice,
     double? purchasePrice,
     int? minStock,
+    String? imagePath,
   }) {
     return ProductModel(
       id: id ?? this.id,
@@ -55,6 +61,7 @@ class ProductModel {
       referencePrice: referencePrice ?? this.referencePrice,
       purchasePrice: purchasePrice ?? this.purchasePrice,
       minStock: minStock ?? this.minStock,
+      imagePath: imagePath ?? this.imagePath,
     );
   }
 

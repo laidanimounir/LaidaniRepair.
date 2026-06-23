@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:laidani_repair/core/constants/app_constants.dart';
+
 const Color _bgCarbon = Color(0xFF050914);
 const Color _panelDark = Color(0xFF0A0F1A);
 const Color _glassBorder = Color(0x1AFFFFFF);
@@ -116,7 +118,21 @@ class _ShopWebsiteScreenState extends State<ShopWebsiteScreen> {
             ),
             textAlign: TextAlign.center,
           ),
-          const SizedBox(height: 40),
+          const SizedBox(height: 24),
+          ElevatedButton.icon(
+            onPressed: () => context.go(AppConstants.routeLogin),
+            icon: const Icon(Icons.lock_outline, size: 18),
+            label: const Text('ESPACE PRO — CONNEXION',
+                style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _neonCyan,
+              foregroundColor: _bgCarbon,
+              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10)),
+            ),
+          ),
+          const SizedBox(height: 32),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [

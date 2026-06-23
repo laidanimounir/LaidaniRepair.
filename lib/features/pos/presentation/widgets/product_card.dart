@@ -1,9 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'package:laidani_repair/core/theme/app_theme.dart';
 import 'package:laidani_repair/features/pos/data/models/product_model.dart';
 import 'package:laidani_repair/features/pos/presentation/providers/pos_provider.dart';
+
+final productImageUrlProvider = FutureProvider.family<String?, String?>((ref, imagePath) async {
+  if (imagePath == null || imagePath.isEmpty) return null;
+  try {
+    return await Supabase.instance.client.storage
+        .from('product-images')
+        .createSignedUrl(imagePath, 86400); // 24h expiry
+  } catch (_) {
+    return null;
+  }
+});
 
 class ProductCard extends ConsumerWidget {
   final ProductModel product;
@@ -40,10 +53,13 @@ class ProductCard extends ConsumerWidget {
         child: Stack(
           children: [
             Padding(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(10),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Product image or placeholder
+                  _ProductThumbnail(imagePath: product.imagePath),
+                  const SizedBox(height: 8),
                   // Product name
                   Text(
                     product.productName,
@@ -52,7 +68,7 @@ class ProductCard extends ConsumerWidget {
                           ? AppTheme.onSurfaceMuted
                           : AppTheme.onBackground,
                       fontWeight: FontWeight.w800,
-                      fontSize: 14,
+                      fontSize: 13,
                     ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
@@ -66,11 +82,11 @@ class ProductCard extends ConsumerWidget {
                           ? AppTheme.onSurfaceMuted
                           : Colors.greenAccent.shade400,
                       fontWeight: FontWeight.w900,
-                      fontSize: 16,
+                      fontSize: 14,
                       letterSpacing: 0.5,
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 2),
                   // Stock badge
                   Row(
                     children: [
@@ -78,7 +94,7 @@ class ProductCard extends ConsumerWidget {
                         isOutOfStock
                             ? Icons.remove_circle_outline
                             : Icons.inventory_2_outlined,
-                        size: 14,
+                        size: 12,
                         color: isOutOfStock
                             ? AppTheme.error
                             : (product.stockQuantity <= 5 ? Colors.redAccent : AppTheme.onSurfaceMuted),
@@ -92,7 +108,7 @@ class ProductCard extends ConsumerWidget {
                           color: isOutOfStock
                               ? AppTheme.error
                               : (product.stockQuantity <= 5 ? Colors.redAccent : AppTheme.onSurfaceMuted),
-                          fontSize: 12,
+                          fontSize: 11,
                           fontWeight: product.stockQuantity <= 5 ? FontWeight.bold : FontWeight.normal,
                         ),
                       ),
@@ -141,6 +157,76 @@ class ProductCard extends ConsumerWidget {
                 ),
               ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ProductThumbnail extends ConsumerWidget {
+  final String? imagePath;
+
+  const _ProductThumbnail({required this.imagePath});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (imagePath == null || imagePath!.isEmpty) {
+      return Container(
+        height: 60,
+        decoration: BoxDecoration(
+          color: AppTheme.primary.withOpacity(0.08),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: const Center(
+          child: Icon(Icons.inventory_2_outlined, color: AppTheme.onSurfaceMuted, size: 28),
+        ),
+      );
+    }
+
+    final urlAsync = ref.watch(productImageUrlProvider(imagePath));
+
+    return urlAsync.when(
+      loading: () => Container(
+        height: 60,
+        decoration: BoxDecoration(
+          color: AppTheme.primary.withOpacity(0.08),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: const Center(
+          child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.onSurfaceMuted)),
+        ),
+      ),
+      error: (_, __) => Container(
+        height: 60,
+        decoration: BoxDecoration(
+          color: AppTheme.primary.withOpacity(0.08),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: const Center(
+          child: Icon(Icons.broken_image_outlined, color: AppTheme.onSurfaceMuted, size: 28),
+        ),
+      ),
+      data: (url) => ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: CachedNetworkImage(
+          imageUrl: url ?? '',
+          height: 60,
+          width: double.infinity,
+          fit: BoxFit.cover,
+          placeholder: (_, __) => Container(
+            height: 60,
+            color: AppTheme.primary.withOpacity(0.08),
+            child: const Center(
+              child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.onSurfaceMuted)),
+            ),
+          ),
+          errorWidget: (_, __, ___) => Container(
+            height: 60,
+            color: AppTheme.primary.withOpacity(0.08),
+            child: const Center(
+              child: Icon(Icons.inventory_2_outlined, color: AppTheme.onSurfaceMuted, size: 28),
+            ),
+          ),
         ),
       ),
     );

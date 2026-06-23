@@ -21,7 +21,7 @@ class ProductRepository {
     String? search,
   }) async {
     var query = _client.from('products').select(
-        'id, category_id, product_name, barcode, stock_quantity, reference_price, purchase_price, min_stock');
+        'id, category_id, product_name, barcode, stock_quantity, reference_price, purchase_price, min_stock, image_path');
 
     if (categoryId != null) {
       query = query.eq('category_id', categoryId);
@@ -57,7 +57,7 @@ final productsProvider = FutureProvider<List<ProductModel>>((ref) {
       .fetchProducts(categoryId: categoryId, search: search);
 });
 
-final productsStreamProvider = StreamProvider<List<ProductModel>>((ref) async* {
+final productsStreamProvider = StreamProvider.autoDispose<List<ProductModel>>((ref) async* {
   final client = ref.watch(supabaseClientProvider);
   final categoryId = ref.watch(selectedCategoryProvider);
   final search = ref.watch(productSearchProvider);

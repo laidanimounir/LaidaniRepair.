@@ -1,8 +1,12 @@
+import 'dart:io';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:flutter_image_compress/flutter_image_compress.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:laidani_repair/core/providers/supabase_provider.dart';
 import 'package:laidani_repair/core/utils/csv_export.dart';
 import 'package:laidani_repair/core/services/groq_service.dart';
@@ -564,6 +568,8 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
   late final TextEditingController _nameCtrl, _barcodeCtrl, _buyPriceCtrl, _sellPriceCtrl, _qtyCtrl, _minStockCtrl;
   int? _selectedCatId;
   bool _isLoading = false;
+  File? _imageFile;
+  String? _existingImagePath;
 
   @override void initState() {
     super.initState();
@@ -575,6 +581,54 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
     _qtyCtrl = TextEditingController(text: (p?['stock_quantity'] ?? 0).toString());
     _minStockCtrl = TextEditingController(text: (p?['min_stock'] ?? 5).toString());
     _selectedCatId = p?['category_id'];
+    _existingImagePath = p?['image_path'] as String?;
+  }
+
+  Future<void> _pickImage() async {
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(source: ImageSource.gallery, maxWidth: 800, maxHeight: 800, imageQuality: 85);
+    if (picked == null) return;
+    setState(() => _imageFile = File(picked.path));
+  }
+
+  Future<String?> _uploadImage(String productId) async {
+    if (_imageFile == null) {
+      if (_existingImagePath != null && _existingImagePath!.isNotEmpty) return _existingImagePath;
+      return null;
+    }
+
+    // Compress
+    final compressedBytes = await FlutterImageCompress.compressWithFile(
+      _imageFile!.path,
+      minWidth: 400,
+      minHeight: 400,
+      quality: 75,
+      format: CompressFormat.jpeg,
+    );
+    if (compressedBytes == null) return null;
+
+    final storagePath = '$productId.jpg';
+    await Supabase.instance.client.storage
+        .from('product-images')
+        .uploadBinary(storagePath, compressedBytes,
+            fileOptions: const FileOptions(upsert: true, contentType: 'image/jpeg'));
+
+    return storagePath;
+  }
+
+  Future<void> _removeImage() async {
+    // Delete old image from storage if exists
+    if (_existingImagePath != null && _existingImagePath!.isNotEmpty) {
+      try {
+        await Supabase.instance.client.storage
+            .from('product-images')
+            .remove([_existingImagePath!]);
+      } catch (_) {}
+    }
+    setState(() {
+      _imageFile = null;
+      _existingImagePath = null;
+    });
   }
 
   InputDecoration _inputDeco(String label, IconData icon) => InputDecoration(labelText: label, labelStyle: const TextStyle(color: _textMuted, fontSize: 13), prefixIcon: Icon(icon, color: _textMuted, size: 18), filled: true, fillColor: _bgCarbon.withOpacity(0.5), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: _glassBorder)), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: _glassBorder)), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: _neonPurple)));
@@ -587,7 +641,24 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
     try {
       final client = widget.ref.read(supabaseClientProvider);
       final data = {'product_name': _nameCtrl.text.trim(), 'category_id': _selectedCatId, 'barcode': _barcodeCtrl.text.trim().isEmpty ? null : _barcodeCtrl.text.trim(), 'purchase_price': double.tryParse(_buyPriceCtrl.text) ?? 0, 'reference_price': double.tryParse(_sellPriceCtrl.text) ?? 0, 'stock_quantity': int.tryParse(_qtyCtrl.text) ?? 0, 'min_stock': int.tryParse(_minStockCtrl.text) ?? 5};
-      if (widget.existing != null) { await client.from('products').update(data).eq('id', widget.existing!['id']); } else { await client.from('products').insert(data); }
+
+      String? productId = widget.existing?['id'] as String?;
+
+      if (widget.existing != null) {
+        await client.from('products').update(data).eq('id', productId!);
+      } else {
+        final result = await client.from('products').insert(data).select('id').single();
+        productId = result['id'] as String;
+      }
+
+      // Upload image if selected
+      if (_imageFile != null && productId != null) {
+        final imagePath = await _uploadImage(productId);
+        if (imagePath != null) {
+          await client.from('products').update({'image_path': imagePath}).eq('id', productId);
+        }
+      }
+
       // The stream automatically updates the UI, but we can invalidate fallback categories if needed
       widget.ref.invalidate(categoriesProvider);
       if (mounted) { Navigator.pop(context); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(widget.existing != null ? 'Produit mis à jour' : 'Produit ajouté'), backgroundColor: Colors.green)); }
@@ -606,7 +677,29 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
       TextField(controller: _nameCtrl, style: const TextStyle(color: Colors.white), decoration: _inputDeco('Nom du produit *', Icons.label)), const SizedBox(height: 16),
       Row(children: [Expanded(child: FutureBuilder(future: widget.ref.read(supabaseClientProvider).from('categories').select(), builder: (ctx, snap) { if (!snap.hasData) return const CircularProgressIndicator(color: _neonPurple); final cats = snap.data as List; return DropdownButtonFormField<int>(value: _selectedCatId, dropdownColor: _panelDark, style: const TextStyle(color: Colors.white), decoration: _inputDeco('Catégorie *', Icons.category), items: cats.map((c) => DropdownMenuItem<int>(value: c['id'] as int, child: Text(c['category_name']))).toList(), onChanged: (v) => setState(() => _selectedCatId = v)); })), const SizedBox(width: 16), Expanded(child: TextField(controller: _barcodeCtrl, style: const TextStyle(color: Colors.white), decoration: _inputDeco('Code Barres', Icons.qr_code)))]), const SizedBox(height: 16),
       Row(children: [Expanded(child: TextField(controller: _buyPriceCtrl, keyboardType: TextInputType.number, style: const TextStyle(color: Colors.white), decoration: _inputDeco('Prix d\'achat (DA)', Icons.shopping_cart))), const SizedBox(width: 16), Expanded(child: TextField(controller: _sellPriceCtrl, keyboardType: TextInputType.number, style: const TextStyle(color: Colors.white), decoration: _inputDeco('Prix de vente (DA)', Icons.sell)))]), const SizedBox(height: 16),
-      Row(children: [Expanded(child: TextField(controller: _qtyCtrl, keyboardType: TextInputType.number, style: const TextStyle(color: Colors.white), decoration: _inputDeco('Quantité en stock', Icons.layers))), const SizedBox(width: 16), Expanded(child: TextField(controller: _minStockCtrl, keyboardType: TextInputType.number, style: const TextStyle(color: Colors.white), decoration: _inputDeco('Seuil d\'alerte (Min)', Icons.warning_amber)))]), const SizedBox(height: 32),
+      Row(children: [Expanded(child: TextField(controller: _qtyCtrl, keyboardType: TextInputType.number, style: const TextStyle(color: Colors.white), decoration: _inputDeco('Quantité en stock', Icons.layers))), const SizedBox(width: 16), Expanded(child: TextField(controller: _minStockCtrl, keyboardType: TextInputType.number, style: const TextStyle(color: Colors.white), decoration: _inputDeco('Seuil d\'alerte (Min)', Icons.warning_amber)))]), const SizedBox(height: 16),
+      // Image section
+      const Text('Photo du produit', style: TextStyle(color: _textMuted, fontSize: 13)), const SizedBox(height: 8),
+      Row(children: [
+        GestureDetector(
+          onTap: _pickImage,
+          child: Container(
+            width: 80, height: 80,
+            decoration: BoxDecoration(color: _bgCarbon.withOpacity(0.5), borderRadius: BorderRadius.circular(8), border: Border.all(color: _glassBorder)),
+            child: _imageFile != null
+                ? ClipRRect(borderRadius: BorderRadius.circular(8), child: Image.file(_imageFile!, width: 80, height: 80, fit: BoxFit.cover))
+                : _existingImagePath != null
+                    ? const Icon(Icons.image, color: _neonPurple, size: 32)
+                    : const Icon(Icons.add_a_photo, color: _textMuted, size: 32),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          TextButton.icon(onPressed: _pickImage, icon: const Icon(Icons.upload, size: 16, color: _neonPurple), label: const Text('Choisir une photo', style: TextStyle(color: _neonPurple, fontSize: 12))),
+          if (_imageFile != null || _existingImagePath != null)
+            TextButton.icon(onPressed: _removeImage, icon: const Icon(Icons.delete, size: 16, color: Colors.redAccent), label: const Text('Supprimer', style: TextStyle(color: Colors.redAccent, fontSize: 12))),
+        ]),
+      ]), const SizedBox(height: 24),
       Row(mainAxisAlignment: MainAxisAlignment.end, children: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Annuler', style: TextStyle(color: _textMuted))), const SizedBox(width: 16), ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: _neonPurple, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))), onPressed: _isLoading ? null : _submit, child: _isLoading ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : Text(widget.existing != null ? 'ENREGISTRER' : 'AJOUTER', style: const TextStyle(fontWeight: FontWeight.bold)))])
     ]))));
   }

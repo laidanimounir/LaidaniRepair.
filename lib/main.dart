@@ -1,3 +1,5 @@
+import 'dart:io' show Platform;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -5,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:window_manager/window_manager.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 import 'package:laidani_repair/core/constants/app_constants.dart';
 import 'package:laidani_repair/core/router/app_router.dart';
@@ -19,20 +22,28 @@ import 'package:laidani_repair/features/pos/presentation/providers/pos_provider.
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await windowManager.ensureInitialized();
-  const windowOptions = WindowOptions(
-    size: Size(400, 600),
-    center: true,
-    fullScreen: false,
-    backgroundColor: Color(0xFF050914),
-    skipTaskbar: false,
-    titleBarStyle: TitleBarStyle.normal,
-    title: 'LaidaniRepair ERP',
-  );
-  await windowManager.waitUntilReadyToShow(windowOptions, () async {
-    await windowManager.show();
-    await windowManager.focus();
-  });
+  if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+    await windowManager.ensureInitialized();
+    const windowOptions = WindowOptions(
+      size: Size(400, 600),
+      center: true,
+      fullScreen: false,
+      backgroundColor: Color(0xFF050914),
+      skipTaskbar: false,
+      titleBarStyle: TitleBarStyle.normal,
+      title: 'LaidaniRepair ERP',
+    );
+    await windowManager.waitUntilReadyToShow(windowOptions, () async {
+      await windowManager.show();
+      await windowManager.focus();
+    });
+  }
+
+  try {
+    await dotenv.load(fileName: ".env");
+  } catch (_) {
+    // .env file not available — fallback values in AppConstants will be used
+  }
 
   await Supabase.initialize(
     url: AppConstants.supabaseUrl,

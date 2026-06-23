@@ -7,8 +7,8 @@ final categoriesProvider = FutureProvider<List<Map<String, dynamic>>>((ref) asyn
   return await client.from('categories').select().order('category_name');
 });
 
-// 2. Realtime Products Stream Provider
-final productsStreamProvider = StreamProvider<List<Map<String, dynamic>>>((ref) {
+// 2. Realtime Products Stream Provider (Inventory)
+final inventoryProductsStreamProvider = StreamProvider<List<Map<String, dynamic>>>((ref) {
   final client = ref.watch(supabaseClientProvider);
   
   return client
@@ -20,7 +20,7 @@ final productsStreamProvider = StreamProvider<List<Map<String, dynamic>>>((ref) 
 
 // 3. Computed Inventory List Provider (Watches both Stream & Categories)
 final inventoryListProvider = Provider<AsyncValue<List<Map<String, dynamic>>>>((ref) {
-  final streamAsync = ref.watch(productsStreamProvider);
+  final streamAsync = ref.watch(inventoryProductsStreamProvider);
   final catsAsync = ref.watch(categoriesProvider);
 
   // If either is loading or has an error, propagate that state
