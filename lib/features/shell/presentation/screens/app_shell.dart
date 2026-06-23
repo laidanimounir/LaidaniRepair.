@@ -344,7 +344,7 @@ class _DesktopShellState extends ConsumerState<_DesktopShell> {
                         children: [
                           const SyncStatusIndicator(),
                           const SizedBox(width: 8),
-                          const _NotificationBell(),
+                          _buildNotificationBell(),
                           const SizedBox(width: 8),
                           IconButton(
                             icon: Icon(
@@ -559,85 +559,7 @@ class _DesktopShellState extends ConsumerState<_DesktopShell> {
     showSearch(context: context, delegate: _GlobalSearchDelegate(ref: ref));
   }
 
-}
-
-IconData _notifTypeIcon(String type) {
-  switch (type) {
-    case 'low_stock': return Icons.inventory_2;
-    case 'overdue_repair': return Icons.build;
-    case 'pending_reminder': return Icons.notification_important;
-    default: return Icons.notifications;
-  }
-}
-
-Color _notifTypeColor(String type) {
-  switch (type) {
-    case 'low_stock': return Colors.redAccent;
-    case 'overdue_repair': return Colors.orangeAccent;
-    case 'pending_reminder': return Colors.blueAccent;
-    default: return _textMuted;
-  }
-}
-
-void _showNotificationPanel(BuildContext context, List<AppNotification> notifs) {
-  showDialog(
-    context: context,
-    builder: (ctx) => AlertDialog(
-      backgroundColor: _panelDark,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: _glassBorder)),
-      title: Row(
-        children: [
-          const Icon(Icons.notifications, color: _ownerNeon),
-          const SizedBox(width: 8),
-          const Text('Notifications', style: TextStyle(color: Colors.white)),
-          const Spacer(),
-          Text('${notifs.length}', style: const TextStyle(color: _textMuted, fontSize: 13)),
-        ],
-      ),
-      content: SizedBox(
-        width: 400,
-        height: 400,
-        child: notifs.isEmpty
-            ? const Center(child: Text('Aucune notification', style: TextStyle(color: _textMuted)))
-            : ListView.separated(
-                itemCount: notifs.length,
-                separatorBuilder: (_, __) => const Divider(color: _glassBorder, height: 1),
-                itemBuilder: (ctx, i) {
-                  final n = notifs[i];
-                  final icon = _notifTypeIcon(n.type);
-                  final color = _notifTypeColor(n.type);
-                  return ListTile(
-                    leading: CircleAvatar(
-                      backgroundColor: color.withOpacity(0.15),
-                      child: Icon(icon, color: color, size: 18),
-                    ),
-                    title: Text(n.title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
-                    subtitle: Text(n.message, style: const TextStyle(color: _textMuted, fontSize: 11), maxLines: 2),
-                    onTap: n.route != null
-                        ? () {
-                            Navigator.pop(ctx);
-                            context.go(n.route!);
-                          }
-                        : null,
-                  );
-                },
-              ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(ctx),
-          child: const Text('Fermer', style: TextStyle(color: _textMuted)),
-        ),
-      ],
-    ),
-  );
-}
-
-class _NotificationBell extends ConsumerWidget {
-  const _NotificationBell();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget _buildNotificationBell() {
     final notifsAsync = ref.watch(notificationsProvider);
 
     return notifsAsync.when(
@@ -672,7 +594,79 @@ class _NotificationBell extends ConsumerWidget {
       },
     );
   }
-}
+
+  void _showNotificationPanel(BuildContext context, List<AppNotification> notifs) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: _panelDark,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: _glassBorder)),
+        title: Row(
+          children: [
+            const Icon(Icons.notifications, color: _ownerNeon),
+            const SizedBox(width: 8),
+            const Text('Notifications', style: TextStyle(color: Colors.white)),
+            const Spacer(),
+            Text('${notifs.length}', style: const TextStyle(color: _textMuted, fontSize: 13)),
+          ],
+        ),
+        content: SizedBox(
+          width: 400,
+          height: 400,
+          child: notifs.isEmpty
+              ? const Center(child: Text('Aucune notification', style: TextStyle(color: _textMuted)))
+              : ListView.separated(
+                  itemCount: notifs.length,
+                  separatorBuilder: (_, __) => const Divider(color: _glassBorder, height: 1),
+                  itemBuilder: (ctx, i) {
+                    final n = notifs[i];
+                    final icon = _notifTypeIcon(n.type);
+                    final color = _notifTypeColor(n.type);
+                    return ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor: color.withOpacity(0.15),
+                        child: Icon(icon, color: color, size: 18),
+                      ),
+                      title: Text(n.title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+                      subtitle: Text(n.message, style: const TextStyle(color: _textMuted, fontSize: 11), maxLines: 2),
+                      onTap: n.route != null
+                          ? () {
+                              Navigator.pop(ctx);
+                              context.go(n.route!);
+                            }
+                          : null,
+                    );
+                  },
+                ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Fermer', style: TextStyle(color: _textMuted)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  IconData _notifTypeIcon(String type) {
+    switch (type) {
+      case 'low_stock': return Icons.inventory_2;
+      case 'overdue_repair': return Icons.build;
+      case 'pending_reminder': return Icons.notification_important;
+      default: return Icons.notifications;
+    }
+  }
+
+  Color _notifTypeColor(String type) {
+    switch (type) {
+      case 'low_stock': return Colors.redAccent;
+      case 'overdue_repair': return Colors.orangeAccent;
+      case 'pending_reminder': return Colors.blueAccent;
+      default: return _textMuted;
+    }
+  }
+
   void _showLanguagePicker(BuildContext context, WidgetRef ref) {
     final currentLocale = ref.read(localeProvider);
     showDialog(
@@ -1151,7 +1145,7 @@ class _MobileShell extends ConsumerWidget {
           style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
         ),
         actions: [
-          const _NotificationBell(),
+          _bell(this, ref, context),
           const SizedBox(width: 4),
           IconButton(
             icon: const Icon(Icons.search, color: _textMuted),
@@ -1213,7 +1207,6 @@ class _MobileShell extends ConsumerWidget {
       child: SafeArea(
         child: Column(
           children: [
-            // Drawer header
             Container(
               width: double.infinity,
               padding: const EdgeInsets.fromLTRB(20, 28, 20, 20),
@@ -1233,43 +1226,48 @@ class _MobileShell extends ConsumerWidget {
                     child: Icon(Icons.handyman, color: activeNeon, size: 28),
                   ),
                   const SizedBox(height: 14),
-                  const Text(
-                    'LaidaniRepair',
-                    style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900, letterSpacing: 1),
-                  ),
+                  const Text('LaidaniRepair', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900, letterSpacing: 1)),
                   const SizedBox(height: 4),
-                  FutureBuilder(
-                    future: ref.read(profileProvider.future),
-                    builder: (_, snap) {
-                      final name = snap.data?.fullName ?? '';
-                      return Text(
-                        name.isNotEmpty ? name : 'Menu',
-                        style: const TextStyle(color: _textMuted, fontSize: 13),
-                      );
-                    },
+                  ref.watch(profileProvider).when(
+                    data: (profile) => Text(
+                      profile?.fullName ?? 'Menu',
+                      style: const TextStyle(color: _textMuted, fontSize: 13),
+                    ),
+                    loading: () => const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2, color: _textMuted)),
+                    error: (_, __) => const Text('Menu', style: TextStyle(color: _textMuted, fontSize: 13)),
                   ),
                 ],
               ),
             ),
-            // Drawer items
             Expanded(
               child: ListView(
                 padding: const EdgeInsets.symmetric(vertical: 8),
                 children: [
                   for (int i = 0; i < items.length; i++)
-                    _MobileDrawerItem(
-                      item: items[i],
-                      isSelected: i == currentIndex,
-                      activeNeon: activeNeon,
+                    ListTile(
+                      leading: Icon(
+                        i == currentIndex ? items[i].activeIcon : items[i].icon,
+                        color: i == currentIndex ? activeNeon : _textMuted,
+                      ),
+                      title: Text(
+                        items[i].label,
+                        style: TextStyle(
+                          color: i == currentIndex ? Colors.white : _textMuted,
+                          fontWeight: i == currentIndex ? FontWeight.w700 : FontWeight.normal,
+                          fontSize: 14,
+                        ),
+                      ),
+                      selected: i == currentIndex,
+                      selectedTileColor: activeNeon.withOpacity(0.08),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                       onTap: () {
-                        Navigator.pop(context); // close drawer
+                        Navigator.pop(context);
                         context.go(items[i].route);
                       },
                     ),
                 ],
               ),
             ),
-            // Drawer footer
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(16),
@@ -1277,11 +1275,7 @@ class _MobileShell extends ConsumerWidget {
                 color: _panelDark,
                 border: Border(top: BorderSide(color: _glassBorder, width: 1)),
               ),
-              child: Text(
-                'v1.0.0',
-                style: const TextStyle(color: _textMuted, fontSize: 11),
-                textAlign: TextAlign.center,
-              ),
+              child: const Text('v1.0.0', style: TextStyle(color: _textMuted, fontSize: 11), textAlign: TextAlign.center),
             ),
           ],
         ),
@@ -1290,38 +1284,71 @@ class _MobileShell extends ConsumerWidget {
   }
 }
 
-class _MobileDrawerItem extends StatelessWidget {
-  final _NavItem item;
-  final bool isSelected;
-  final Color activeNeon;
-  final VoidCallback onTap;
+Widget _bell(_MobileShell shell, WidgetRef ref, BuildContext context) {
+  final notifsAsync = ref.watch(notificationsProvider);
 
-  const _MobileDrawerItem({
-    required this.item,
-    required this.isSelected,
-    required this.activeNeon,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return ListTile(
-      leading: Icon(
-        isSelected ? item.activeIcon : item.icon,
-        color: isSelected ? activeNeon : _textMuted,
-      ),
-      title: Text(
-        item.label,
-        style: TextStyle(
-          color: isSelected ? Colors.white : _textMuted,
-          fontWeight: isSelected ? FontWeight.w700 : FontWeight.normal,
-          fontSize: 14,
+  return notifsAsync.when(
+    loading: () => const Icon(Icons.notifications_outlined, color: _textMuted, size: 24),
+    error: (_, __) => const Icon(Icons.notifications_outlined, color: _textMuted, size: 24),
+    data: (notifs) {
+      final unreadCount = notifs.length;
+      return GestureDetector(
+        onTap: () {
+          showDialog(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              backgroundColor: _panelDark,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: _glassBorder)),
+              title: Row(
+                children: [
+                  const Icon(Icons.notifications, color: _ownerNeon),
+                  const SizedBox(width: 8),
+                  const Text('Notifications', style: TextStyle(color: Colors.white)),
+                  const Spacer(),
+                  Text('${notifs.length}', style: const TextStyle(color: _textMuted, fontSize: 13)),
+                ],
+              ),
+              content: SizedBox(
+                width: 400,
+                height: 400,
+                child: notifs.isEmpty
+                    ? const Center(child: Text('Aucune notification', style: TextStyle(color: _textMuted)))
+                    : ListView.separated(
+                        itemCount: notifs.length,
+                        separatorBuilder: (_, __) => const Divider(color: _glassBorder, height: 1),
+                        itemBuilder: (ctx, i) {
+                          final n = notifs[i];
+                          final icon = n.type == 'low_stock' ? Icons.inventory_2 : n.type == 'overdue_repair' ? Icons.build : Icons.notifications;
+                          final color = n.type == 'low_stock' ? Colors.redAccent : n.type == 'overdue_repair' ? Colors.orangeAccent : _textMuted;
+                          return ListTile(
+                            leading: CircleAvatar(backgroundColor: color.withOpacity(0.15), child: Icon(icon, color: color, size: 18)),
+                            title: Text(n.title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+                            subtitle: Text(n.message, style: const TextStyle(color: _textMuted, fontSize: 11), maxLines: 2),
+                          );
+                        },
+                      ),
+              ),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Fermer', style: TextStyle(color: _textMuted))),
+              ],
+            ),
+          );
+        },
+        child: Stack(
+          children: [
+            const Padding(padding: EdgeInsets.all(6), child: Icon(Icons.notifications_outlined, color: _textMuted, size: 24)),
+            if (unreadCount > 0)
+              Positioned(
+                right: 2, top: 2,
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: const BoxDecoration(color: Colors.redAccent, shape: BoxShape.circle),
+                  child: Text('$unreadCount', style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+                ),
+              ),
+          ],
         ),
-      ),
-      selected: isSelected,
-      selectedTileColor: activeNeon.withOpacity(0.08),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      onTap: onTap,
-    );
-  }
+      );
+    },
+  );
 }
