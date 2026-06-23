@@ -1,9 +1,12 @@
 import 'dart:convert';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:encrypt/encrypt.dart' as enc;
+import 'package:crypto/crypto.dart';
 import 'dart:io';
 
 const Color _bgCarbon = Color(0xFF050914);
@@ -76,9 +79,9 @@ class BackupScreen extends ConsumerWidget {
                   child: _ActionCard(
                     icon: Icons.cloud_upload,
                     title: 'Sauvegarde Locale',
-                    subtitle: 'Exporte toutes les données en JSON sur cet appareil',
+                    subtitle: 'Exporte toutes les données chiffrées (AES-256) sur cet appareil',
                     color: _neonCyan,
-                    onTap: () => _performBackup(context, ref),
+                    onTap: () => _showPasswordDialog(context, ref),
                   ),
                 ),
                 const SizedBox(width: 16),
@@ -193,7 +196,87 @@ class _ActionCard extends StatelessWidget {
   }
 }
 
-Future<void> _performBackup(BuildContext context, WidgetRef ref) async {
+Future<void> _showPasswordDialog(BuildContext context, WidgetRef ref) {
+  final passwordCtrl = TextEditingController();
+  final confirmCtrl = TextEditingController();
+  final formKey = GlobalKey<FormState>();
+
+  return showDialog(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      backgroundColor: _panelDark,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: const BorderSide(color: _glassBorder),
+      ),
+      title: const Row(
+        children: [
+          Icon(Icons.lock, color: _neonCyan),
+          SizedBox(width: 12),
+          Text('Mot de passe de sauvegarde', style: TextStyle(color: Colors.white, fontSize: 16)),
+        ],
+      ),
+      content: Form(
+        key: formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Définissez un mot de passe pour chiffrer la sauvegarde.\nVous en aurez besoin pour la restaurer.',
+              style: TextStyle(color: _textMuted, fontSize: 12),
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: passwordCtrl,
+              obscureText: true,
+              style: const TextStyle(color: Colors.white),
+              decoration: const InputDecoration(
+                labelText: 'Mot de passe',
+                labelStyle: TextStyle(color: _textMuted),
+                filled: true,
+                fillColor: Color(0xFF050914),
+                border: OutlineInputBorder(),
+              ),
+              validator: (v) => (v == null || v.length < 4) ? '4 caractères minimum' : null,
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: confirmCtrl,
+              obscureText: true,
+              style: const TextStyle(color: Colors.white),
+              decoration: const InputDecoration(
+                labelText: 'Confirmer',
+                labelStyle: TextStyle(color: _textMuted),
+                filled: true,
+                fillColor: Color(0xFF050914),
+                border: OutlineInputBorder(),
+              ),
+              validator: (v) => v != passwordCtrl.text ? 'Les mots de passe ne correspondent pas' : null,
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(ctx),
+          child: const Text('Annuler', style: TextStyle(color: _textMuted)),
+        ),
+        ElevatedButton(
+          style: ElevatedButton.styleFrom(backgroundColor: _neonCyan, foregroundColor: const Color(0xFF050914)),
+          onPressed: () {
+            if (formKey.currentState!.validate()) {
+              Navigator.pop(ctx);
+              _performBackup(context, ref, passwordCtrl.text);
+            }
+          },
+          child: const Text('Sauvegarder', style: TextStyle(fontWeight: FontWeight.bold)),
+        ),
+      ],
+    ),
+  );
+}
+
+Future<void> _performBackup(BuildContext context, WidgetRef ref, String password) async {
   showDialog(
     context: context,
     barrierDismissible: false,
@@ -220,14 +303,24 @@ Future<void> _performBackup(BuildContext context, WidgetRef ref) async {
     }
 
     final jsonStr = const JsonEncoder.withIndent('  ').convert(backup);
+
+    // Derive a 32-byte AES key from the password using SHA-256
+    final keyBytes = sha256.convert(utf8.encode(password)).bytes;
+    final key = enc.Key(keyBytes.sublist(0, 32));
+    final iv = enc.IV(List.generate(16, (_) => Random.secure().nextInt(256)));
+    final encrypter = enc.Encrypter(enc.AES(key, mode: enc.AESMode.cbc));
+    final encrypted = encrypter.encrypt(jsonStr, iv: iv);
+
+    // Write IV + ciphertext to file
     final dir = await getApplicationDocumentsDirectory();
     final timestamp = DateTime.now().millisecondsSinceEpoch;
-    final file = File('${dir.path}/laidani_backup_$timestamp.json');
-    await file.writeAsString(jsonStr, encoding: utf8);
+    final file = File('${dir.path}/laidani_backup_$timestamp.enc');
+    final output = iv.bytes + encrypted.bytes;
+    await file.writeAsBytes(output);
 
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('last_backup_date', DateTime.now().toString().substring(0, 19));
-    await prefs.setString('last_backup_status', 'Réussi');
+    await prefs.setString('last_backup_status', 'Réussi (chiffré)');
     await prefs.setString('last_backup_filename', file.path);
     await prefs.setString('last_backup_size', '${(file.lengthSync() / 1024).toStringAsFixed(1)} KB');
 
@@ -236,7 +329,7 @@ Future<void> _performBackup(BuildContext context, WidgetRef ref) async {
       ref.invalidate(_lastBackupProvider);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Sauvegarde réussie! Fichier: ${file.path}'),
+          content: Text('Sauvegarde chiffrée! ${file.path}'),
           backgroundColor: _neonEmerald,
           duration: const Duration(seconds: 5),
         ),
