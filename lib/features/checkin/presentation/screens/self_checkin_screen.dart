@@ -56,7 +56,6 @@ class _SelfCheckinScreenState extends ConsumerState<SelfCheckinScreen> {
         'issue_description': _problemCtrl.text.trim(),
         'status': 'En attente',
         'qr_code_hash': qrHash,
-        'source': 'kiosk',
       });
 
       _showSuccessDialog();
