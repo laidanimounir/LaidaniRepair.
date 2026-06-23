@@ -1032,33 +1032,47 @@ class _ExportPreviewDialog extends StatelessWidget {
             // Preview table header
             const Text('Aperçu (5 premières lignes)', style: TextStyle(color: _textMuted, fontSize: 11, fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
-            // Preview table
+            // Preview table with Excel styling
             ConstrainedBox(
               constraints: BoxConstraints(maxHeight: isDesktop ? 200 : 160),
               child: SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 child: SingleChildScrollView(
-                  child: DataTable(
-                    headingRowColor: WidgetStateProperty.all(_bgCarbon.withOpacity(0.5)),
-                    dataRowMinHeight: 32,
-                    dataRowMaxHeight: 36,
-                    headingRowHeight: 32,
-                    columnSpacing: 16,
-                    horizontalMargin: 12,
-                    columns: const [
-                      DataColumn(label: Text('Nom', style: TextStyle(color: _textMuted, fontSize: 11, fontWeight: FontWeight.bold))),
-                      DataColumn(label: Text('Code', style: TextStyle(color: _textMuted, fontSize: 11, fontWeight: FontWeight.bold))),
-                      DataColumn(label: Text('Prix vente', style: TextStyle(color: _textMuted, fontSize: 11, fontWeight: FontWeight.bold))),
-                      DataColumn(label: Text('Qté', style: TextStyle(color: _textMuted, fontSize: 11, fontWeight: FontWeight.bold))),
-                    ],
-                    rows: previewRows.map((row) {
-                      return DataRow(cells: [
-                        DataCell(Text(row[0].toString(), style: const TextStyle(color: Colors.white, fontSize: 12))),
-                        DataCell(Text(row[1].toString().isEmpty ? '—' : row[1].toString(), style: const TextStyle(color: _textMuted, fontFamily: 'monospace', fontSize: 11))),
-                        DataCell(Text('${row[4].toString()} DA', style: const TextStyle(color: Colors.greenAccent, fontSize: 12, fontWeight: FontWeight.w600))),
-                        DataCell(Text(row[5].toString(), style: const TextStyle(color: Colors.white, fontSize: 12))),
-                      ]);
-                    }).toList(),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      border: Border.all(color: _glassBorder, width: 1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: DataTable(
+                      headingRowColor: WidgetStateProperty.all(_neonPurple.withOpacity(0.15)),
+                      dividerThickness: 1,
+                      dataRowMinHeight: 34,
+                      dataRowMaxHeight: 38,
+                      headingRowHeight: 34,
+                      columnSpacing: 20,
+                      horizontalMargin: 16,
+                      columns: const [
+                        DataColumn(label: Text('NOM', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 10, letterSpacing: 1))),
+                        DataColumn(label: Text('CODE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 10, letterSpacing: 1))),
+                        DataColumn(label: Text('PRIX', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 10, letterSpacing: 1))),
+                        DataColumn(label: Text('QTÉ', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 10, letterSpacing: 1))),
+                      ],
+                      rows: previewRows.asMap().entries.map((entry) {
+                        final i = entry.key;
+                        final row = entry.value;
+                        return DataRow(
+                          color: WidgetStateProperty.all(
+                            i.isEven ? _panelDark.withOpacity(0.4) : _bgCarbon.withOpacity(0.3),
+                          ),
+                          cells: [
+                            DataCell(Text(row[0].toString(), style: const TextStyle(color: Colors.white, fontSize: 12))),
+                            DataCell(Text(row[1].toString().isEmpty ? '—' : row[1].toString(), style: const TextStyle(color: _textMuted, fontFamily: 'monospace', fontSize: 11))),
+                            DataCell(Text('${row[4].toString()} DA', style: const TextStyle(color: Colors.greenAccent, fontSize: 12, fontWeight: FontWeight.w600))),
+                            DataCell(Text(row[5].toString(), style: const TextStyle(color: Colors.white, fontSize: 12))),
+                          ],
+                        );
+                      }).toList(),
+                    ),
                   ),
                 ),
               ),
