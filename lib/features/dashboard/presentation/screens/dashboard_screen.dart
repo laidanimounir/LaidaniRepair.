@@ -20,8 +20,11 @@ final _dashboardStatsProvider = FutureProvider<Map<String, dynamic>>((ref) async
 
   final allTickets = await client.from('repair_tickets').select('status, created_at, estimated_completion_date');
   final activeRepairs = allTickets.where((t) => ['En attente', 'En cours'].contains(t['status'])).length;
-  final todayDelivered = allTickets.where((t) => t['status'] == 'Livré').where((t) {
-    final d = DateTime.tryParse(t['created_at'] as String);
+  final todayDelivered = allTickets.where((t) {
+    if (t['status'] != 'Livré') return false;
+    final deliveredRaw = t['delivered_at'];
+    if (deliveredRaw == null) return false;
+    final d = DateTime.tryParse(deliveredRaw as String);
     return d != null && !d.isBefore(todayStart) && d.isBefore(todayEnd);
   }).length;
   final overdueCount = allTickets.where((t) {
