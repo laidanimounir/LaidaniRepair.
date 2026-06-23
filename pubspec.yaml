@@ -22,8 +22,9 @@ dependencies:
   # Fonts & UI
   google_fonts: ^6.2.1
 
-  # QR Code Generation (Step C - Repairs)
+  # QR Code / Barcode
   qr_flutter: ^4.1.0
+  barcode_widget: ^2.0.4
   fl_chart: ^0.69.2
   mobile_scanner: ^6.0.2
   image_picker: ^1.0.7

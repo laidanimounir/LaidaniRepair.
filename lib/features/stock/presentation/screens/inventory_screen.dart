@@ -15,6 +15,7 @@ import 'package:laidani_repair/features/stock/presentation/providers/stock_provi
 import 'package:printing/printing.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
+import 'package:barcode_widget/barcode_widget.dart';
 
 // --- Cyber Glass Theme Constants ---
 const Color _bgCarbon = Color(0xFF050914);
@@ -104,11 +105,15 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
                         ),
                         IconButton(
                           icon: const Icon(Icons.qr_code_2, color: _textMuted),
-                          tooltip: 'Imprimer tous les codes-barres',
+                          tooltip: 'Imprimer les codes-barres sélectionnés (ou tous)',
                           onPressed: () async {
+                            final selected = ref.read(_selectedProducts);
                             final all = ref.read(inventoryListProvider).valueOrNull ?? [];
-                            if (all.isEmpty) return;
-                            await _printAllBarcodes(context, all);
+                            final toPrint = selected.isNotEmpty
+                                ? all.where((p) => selected.contains(p['id'])).toList()
+                                : all;
+                            if (toPrint.isEmpty) return;
+                            await _printAllBarcodes(context, toPrint);
                           },
                         ),
                         IconButton(
@@ -329,18 +334,22 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
   }
 
   Widget _buildDesktopTable(BuildContext context, WidgetRef ref, List<Map<String, dynamic>> products) {
+    final bulkMode = ref.watch(_bulkModeInventory);
+    final selected = ref.watch(_selectedProducts);
+
     return Column(
       children: [
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
           decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: _glassBorder, width: 1))),
-          child: const Row(
+          child: Row(
             children: [
-              Expanded(flex: 3, child: Text('PRODUIT & CATÉGORIE', style: TextStyle(color: _textMuted, fontSize: 11, fontWeight: FontWeight.bold))),
-              Expanded(flex: 2, child: Text('CODE BARRES', style: TextStyle(color: _textMuted, fontSize: 11, fontWeight: FontWeight.bold))),
-              Expanded(flex: 2, child: Text('PRIX (ACHAT / VENTE)', style: TextStyle(color: _textMuted, fontSize: 11, fontWeight: FontWeight.bold))),
-              Expanded(flex: 1, child: Text('STOCK', textAlign: TextAlign.center, style: TextStyle(color: _textMuted, fontSize: 11, fontWeight: FontWeight.bold))),
-              Expanded(flex: 1, child: Text('ACTIONS', textAlign: TextAlign.right, style: TextStyle(color: _textMuted, fontSize: 11, fontWeight: FontWeight.bold))),
+              if (bulkMode) const SizedBox(width: 40, child: Text('', style: TextStyle(color: _textMuted, fontSize: 11, fontWeight: FontWeight.bold))),
+              const Expanded(flex: 3, child: Text('PRODUIT & CATÉGORIE', style: TextStyle(color: _textMuted, fontSize: 11, fontWeight: FontWeight.bold))),
+              const Expanded(flex: 2, child: Text('CODE BARRES', style: TextStyle(color: _textMuted, fontSize: 11, fontWeight: FontWeight.bold))),
+              const Expanded(flex: 2, child: Text('PRIX (ACHAT / VENTE)', style: TextStyle(color: _textMuted, fontSize: 11, fontWeight: FontWeight.bold))),
+              const Expanded(flex: 1, child: Text('STOCK', textAlign: TextAlign.center, style: TextStyle(color: _textMuted, fontSize: 11, fontWeight: FontWeight.bold))),
+              const Expanded(flex: 1, child: Text('ACTIONS', textAlign: TextAlign.right, style: TextStyle(color: _textMuted, fontSize: 11, fontWeight: FontWeight.bold))),
             ],
           ),
         ),
@@ -349,18 +358,42 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
             itemCount: products.length,
             itemBuilder: (ctx, i) {
               final p = products[i];
+              final pid = p['id'] as String;
               final catName = p['categories']?['category_name'] ?? '—';
               final qty = p['stock_quantity'] ?? 0;
               final minStock = p['min_stock'] ?? 5;
               final isLowStock = qty <= minStock;
+              final isSelected = selected.contains(pid);
 
               return Container(
                 padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: _glassBorder, width: 0.5))),
+                decoration: BoxDecoration(
+                  color: isSelected ? _neonPurple.withOpacity(0.08) : null,
+                  border: const Border(bottom: BorderSide(color: _glassBorder, width: 0.5)),
+                ),
                 child: Row(
                   children: [
+                    if (bulkMode)
+                      SizedBox(
+                        width: 40,
+                        child: Checkbox(
+                          value: isSelected,
+                          activeColor: _neonPurple,
+                          checkColor: Colors.white,
+                          side: const BorderSide(color: _textMuted, width: 1.5),
+                          onChanged: (_) {
+                            final set = Set<dynamic>.from(selected);
+                            if (isSelected) {
+                              set.remove(pid);
+                            } else {
+                              set.add(pid);
+                            }
+                            ref.read(_selectedProducts.notifier).state = set;
+                          },
+                        ),
+                      ),
                     Expanded(flex: 3, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(p['product_name'] ?? '', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)), const SizedBox(height: 4), Text(catName, style: const TextStyle(color: _neonPurple, fontSize: 11))])),
-                    Expanded(flex: 2, child: Text(p['barcode'] ?? '—', style: const TextStyle(color: _textMuted, fontFamily: 'monospace', fontSize: 12))),
+                    Expanded(flex: 2, child: _buildBarcodeCell(p)),
                     Expanded(flex: 2, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('A: ${p['purchase_price'] ?? 0} DA', style: const TextStyle(color: _textMuted, fontSize: 11)), const SizedBox(height: 2), Text('V: ${p['reference_price'] ?? 0} DA', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13))])),
                     Expanded(flex: 1, child: Center(child: Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4), decoration: BoxDecoration(color: isLowStock ? Colors.redAccent.withOpacity(0.1) : Colors.greenAccent.withOpacity(0.1), borderRadius: BorderRadius.circular(6), border: Border.all(color: isLowStock ? Colors.redAccent.withOpacity(0.5) : Colors.greenAccent.withOpacity(0.3))), child: Text('$qty', style: TextStyle(color: isLowStock ? Colors.redAccent : Colors.greenAccent, fontWeight: FontWeight.bold))))),
                     Expanded(flex: 1, child: Align(alignment: Alignment.centerRight, child: Row(
@@ -380,37 +413,101 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
     );
   }
 
+  Widget _buildBarcodeCell(Map<String, dynamic> p) {
+    final barcode = p['barcode']?.toString() ?? '';
+    if (barcode.isEmpty) return const Text('—', style: TextStyle(color: _textMuted, fontSize: 12));
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        BarcodeWidget(
+          barcode: Barcode.code128(),
+          data: barcode,
+          width: 120,
+          height: 28,
+          drawText: false,
+          padding: EdgeInsets.zero,
+        ),
+        Text(barcode, style: const TextStyle(color: _textMuted, fontFamily: 'monospace', fontSize: 9)),
+      ],
+    );
+  }
+
   Widget _buildMobileList(BuildContext context, WidgetRef ref, List<Map<String, dynamic>> products) {
+    final bulkMode = ref.watch(_bulkModeInventory);
+    final selected = ref.watch(_selectedProducts);
+
     return ListView.builder(
       padding: const EdgeInsets.all(16),
       itemCount: products.length,
       itemBuilder: (ctx, i) {
         final p = products[i];
+        final pid = p['id'] as String;
         final catName = p['categories']?['category_name'] ?? '—';
         final qty = p['stock_quantity'] ?? 0;
         final minStock = p['min_stock'] ?? 5;
         final isLowStock = qty <= minStock;
+        final isSelected = selected.contains(pid);
+        final barcode = p['barcode']?.toString() ?? '';
 
         return InkWell(
-          onTap: () => _showProductDialog(context, ref, existing: p),
+          onTap: bulkMode
+              ? () {
+                  final set = Set<dynamic>.from(selected);
+                  if (isSelected) { set.remove(pid); } else { set.add(pid); }
+                  ref.read(_selectedProducts.notifier).state = set;
+                }
+              : () => _showProductDialog(context, ref, existing: p),
           child: Container(
             margin: const EdgeInsets.only(bottom: 12),
             padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(color: _panelDark.withOpacity(0.5), borderRadius: BorderRadius.circular(12), border: Border.all(color: _glassBorder)),
+            decoration: BoxDecoration(
+              color: isSelected ? _neonPurple.withOpacity(0.12) : _panelDark.withOpacity(0.5),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: isSelected ? _neonPurple.withOpacity(0.5) : _glassBorder),
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Expanded(child: Text(p['product_name'] ?? '', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
+                    if (bulkMode)
+                      Checkbox(
+                        value: isSelected,
+                        activeColor: _neonPurple,
+                        checkColor: Colors.white,
+                        side: const BorderSide(color: _textMuted, width: 1.5),
+                        onChanged: (_) {
+                          final set = Set<dynamic>.from(selected);
+                          if (isSelected) { set.remove(pid); } else { set.add(pid); }
+                          ref.read(_selectedProducts.notifier).state = set;
+                        },
+                      ),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(p['product_name'] ?? '', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                          const SizedBox(height: 4),
+                          Text(catName, style: const TextStyle(color: _neonPurple, fontSize: 11)),
+                        ],
+                      ),
+                    ),
                     Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2), decoration: BoxDecoration(color: isLowStock ? Colors.redAccent.withOpacity(0.1) : Colors.greenAccent.withOpacity(0.1), borderRadius: BorderRadius.circular(4)), child: Text('Qté: $qty', style: TextStyle(color: isLowStock ? Colors.redAccent : Colors.greenAccent, fontSize: 11, fontWeight: FontWeight.bold))),
                   ],
                 ),
-                const SizedBox(height: 4),
-                Text(catName, style: const TextStyle(color: _neonPurple, fontSize: 11)),
-                const SizedBox(height: 4),
-                Text('Code: ${p['barcode'] ?? '—'}', style: const TextStyle(color: _textMuted, fontFamily: 'monospace', fontSize: 11)),
+                if (barcode.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Center(
+                    child: BarcodeWidget(
+                      barcode: Barcode.code128(),
+                      data: barcode,
+                      width: 160,
+                      height: 30,
+                      drawText: true,
+                    ),
+                  ),
+                ],
                 const Divider(color: _glassBorder, height: 24),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
