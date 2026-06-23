@@ -84,6 +84,7 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
         _feedbackData = feedbackRow;
         _isLoading = false;
       });
+      _syncPaymentStatus();
     } catch (e) {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -1559,6 +1560,32 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
     return (_netProfit / finalCost) * 100;
   }
 
+  Future<void> _syncPaymentStatus() async {
+    final client = ref.read(supabaseClientProvider);
+    try {
+      final ticket = await client.from('repair_tickets')
+          .select('final_cost, paid_amount')
+          .eq('id', widget.ticketId)
+          .maybeSingle();
+      if (ticket == null) return;
+      final finalCost = (ticket['final_cost'] as num?)?.toDouble() ?? 0;
+      final paid = (ticket['paid_amount'] as num?)?.toDouble() ?? 0;
+
+      String newStatus;
+      if (paid >= finalCost && finalCost > 0) {
+        newStatus = 'Payé';
+      } else if (paid > 0) {
+        newStatus = 'Avance';
+      } else {
+        newStatus = 'Non payé';
+      }
+
+      await client.from('repair_tickets')
+          .update({'payment_status': newStatus})
+          .eq('id', widget.ticketId);
+    } catch (_) {}
+  }
+
   Future<void> _recordPayment(double amount, String method, String? notes) async {
     final client = ref.read(supabaseClientProvider);
     final user = Supabase.instance.client.auth.currentUser;
@@ -1570,6 +1597,16 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
         'notes': notes,
         'created_by': user?.id,
       });
+      // Update paid_amount on ticket
+      final paymentsSum = await client.from('repair_payments')
+          .select('amount')
+          .eq('ticket_id', widget.ticketId);
+      final totalPaid = paymentsSum.fold<num>(0, (s, p) => s + (p['amount'] as num));
+      final advance = (_ticket?['advance_payment'] as num?)?.toDouble() ?? 0;
+      await client.from('repair_tickets')
+          .update({'paid_amount': totalPaid.toDouble() + advance})
+          .eq('id', widget.ticketId);
+      await _syncPaymentStatus();
       _fetchFullData();
       _showToast('Paiement de $amount DA enregistré', _neonEmerald);
     } catch (e) {

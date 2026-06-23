@@ -47,7 +47,7 @@ class _RepairsReportScreenState extends ConsumerState<RepairsReportScreen> {
     setState(() => _loading = true);
     final client = ref.read(supabaseClientProvider);
     var sel = client.from('repair_tickets')
-        .select('*, customers(full_name), profiles!repair_tickets_assigned_technician_id_fkey(full_name)');
+        .select('*, customers(full_name), assigned_technician:profiles(full_name)');
     if (_technicianFilter != null) sel = sel.eq('assigned_technician_id', _technicianFilter!);
     if (_statusFilter != null) sel = sel.eq('status', _statusFilter!);
     if (_deviceTypeFilter != null) sel = sel.eq('device_type', _deviceTypeFilter!);
