@@ -59,6 +59,17 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
       final paymentsData = await client.from('repair_payments').select('*').eq('ticket_id', widget.ticketId).order('paid_at', ascending: false);
       final warrantyData = await client.from('warranty_claims').select('*').or('original_ticket_id.eq.${widget.ticketId},claim_ticket_id.eq.${widget.ticketId}').order('claimed_at', ascending: false);
       final photosData = await client.from('repair_photos').select('*').eq('ticket_id', widget.ticketId).order('created_at', ascending: false);
+      final photos = List<Map<String, dynamic>>.from(photosData);
+      for (final photo in photos) {
+        final path = photo['storage_path'] as String?;
+        if (path != null && path.isNotEmpty) {
+          try {
+            photo['signed_url'] = await Supabase.instance.client.storage.from('repair-photos').createSignedUrl(path, 3600);
+          } catch (_) {
+            photo['signed_url'] = null;
+          }
+        }
+      }
       final notifData = await client.from('repair_notifications').select('*').eq('ticket_id', widget.ticketId).order('sent_at', ascending: false);
       final feedbackRow = await client.from('customer_feedback').select('*').eq('ticket_id', widget.ticketId).maybeSingle();
 
@@ -68,7 +79,7 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
         _parts = List<Map<String, dynamic>>.from(partsData);
         _payments = List<Map<String, dynamic>>.from(paymentsData);
         _warrantyClaims = List<Map<String, dynamic>>.from(warrantyData);
-        _photos = List<Map<String, dynamic>>.from(photosData);
+        _photos = photos;
         _notifications = List<Map<String, dynamic>>.from(notifData);
         _feedbackData = feedbackRow;
         _isLoading = false;
@@ -832,7 +843,7 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
   }
 
   Future<void> _viewPhoto(String path, String? caption) async {
-    final url = Supabase.instance.client.storage.from('repair-photos').getPublicUrl(path);
+    final signedUrl = await Supabase.instance.client.storage.from('repair-photos').createSignedUrl(path, 3600);
     await showDialog(
       context: context,
       builder: (ctx) => Dialog(
@@ -842,7 +853,7 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
           children: [
             ClipRRect(
               borderRadius: BorderRadius.circular(16),
-              child: Image.network(url, fit: BoxFit.contain, height: 400),
+              child: Image.network(signedUrl, fit: BoxFit.contain, height: 400),
             ),
             if (caption != null)
               Padding(
@@ -1674,6 +1685,7 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
                         }
                         final photo = _photos[i - 1];
                         final path = photo['storage_path'] as String? ?? '';
+                        final thumbUrl = (photo['signed_url'] as String?) ?? '';
                         return GestureDetector(
                           onTap: () => _viewPhoto(path, photo['caption'] as String?),
                           onLongPress: () => _deletePhoto(photo, color),
@@ -1682,10 +1694,10 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(8),
                               border: Border.all(color: _glassBorder),
-                              image: DecorationImage(
-                                image: NetworkImage(Supabase.instance.client.storage.from('repair-photos').getPublicUrl(path)),
+                              image: thumbUrl.isNotEmpty ? DecorationImage(
+                                image: NetworkImage(thumbUrl),
                                 fit: BoxFit.cover,
-                              ),
+                              ) : null,
                             ),
                           ),
                         );
