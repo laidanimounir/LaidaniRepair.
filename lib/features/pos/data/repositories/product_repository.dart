@@ -21,7 +21,7 @@ class ProductRepository {
     String? search,
   }) async {
     var query = _client.from('products').select(
-        'id, category_id, product_name, barcode, stock_quantity, reference_price');
+        'id, category_id, product_name, barcode, stock_quantity, reference_price, purchase_price, min_stock');
 
     if (categoryId != null) {
       query = query.eq('category_id', categoryId);

@@ -34,6 +34,9 @@ class CartState {
 
   double get finalAmount => totalAmount - discount - promoDiscount;
 
+  double get totalProfit =>
+      items.fold(0.0, (sum, item) => sum + item.profit);
+
   bool get isEmpty => items.isEmpty;
   int get itemCount => items.fold(0, (sum, item) => sum + item.quantity);
 
@@ -82,6 +85,7 @@ class CartNotifier extends StateNotifier<CartState> {
             product: product,
             quantity: 1,
             sellPrice: product.referencePrice,
+            costPrice: product.purchasePrice,
           ),
         ],
       );

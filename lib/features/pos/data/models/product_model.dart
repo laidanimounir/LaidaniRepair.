@@ -5,6 +5,8 @@ class ProductModel {
   final String? barcode;
   final int stockQuantity;
   final double referencePrice;
+  final double purchasePrice;
+  final int minStock;
 
   const ProductModel({
     required this.id,
@@ -13,9 +15,13 @@ class ProductModel {
     this.barcode,
     required this.stockQuantity,
     required this.referencePrice,
+    this.purchasePrice = 0.0,
+    this.minStock = 5,
   });
 
   bool get inStock => stockQuantity > 0;
+
+  bool get isLowStock => stockQuantity <= minStock;
 
   factory ProductModel.fromJson(Map<String, dynamic> json) {
     return ProductModel(
@@ -25,6 +31,8 @@ class ProductModel {
       barcode: json['barcode'] as String?,
       stockQuantity: json['stock_quantity'] as int? ?? 0,
       referencePrice: (json['reference_price'] as num?)?.toDouble() ?? 0.0,
+      purchasePrice: (json['purchase_price'] as num?)?.toDouble() ?? 0.0,
+      minStock: (json['min_stock'] as num?)?.toInt() ?? 5,
     );
   }
 
@@ -35,6 +43,8 @@ class ProductModel {
     String? barcode,
     int? stockQuantity,
     double? referencePrice,
+    double? purchasePrice,
+    int? minStock,
   }) {
     return ProductModel(
       id: id ?? this.id,
@@ -43,6 +53,8 @@ class ProductModel {
       barcode: barcode ?? this.barcode,
       stockQuantity: stockQuantity ?? this.stockQuantity,
       referencePrice: referencePrice ?? this.referencePrice,
+      purchasePrice: purchasePrice ?? this.purchasePrice,
+      minStock: minStock ?? this.minStock,
     );
   }
 
