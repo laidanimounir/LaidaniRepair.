@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:laidani_repair/core/theme/app_theme.dart';
@@ -47,7 +48,9 @@ class SalesReportsScreen extends ConsumerWidget {
     ]).toList();
 
     final csv = await exportToCsv(headers: headers, rows: rows);
-    await shareCsv(context, csv, 'ventes_${DateTime.now().millisecondsSinceEpoch}.csv');
+    final dir = Directory.systemTemp;
+    final file = File('${dir.path}/ventes_${DateTime.now().millisecondsSinceEpoch}.csv');
+    await file.writeAsString(csv);
   }
 
   @override

@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -325,7 +326,9 @@ Future<void> _exportCustomersCsv(BuildContext context, WidgetRef ref) async {
   ]).toList();
 
   final csv = await exportToCsv(headers: headers, rows: rows);
-  await shareCsv(context, csv, 'clients_${DateTime.now().millisecondsSinceEpoch}.csv');
+  final dir = Directory.systemTemp;
+  final file = File('${dir.path}/clients_${DateTime.now().millisecondsSinceEpoch}.csv');
+  await file.writeAsString(csv);
 }
 
 // ─── Customer Detail Bottom Sheet ─────────────────────────────────────────────

@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fl_chart/fl_chart.dart';
@@ -73,7 +74,9 @@ class _RepairsReportScreenState extends ConsumerState<RepairsReportScreen> {
       t['delivered_at']?.toString() ?? '',
     ]).toList();
     final csv = await exportToCsv(headers: headers, rows: rows);
-    await shareCsv(context, csv, 'reparations_${DateTime.now().millisecondsSinceEpoch}.csv');
+    final dir = Directory.systemTemp;
+    final file = File('${dir.path}/reparations_${DateTime.now().millisecondsSinceEpoch}.csv');
+    await file.writeAsString(csv);
   }
 
   @override

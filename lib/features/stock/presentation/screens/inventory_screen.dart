@@ -26,6 +26,7 @@ const Color _neonPurple = Color(0xFFB000FF);
 
 final _bulkModeInventory = StateProvider<bool>((ref) => false);
 final _selectedProducts = StateProvider<Set<dynamic>>((ref) => Set<dynamic>());
+final _lowStockFilterProvider = StateProvider<bool>((ref) => false);
 
 class InventoryScreen extends ConsumerStatefulWidget {
   const InventoryScreen({super.key});
@@ -35,7 +36,6 @@ class InventoryScreen extends ConsumerStatefulWidget {
 }
 
 class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTickerProviderStateMixin {
-  bool _lowStockOnly = false;
   late final TabController _tabCtrl;
 
   @override
@@ -176,10 +176,11 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
       loading: () => const Center(child: CircularProgressIndicator(color: _neonPurple)),
       error: (e, _) => Center(child: Text('Erreur: $e', style: const TextStyle(color: Colors.redAccent))),
       data: (list) {
-        final filtered = _lowStockOnly
+        final lowStockOnly = ref.watch(_lowStockFilterProvider);
+        final filtered = lowStockOnly
             ? list.where((p) => (p['stock_quantity'] ?? 0) <= (p['min_stock'] ?? 5)).toList()
             : list;
-        if (filtered.isEmpty) return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(_lowStockOnly ? Icons.check_circle_outline : Icons.inventory_2_outlined, size: 64, color: _textMuted.withOpacity(0.2)), const SizedBox(height: 16), Text(_lowStockOnly ? 'Aucun produit en rupture.' : 'Aucun produit en stock.', style: const TextStyle(color: _textMuted))]));
+        if (filtered.isEmpty) return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(lowStockOnly ? Icons.check_circle_outline : Icons.inventory_2_outlined, size: 64, color: _textMuted.withOpacity(0.2)), const SizedBox(height: 16), Text(lowStockOnly ? 'Aucun produit en rupture.' : 'Aucun produit en stock.', style: const TextStyle(color: _textMuted))]));
         return isDesktop ? _buildDesktopTable(context, ref, filtered) : _buildMobileList(context, ref, filtered);
       },
     );
@@ -321,8 +322,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
               const SizedBox(width: 12),
               Expanded(child: Text('$lowStockCount produit(s) en rupture de stock', style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold, fontSize: 13))),
               TextButton(
-                onPressed: () => setState(() => _lowStockOnly = !_lowStockOnly),
-                child: Text(_lowStockOnly ? 'Voir tout' : 'Voir', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                onPressed: () => ref.read(_lowStockFilterProvider.notifier).state = !ref.read(_lowStockFilterProvider),
+                child: Text(ref.watch(_lowStockFilterProvider) ? 'Voir tout' : 'Voir', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
               ),
             ],
           ),
@@ -527,7 +528,30 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
 
 
   Future<void> _exportInventoryCsv(BuildContext context, WidgetRef ref) async {
-    final products = ref.read(inventoryListProvider).valueOrNull ?? [];
+    final lowStockOnly = ref.read(_lowStockFilterProvider);
+    final allProducts = ref.read(inventoryListProvider).valueOrNull ?? [];
+
+    var products = allProducts;
+    if (lowStockOnly) {
+      products = products.where((p) {
+        final stock = (p['stock_quantity'] as num?)?.toInt() ?? 0;
+        final min = (p['min_stock'] as num?)?.toInt() ?? 5;
+        return stock <= min;
+      }).toList();
+    }
+
+    if (products.isEmpty) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Aucun produit à exporter avec le filtre actif.'), backgroundColor: Colors.orangeAccent),
+        );
+      }
+      return;
+    }
+
+    final filterLabel = lowStockOnly ? 'stock_faible' : 'complet';
+    final fileName = 'inventaire_$filterLabel.csv';
+
     final headers = ['Nom', 'Code barres', 'Catégorie', 'Prix achat', 'Prix vente', 'Stock', 'Stock min'];
     final rows = products.map((p) => [
       p['product_name'] ?? '',
@@ -538,8 +562,21 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
       (p['stock_quantity'] as num?)?.toInt() ?? 0,
       (p['min_stock'] as num?)?.toInt() ?? 5,
     ]).toList();
+
     final csv = await exportToCsv(headers: headers, rows: rows);
-    await shareCsv(context, csv, 'inventaire_${DateTime.now().millisecondsSinceEpoch}.csv');
+    final dir = Directory.systemTemp;
+    final file = File('${dir.path}/$fileName');
+    await file.writeAsString(csv);
+
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Exporté ${products.length} produits → $fileName'),
+          backgroundColor: Colors.green,
+          duration: const Duration(seconds: 4),
+        ),
+      );
+    }
   }
 
   Future<void> _analyzeStockIA(BuildContext context, WidgetRef ref) async {

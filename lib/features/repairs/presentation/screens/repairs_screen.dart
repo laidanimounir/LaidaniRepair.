@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:math';
 import 'dart:ui';
 import 'package:flutter/material.dart';
@@ -822,7 +823,9 @@ Future<void> _exportSelectedCsv(WidgetRef ref, List<Map<String, dynamic>> ticket
     (t['estimated_cost'] as num?)?.toString() ?? '0',
   ]).toList();
   final csv = await exportToCsv(headers: headers, rows: rows);
-  await shareCsv(ref.context, csv, 'tickets_${DateTime.now().millisecondsSinceEpoch}.csv');
+  final dir = Directory.systemTemp;
+  final file = File('${dir.path}/tickets_${DateTime.now().millisecondsSinceEpoch}.csv');
+  await file.writeAsString(csv);
 }
 
 // ─── New Ticket Dialog (Two-Column Cyber Layout - Responsive) ─────────────────────────────
