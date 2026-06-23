@@ -1,14 +1,34 @@
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+
 class AppConstants {
   AppConstants._();
 
   // Supabase
-  static const String supabaseUrl = 'https://igxpwxfruasfpvfagbaw.supabase.co';
-  static const String supabaseAnonKey =
-      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlneHB3eGZydWFzZnB2ZmFnYmF3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI5MzY5MzEsImV4cCI6MjA4ODUxMjkzMX0.sp6Cx1pzaQuaZxhxTtGZJZa7FUUAmL9z0jGhrTqCq0E';
+  static String get supabaseUrl {
+    final url = dotenv.env['SUPABASE_URL'];
+    if (url == null || url.isEmpty) {
+      throw StateError(
+        'SUPABASE_URL is not set. Make sure the .env file exists at the '
+        'project root and contains SUPABASE_URL=<your-project-url>',
+      );
+    }
+    return url;
+  }
+
+  static String get supabaseAnonKey {
+    final key = dotenv.env['SUPABASE_ANON_KEY'];
+    if (key == null || key.isEmpty) {
+      throw StateError(
+        'SUPABASE_ANON_KEY is not set. Make sure the .env file exists at the '
+        'project root and contains SUPABASE_ANON_KEY=<your-anon-key>',
+      );
+    }
+    return key;
+  }
 
   // App
-  static const String appName = 'LaidaniRepair';
-  static const String groqApiKey = 'PLACEHOLDER_GROQ_KEY';
+  static String get appName => dotenv.env['APP_NAME'] ?? 'LaidaniRepair';
+  static String get groqApiKey => dotenv.env['GROQ_API_KEY'] ?? '';
 
   // Roles
   static const String roleOwner = 'owner';
