@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -100,6 +101,15 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
                           icon: const Icon(Icons.file_download, color: _textMuted),
                           tooltip: 'Exporter CSV',
                           onPressed: () => _exportInventoryCsv(context, ref),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.qr_code_2, color: _textMuted),
+                          tooltip: 'Imprimer tous les codes-barres',
+                          onPressed: () async {
+                            final all = ref.read(inventoryListProvider).valueOrNull ?? [];
+                            if (all.isEmpty) return;
+                            await _printAllBarcodes(context, all);
+                          },
                         ),
                         IconButton(
                           icon: const Icon(Icons.psychology, color: _textMuted),
@@ -399,6 +409,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
                 ),
                 const SizedBox(height: 4),
                 Text(catName, style: const TextStyle(color: _neonPurple, fontSize: 11)),
+                const SizedBox(height: 4),
+                Text('Code: ${p['barcode'] ?? '—'}', style: const TextStyle(color: _textMuted, fontFamily: 'monospace', fontSize: 11)),
                 const Divider(color: _glassBorder, height: 24),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -549,6 +561,51 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
     await Printing.layoutPdf(onLayout: (_) => pdf.save());
   }
 
+  Future<void> _printAllBarcodes(BuildContext context, List<Map<String, dynamic>> products) async {
+    final pdf = pw.Document();
+    const labelWidth = 162.0;
+    const labelHeight = 108.0;
+
+    for (final product in products) {
+      final name = product['product_name']?.toString() ?? 'Produit';
+      final barcode = product['barcode']?.toString() ?? 'N/A';
+      final price = (product['reference_price'] as num?)?.toDouble() ?? 0;
+
+      pdf.addPage(
+        pw.Page(
+          pageFormat: PdfPageFormat(labelWidth, labelHeight),
+          build: (pw.Context ctx) {
+            return pw.Container(
+              padding: const pw.EdgeInsets.all(8),
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.center,
+                mainAxisAlignment: pw.MainAxisAlignment.center,
+                children: [
+                  pw.Text('LaidaniRepair', style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
+                  pw.SizedBox(height: 4),
+                  pw.Text(name, style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold)),
+                  pw.SizedBox(height: 4),
+                  pw.BarcodeWidget(
+                    barcode: pw.Barcode.code128(),
+                    data: barcode,
+                    width: 120,
+                    height: 40,
+                    drawText: true,
+                    textStyle: pw.TextStyle(fontSize: 8),
+                  ),
+                  pw.SizedBox(height: 4),
+                  pw.Text('$price DA', style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)),
+                ],
+              ),
+            );
+          },
+        ),
+      );
+    }
+
+    await Printing.layoutPdf(onLayout: (_) => pdf.save());
+  }
+
   void _showProductDialog(BuildContext context, WidgetRef ref, {Map<String, dynamic>? existing}) {
   showDialog(
     context: context,
@@ -575,13 +632,20 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
     super.initState();
     final p = widget.existing;
     _nameCtrl = TextEditingController(text: p?['product_name'] ?? '');
-    _barcodeCtrl = TextEditingController(text: p?['barcode'] ?? '');
+    _barcodeCtrl = TextEditingController(text: p?['barcode'] ?? _generateBarcode());
     _buyPriceCtrl = TextEditingController(text: (p?['purchase_price'] as num?)?.toString() ?? '');
     _sellPriceCtrl = TextEditingController(text: (p?['reference_price'] as num?)?.toString() ?? '');
     _qtyCtrl = TextEditingController(text: (p?['stock_quantity'] ?? 0).toString());
     _minStockCtrl = TextEditingController(text: (p?['min_stock'] ?? 5).toString());
     _selectedCatId = p?['category_id'];
     _existingImagePath = p?['image_path'] as String?;
+  }
+
+  String _generateBarcode() {
+    final now = DateTime.now();
+    final datePart = '${now.year.toString().substring(2)}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}';
+    final randomPart = Random().nextInt(9999).toString().padLeft(4, '0');
+    return 'LR$datePart$randomPart';
   }
 
   Future<void> _pickImage() async {
@@ -608,10 +672,17 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
     if (compressedBytes == null) return null;
 
     final storagePath = '$productId.jpg';
-    await Supabase.instance.client.storage
-        .from('product-images')
-        .uploadBinary(storagePath, compressedBytes,
-            fileOptions: const FileOptions(upsert: true, contentType: 'image/jpeg'));
+    final tempDir = Directory.systemTemp;
+    final tempFile = File('${tempDir.path}/product_upload_$productId.jpg');
+    await tempFile.writeAsBytes(compressedBytes);
+    try {
+      await Supabase.instance.client.storage
+          .from('product-images')
+          .upload(storagePath, tempFile,
+              fileOptions: const FileOptions(upsert: true, contentType: 'image/jpeg'));
+    } finally {
+      if (await tempFile.exists()) await tempFile.delete();
+    }
 
     return storagePath;
   }
@@ -632,6 +703,31 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
   }
 
   InputDecoration _inputDeco(String label, IconData icon) => InputDecoration(labelText: label, labelStyle: const TextStyle(color: _textMuted, fontSize: 13), prefixIcon: Icon(icon, color: _textMuted, size: 18), filled: true, fillColor: _bgCarbon.withOpacity(0.5), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: _glassBorder)), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: _glassBorder)), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: _neonPurple)));
+
+  Widget _barcodeField() {
+    return TextField(
+      controller: _barcodeCtrl,
+      readOnly: widget.existing != null,
+      style: const TextStyle(color: Colors.white, fontFamily: 'monospace', fontSize: 14, fontWeight: FontWeight.bold),
+      decoration: InputDecoration(
+        labelText: 'Code Barres',
+        labelStyle: const TextStyle(color: _textMuted, fontSize: 13),
+        prefixIcon: const Icon(Icons.qr_code, color: _textMuted, size: 18),
+        suffixIcon: widget.existing == null
+            ? IconButton(
+                icon: const Icon(Icons.refresh, color: _neonPurple, size: 18),
+                tooltip: 'Générer un nouveau code',
+                onPressed: () => setState(() => _barcodeCtrl.text = _generateBarcode()),
+              )
+            : null,
+        filled: true,
+        fillColor: _bgCarbon.withOpacity(0.5),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: _glassBorder)),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: _glassBorder)),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: _neonPurple)),
+      ),
+    );
+  }
 
   Future<void> _submit() async {
     if (_nameCtrl.text.trim().isEmpty || _selectedCatId == null) {
@@ -675,7 +771,7 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
     return Dialog(backgroundColor: _panelDark.withOpacity(0.95), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: _glassBorder, width: 1.5)), child: Container(width: dialogWidth, padding: const EdgeInsets.all(24), child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [const Icon(Icons.inventory_2, color: _neonPurple), const SizedBox(width: 12), Text(widget.existing != null ? 'MODIFIER LE PRODUIT' : 'NOUVEAU PRODUIT', style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold))]), const SizedBox(height: 24),
       TextField(controller: _nameCtrl, style: const TextStyle(color: Colors.white), decoration: _inputDeco('Nom du produit *', Icons.label)), const SizedBox(height: 16),
-      Row(children: [Expanded(child: FutureBuilder(future: widget.ref.read(supabaseClientProvider).from('categories').select(), builder: (ctx, snap) { if (!snap.hasData) return const CircularProgressIndicator(color: _neonPurple); final cats = snap.data as List; return DropdownButtonFormField<int>(value: _selectedCatId, dropdownColor: _panelDark, style: const TextStyle(color: Colors.white), decoration: _inputDeco('Catégorie *', Icons.category), items: cats.map((c) => DropdownMenuItem<int>(value: c['id'] as int, child: Text(c['category_name']))).toList(), onChanged: (v) => setState(() => _selectedCatId = v)); })), const SizedBox(width: 16), Expanded(child: TextField(controller: _barcodeCtrl, style: const TextStyle(color: Colors.white), decoration: _inputDeco('Code Barres', Icons.qr_code)))]), const SizedBox(height: 16),
+      Row(children: [Expanded(child: FutureBuilder(future: widget.ref.read(supabaseClientProvider).from('categories').select(), builder: (ctx, snap) { if (!snap.hasData) return const CircularProgressIndicator(color: _neonPurple); final cats = snap.data as List; return DropdownButtonFormField<int>(value: _selectedCatId, dropdownColor: _panelDark, style: const TextStyle(color: Colors.white), decoration: _inputDeco('Catégorie *', Icons.category), items: cats.map((c) => DropdownMenuItem<int>(value: c['id'] as int, child: Text(c['category_name']))).toList(), onChanged: (v) => setState(() => _selectedCatId = v)); })), const SizedBox(width: 16), Expanded(child: _barcodeField())]), const SizedBox(height: 16),
       Row(children: [Expanded(child: TextField(controller: _buyPriceCtrl, keyboardType: TextInputType.number, style: const TextStyle(color: Colors.white), decoration: _inputDeco('Prix d\'achat (DA)', Icons.shopping_cart))), const SizedBox(width: 16), Expanded(child: TextField(controller: _sellPriceCtrl, keyboardType: TextInputType.number, style: const TextStyle(color: Colors.white), decoration: _inputDeco('Prix de vente (DA)', Icons.sell)))]), const SizedBox(height: 16),
       Row(children: [Expanded(child: TextField(controller: _qtyCtrl, keyboardType: TextInputType.number, style: const TextStyle(color: Colors.white), decoration: _inputDeco('Quantité en stock', Icons.layers))), const SizedBox(width: 16), Expanded(child: TextField(controller: _minStockCtrl, keyboardType: TextInputType.number, style: const TextStyle(color: Colors.white), decoration: _inputDeco('Seuil d\'alerte (Min)', Icons.warning_amber)))]), const SizedBox(height: 16),
       // Image section
