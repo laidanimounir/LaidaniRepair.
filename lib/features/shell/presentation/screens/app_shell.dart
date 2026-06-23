@@ -35,6 +35,8 @@ class _NavItem {
   });
 }
 
+final _mobileScaffoldKey = GlobalKey<ScaffoldState>();
+
 const _navItems = <_NavItem>[
   _NavItem(
     label: 'Tableau de Bord',
@@ -1122,20 +1124,29 @@ class _MobileShell extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final bottomItems = items.take(5).toList();
+    final bottomItems = items.take(4).toList();
     final currentBottomIndex = currentIndex.clamp(0, bottomItems.length - 1);
     final activeNeon = isOwner ? _ownerNeon : _workerNeon;
 
     return Scaffold(
+      key: _mobileScaffoldKey,
       backgroundColor: _bgCarbon,
       appBar: AppBar(
         backgroundColor: _panelDark,
         elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.menu, color: _textMuted),
+          onPressed: () => _mobileScaffoldKey.currentState?.openDrawer(),
+        ),
         title: Text(
-          bottomItems[currentBottomIndex].label,
+          currentIndex < bottomItems.length
+              ? bottomItems[currentBottomIndex].label
+              : items[currentIndex].label,
           style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
         ),
         actions: [
+          _buildNotificationBell(),
+          const SizedBox(width: 4),
           IconButton(
             icon: const Icon(Icons.search, color: _textMuted),
             onPressed: () => showSearch(
@@ -1149,7 +1160,13 @@ class _MobileShell extends ConsumerWidget {
           ),
         ],
       ),
-      body: child,
+      drawer: _buildMobileDrawer(context, ref, activeNeon, currentIndex),
+      body: Column(
+        children: [
+          const OfflineBanner(),
+          Expanded(child: child),
+        ],
+      ),
       bottomNavigationBar: Container(
         decoration: const BoxDecoration(
           border: Border(top: BorderSide(color: _glassBorder, width: 1)),
@@ -1174,10 +1191,131 @@ class _MobileShell extends ConsumerWidget {
   }
 
   String _shortLabel(String label) {
+    if (label == 'Tableau de Bord') return 'Accueil';
     if (label == 'Point de Vente') return 'POS';
+    if (label == 'Réparations') return 'Atelier';
+    if (label == 'Mon Atelier') return 'Tâches';
     if (label == 'Clients & Dettes') return 'Clients';
     if (label == 'Stock & Achats') return 'Stock';
     if (label == "Journal d'audit") return 'Audit';
     return label;
+  }
+
+  Widget _buildMobileDrawer(BuildContext context, WidgetRef ref, Color activeNeon, int currentIndex) {
+    return Drawer(
+      backgroundColor: _bgCarbon,
+      child: SafeArea(
+        child: Column(
+          children: [
+            // Drawer header
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(20, 28, 20, 20),
+              decoration: const BoxDecoration(
+                color: _panelDark,
+                border: Border(bottom: BorderSide(color: _glassBorder, width: 1)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: activeNeon.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(Icons.handyman, color: activeNeon, size: 28),
+                  ),
+                  const SizedBox(height: 14),
+                  const Text(
+                    'LaidaniRepair',
+                    style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900, letterSpacing: 1),
+                  ),
+                  const SizedBox(height: 4),
+                  FutureBuilder(
+                    future: ref.read(profileProvider.future),
+                    builder: (_, snap) {
+                      final name = snap.data?.fullName ?? '';
+                      return Text(
+                        name.isNotEmpty ? name : 'Menu',
+                        style: const TextStyle(color: _textMuted, fontSize: 13),
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+            // Drawer items
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                children: [
+                  for (int i = 0; i < items.length; i++)
+                    _MobileDrawerItem(
+                      item: items[i],
+                      isSelected: i == currentIndex,
+                      activeNeon: activeNeon,
+                      onTap: () {
+                        Navigator.pop(context); // close drawer
+                        context.go(items[i].route);
+                      },
+                    ),
+                ],
+              ),
+            ),
+            // Drawer footer
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: const BoxDecoration(
+                color: _panelDark,
+                border: Border(top: BorderSide(color: _glassBorder, width: 1)),
+              ),
+              child: Text(
+                'v1.0.0',
+                style: const TextStyle(color: _textMuted, fontSize: 11),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MobileDrawerItem extends StatelessWidget {
+  final _NavItem item;
+  final bool isSelected;
+  final Color activeNeon;
+  final VoidCallback onTap;
+
+  const _MobileDrawerItem({
+    required this.item,
+    required this.isSelected,
+    required this.activeNeon,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      leading: Icon(
+        isSelected ? item.activeIcon : item.icon,
+        color: isSelected ? activeNeon : _textMuted,
+      ),
+      title: Text(
+        item.label,
+        style: TextStyle(
+          color: isSelected ? Colors.white : _textMuted,
+          fontWeight: isSelected ? FontWeight.w700 : FontWeight.normal,
+          fontSize: 14,
+        ),
+      ),
+      selected: isSelected,
+      selectedTileColor: activeNeon.withOpacity(0.08),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      onTap: onTap,
+    );
   }
 }
