@@ -16,6 +16,7 @@ import 'package:printing/printing.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:barcode_widget/barcode_widget.dart';
+import 'package:file_picker/file_picker.dart';
 
 // --- Cyber Glass Theme Constants ---
 const Color _bgCarbon = Color(0xFF050914);
@@ -550,7 +551,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
     }
 
     final filterLabel = lowStockOnly ? 'stock_faible' : 'complet';
-    final fileName = 'inventaire_$filterLabel.csv';
+    final defaultFileName = 'inventaire_$filterLabel.csv';
 
     final headers = ['Nom', 'Code barres', 'Catégorie', 'Prix achat', 'Prix vente', 'Stock', 'Stock min'];
     final rows = products.map((p) => [
@@ -564,19 +565,30 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
     ]).toList();
 
     final csv = await exportToCsv(headers: headers, rows: rows);
-    final dir = Directory.systemTemp;
-    final file = File('${dir.path}/$fileName');
-    await file.writeAsString(csv);
 
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Exporté ${products.length} produits → $fileName'),
-          backgroundColor: Colors.green,
-          duration: const Duration(seconds: 4),
-        ),
-      );
-    }
+    if (!context.mounted) return;
+
+    final path = await showDialog<String>(
+      context: context,
+      builder: (ctx) => _ExportPreviewDialog(
+        productCount: products.length,
+        isLowStockFilter: lowStockOnly,
+        previewRows: rows.take(5).toList(),
+        headers: headers,
+        defaultFileName: defaultFileName,
+        csvContent: csv,
+      ),
+    );
+
+    if (path == null || !context.mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Exporté ${products.length} produits → $path'),
+        backgroundColor: Colors.green,
+        duration: const Duration(seconds: 4),
+      ),
+    );
   }
 
   Future<void> _analyzeStockIA(BuildContext context, WidgetRef ref) async {
@@ -938,5 +950,162 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
       ]), const SizedBox(height: 24),
       Row(mainAxisAlignment: MainAxisAlignment.end, children: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Annuler', style: TextStyle(color: _textMuted))), const SizedBox(width: 16), ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: _neonPurple, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))), onPressed: _isLoading ? null : _submit, child: _isLoading ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : Text(widget.existing != null ? 'ENREGISTRER' : 'AJOUTER', style: const TextStyle(fontWeight: FontWeight.bold)))])
     ]))));
+  }
+}
+
+class _ExportPreviewDialog extends StatelessWidget {
+  final int productCount;
+  final bool isLowStockFilter;
+  final List<List<dynamic>> previewRows;
+  final List<String> headers;
+  final String defaultFileName;
+  final String csvContent;
+
+  const _ExportPreviewDialog({
+    required this.productCount,
+    required this.isLowStockFilter,
+    required this.previewRows,
+    required this.headers,
+    required this.defaultFileName,
+    required this.csvContent,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isDesktop = screenWidth >= 600;
+
+    return AlertDialog(
+      backgroundColor: _panelDark,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: _glassBorder, width: 1.5)),
+      title: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(color: _neonPurple.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
+            child: const Icon(Icons.file_download, color: _neonPurple, size: 20),
+          ),
+          const SizedBox(width: 12),
+          const Expanded(
+            child: Text('Aperçu de l\'export', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+      content: SizedBox(
+        width: isDesktop ? 520 : screenWidth * 0.9,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Summary
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: isLowStockFilter ? Colors.redAccent.withOpacity(0.08) : _neonPurple.withOpacity(0.06),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: isLowStockFilter ? Colors.redAccent.withOpacity(0.25) : _neonPurple.withOpacity(0.2)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(isLowStockFilter ? Icons.warning_amber_rounded : Icons.inventory_2_outlined,
+                          color: isLowStockFilter ? Colors.redAccent : _neonPurple, size: 18),
+                      const SizedBox(width: 8),
+                      Text(
+                        '$productCount produit(s)',
+                        style: TextStyle(color: isLowStockFilter ? Colors.redAccent : _neonPurple, fontWeight: FontWeight.w900, fontSize: 18),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    isLowStockFilter ? 'Filtre actif : Stock faible uniquement' : 'Export : Inventaire complet',
+                    style: const TextStyle(color: _textMuted, fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            // Preview table header
+            const Text('Aperçu (5 premières lignes)', style: TextStyle(color: _textMuted, fontSize: 11, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            // Preview table
+            ConstrainedBox(
+              constraints: BoxConstraints(maxHeight: isDesktop ? 200 : 160),
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: SingleChildScrollView(
+                  child: DataTable(
+                    headingRowColor: WidgetStateProperty.all(_bgCarbon.withOpacity(0.5)),
+                    dataRowMinHeight: 32,
+                    dataRowMaxHeight: 36,
+                    headingRowHeight: 32,
+                    columnSpacing: 16,
+                    horizontalMargin: 12,
+                    columns: const [
+                      DataColumn(label: Text('Nom', style: TextStyle(color: _textMuted, fontSize: 11, fontWeight: FontWeight.bold))),
+                      DataColumn(label: Text('Code', style: TextStyle(color: _textMuted, fontSize: 11, fontWeight: FontWeight.bold))),
+                      DataColumn(label: Text('Prix vente', style: TextStyle(color: _textMuted, fontSize: 11, fontWeight: FontWeight.bold))),
+                      DataColumn(label: Text('Qté', style: TextStyle(color: _textMuted, fontSize: 11, fontWeight: FontWeight.bold))),
+                    ],
+                    rows: previewRows.map((row) {
+                      return DataRow(cells: [
+                        DataCell(Text(row[0].toString(), style: const TextStyle(color: Colors.white, fontSize: 12))),
+                        DataCell(Text(row[1].toString().isEmpty ? '—' : row[1].toString(), style: const TextStyle(color: _textMuted, fontFamily: 'monospace', fontSize: 11))),
+                        DataCell(Text('${row[4].toString()} DA', style: const TextStyle(color: Colors.greenAccent, fontSize: 12, fontWeight: FontWeight.w600))),
+                        DataCell(Text(row[5].toString(), style: const TextStyle(color: Colors.white, fontSize: 12))),
+                      ]);
+                    }).toList(),
+                  ),
+                ),
+              ),
+            ),
+            if (productCount > 5)
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Text('... et ${productCount - 5} autre(s)', style: const TextStyle(color: _textMuted, fontSize: 11, fontStyle: FontStyle.italic)),
+              ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Annuler', style: TextStyle(color: _textMuted)),
+        ),
+        ElevatedButton.icon(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: _neonPurple,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          ),
+          icon: const Icon(Icons.save_alt, size: 18),
+          label: const Text('Exporter CSV', style: TextStyle(fontWeight: FontWeight.bold)),
+          onPressed: () async {
+            Navigator.pop(context); // close preview first
+
+            final path = await FilePicker.platform.saveFile(
+              dialogTitle: 'Enregistrer l\'export CSV',
+              fileName: defaultFileName,
+              type: FileType.custom,
+              allowedExtensions: ['csv'],
+            );
+
+            if (path == null) return; // user cancelled
+
+            final file = File(path);
+            await file.writeAsString(csvContent);
+
+            if (context.mounted) {
+              Navigator.pop(context, path); // return path to caller
+            }
+          },
+        ),
+      ],
+    );
   }
 }
