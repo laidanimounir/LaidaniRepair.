@@ -108,13 +108,15 @@ class _SelfCheckinScreenState extends ConsumerState<SelfCheckinScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final formWidth = screenWidth > 500 ? 500.0 : screenWidth - 48;
     return Scaffold(
       backgroundColor: _bgCarbon,
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
           child: Container(
-            width: 500,
+            width: formWidth,
             padding: const EdgeInsets.all(32),
             decoration: BoxDecoration(
               color: _panelDark.withOpacity(0.95),

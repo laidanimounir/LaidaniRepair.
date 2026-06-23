@@ -54,11 +54,15 @@ class _CheckoutDialogState extends ConsumerState<CheckoutDialog> {
           const Text('Paiement'),
         ],
       ),
-      content: SizedBox(
-        width: 400,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
+      content: LayoutBuilder(
+        builder: (ctx, constraints) {
+          final maxWidth = constraints.maxWidth;
+          return SizedBox(
+            width: maxWidth > 400 ? 400 : maxWidth,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
             // Summary card
             Container(
               padding: const EdgeInsets.all(14),
@@ -186,7 +190,10 @@ class _CheckoutDialogState extends ConsumerState<CheckoutDialog> {
               ),
             ],
           ],
-        ),
+              ),
+            ),
+          );
+        },
       ),
       actions: [
         TextButton(
