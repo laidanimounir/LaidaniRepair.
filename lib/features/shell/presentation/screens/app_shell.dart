@@ -344,7 +344,7 @@ class _DesktopShellState extends ConsumerState<_DesktopShell> {
                         children: [
                           const SyncStatusIndicator(),
                           const SizedBox(width: 8),
-                          _buildNotificationBell(),
+                          const _NotificationBell(),
                           const SizedBox(width: 8),
                           IconButton(
                             icon: Icon(
@@ -559,7 +559,85 @@ class _DesktopShellState extends ConsumerState<_DesktopShell> {
     showSearch(context: context, delegate: _GlobalSearchDelegate(ref: ref));
   }
 
-  Widget _buildNotificationBell() {
+}
+
+IconData _notifTypeIcon(String type) {
+  switch (type) {
+    case 'low_stock': return Icons.inventory_2;
+    case 'overdue_repair': return Icons.build;
+    case 'pending_reminder': return Icons.notification_important;
+    default: return Icons.notifications;
+  }
+}
+
+Color _notifTypeColor(String type) {
+  switch (type) {
+    case 'low_stock': return Colors.redAccent;
+    case 'overdue_repair': return Colors.orangeAccent;
+    case 'pending_reminder': return Colors.blueAccent;
+    default: return _textMuted;
+  }
+}
+
+void _showNotificationPanel(BuildContext context, List<AppNotification> notifs) {
+  showDialog(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      backgroundColor: _panelDark,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: _glassBorder)),
+      title: Row(
+        children: [
+          const Icon(Icons.notifications, color: _ownerNeon),
+          const SizedBox(width: 8),
+          const Text('Notifications', style: TextStyle(color: Colors.white)),
+          const Spacer(),
+          Text('${notifs.length}', style: const TextStyle(color: _textMuted, fontSize: 13)),
+        ],
+      ),
+      content: SizedBox(
+        width: 400,
+        height: 400,
+        child: notifs.isEmpty
+            ? const Center(child: Text('Aucune notification', style: TextStyle(color: _textMuted)))
+            : ListView.separated(
+                itemCount: notifs.length,
+                separatorBuilder: (_, __) => const Divider(color: _glassBorder, height: 1),
+                itemBuilder: (ctx, i) {
+                  final n = notifs[i];
+                  final icon = _notifTypeIcon(n.type);
+                  final color = _notifTypeColor(n.type);
+                  return ListTile(
+                    leading: CircleAvatar(
+                      backgroundColor: color.withOpacity(0.15),
+                      child: Icon(icon, color: color, size: 18),
+                    ),
+                    title: Text(n.title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+                    subtitle: Text(n.message, style: const TextStyle(color: _textMuted, fontSize: 11), maxLines: 2),
+                    onTap: n.route != null
+                        ? () {
+                            Navigator.pop(ctx);
+                            context.go(n.route!);
+                          }
+                        : null,
+                  );
+                },
+              ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(ctx),
+          child: const Text('Fermer', style: TextStyle(color: _textMuted)),
+        ),
+      ],
+    ),
+  );
+}
+
+class _NotificationBell extends ConsumerWidget {
+  const _NotificationBell();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
     final notifsAsync = ref.watch(notificationsProvider);
 
     return notifsAsync.when(
@@ -594,79 +672,7 @@ class _DesktopShellState extends ConsumerState<_DesktopShell> {
       },
     );
   }
-
-  void _showNotificationPanel(BuildContext context, List<AppNotification> notifs) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: _panelDark,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: _glassBorder)),
-        title: Row(
-          children: [
-            const Icon(Icons.notifications, color: _ownerNeon),
-            const SizedBox(width: 8),
-            const Text('Notifications', style: TextStyle(color: Colors.white)),
-            const Spacer(),
-            Text('${notifs.length}', style: const TextStyle(color: _textMuted, fontSize: 13)),
-          ],
-        ),
-        content: SizedBox(
-          width: 400,
-          height: 400,
-          child: notifs.isEmpty
-              ? const Center(child: Text('Aucune notification', style: TextStyle(color: _textMuted)))
-              : ListView.separated(
-                  itemCount: notifs.length,
-                  separatorBuilder: (_, __) => const Divider(color: _glassBorder, height: 1),
-                  itemBuilder: (ctx, i) {
-                    final n = notifs[i];
-                    final icon = _notifTypeIcon(n.type);
-                    final color = _notifTypeColor(n.type);
-                    return ListTile(
-                      leading: CircleAvatar(
-                        backgroundColor: color.withOpacity(0.15),
-                        child: Icon(icon, color: color, size: 18),
-                      ),
-                      title: Text(n.title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
-                      subtitle: Text(n.message, style: const TextStyle(color: _textMuted, fontSize: 11), maxLines: 2),
-                      onTap: n.route != null
-                          ? () {
-                              Navigator.pop(ctx);
-                              context.go(n.route!);
-                            }
-                          : null,
-                    );
-                  },
-                ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Fermer', style: TextStyle(color: _textMuted)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  IconData _notifTypeIcon(String type) {
-    switch (type) {
-      case 'low_stock': return Icons.inventory_2;
-      case 'overdue_repair': return Icons.build;
-      case 'pending_reminder': return Icons.notification_important;
-      default: return Icons.notifications;
-    }
-  }
-
-  Color _notifTypeColor(String type) {
-    switch (type) {
-      case 'low_stock': return Colors.redAccent;
-      case 'overdue_repair': return Colors.orangeAccent;
-      case 'pending_reminder': return Colors.blueAccent;
-      default: return _textMuted;
-    }
-  }
-
+}
   void _showLanguagePicker(BuildContext context, WidgetRef ref) {
     final currentLocale = ref.read(localeProvider);
     showDialog(
@@ -1145,7 +1151,7 @@ class _MobileShell extends ConsumerWidget {
           style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
         ),
         actions: [
-          _buildNotificationBell(),
+          const _NotificationBell(),
           const SizedBox(width: 4),
           IconButton(
             icon: const Icon(Icons.search, color: _textMuted),

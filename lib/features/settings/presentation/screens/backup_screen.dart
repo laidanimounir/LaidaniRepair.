@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:math';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -306,8 +307,8 @@ Future<void> _performBackup(BuildContext context, WidgetRef ref, String password
 
     // Derive a 32-byte AES key from the password using SHA-256
     final keyBytes = sha256.convert(utf8.encode(password)).bytes;
-    final key = enc.Key(keyBytes.sublist(0, 32));
-    final iv = enc.IV(List.generate(16, (_) => Random.secure().nextInt(256)));
+    final key = enc.Key(Uint8List.fromList(keyBytes.sublist(0, 32)));
+    final iv = enc.IV(Uint8List.fromList(List.generate(16, (_) => Random.secure().nextInt(256))));
     final encrypter = enc.Encrypter(enc.AES(key, mode: enc.AESMode.cbc));
     final encrypted = encrypter.encrypt(jsonStr, iv: iv);
 
