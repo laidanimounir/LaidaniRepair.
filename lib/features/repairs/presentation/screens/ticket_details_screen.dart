@@ -1932,6 +1932,7 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
   Widget build(BuildContext context) {
     final isOwner = ref.watch(isOwnerProvider);
     final activeNeon = isOwner ? _neonCyan : _neonEmerald;
+    final isDesktop = MediaQuery.of(context).size.width >= 850;
 
     if (_isLoading) return const Scaffold(backgroundColor: _bgCarbon, body: Center(child: CircularProgressIndicator(color: _neonCyan)));
     if (_ticket == null) return Scaffold(backgroundColor: _bgCarbon, body: Center(child: TextButton(onPressed: () => context.pop(), child: const Text('TICKET INTROUVABLE - RETOUR', style: TextStyle(color: Colors.redAccent)))));
@@ -1947,21 +1948,83 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
 
     return Scaffold(
       backgroundColor: _bgCarbon,
-      body: Stack(
+      body: Column(
         children: [
-          _buildAmbientGlow(activeNeon),
-          Column(
-            children: [
-              _buildTopHeader(context, activeNeon),
-              Expanded(
-                child: Row(
-                  children: [
-                    _buildLeftSidebar(activeNeon),
-                    Expanded(child: _buildMainOperations(activeNeon, isOwner)),
-                  ],
-                ),
-              ),
-            ],
+          _buildTopHeader(context, activeNeon, isDesktop),
+          Expanded(
+            child: isDesktop
+                ? Row(
+                    children: [
+                      _buildLeftSidebar(activeNeon),
+                      Expanded(child: SingleChildScrollView(padding: const EdgeInsets.all(16), child: _buildMainOperations(activeNeon, isOwner))),
+                    ],
+                  )
+                : SingleChildScrollView(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      children: [
+                        _buildMobileInfoCards(activeNeon),
+                        const SizedBox(height: 12),
+                        _buildMainOperations(activeNeon, isOwner),
+                      ],
+                    ),
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _printTicketFromDetails() async {
+    try {
+      final client = ref.read(supabaseClientProvider);
+      final parts = await client.from('repair_parts').select('*, products(product_name)').eq('ticket_id', widget.ticketId);
+      final ticket = await client.from('repair_tickets').select('*, customers(full_name, phone_number)').eq('id', widget.ticketId).single();
+      await previewOrPrintPdf(ticket, List<Map<String, dynamic>>.from(parts));
+    } catch (e) {
+      _showToast('Erreur impression: $e', Colors.redAccent);
+    }
+  }
+
+  Widget _buildMobileInfoCards(Color color) {
+    final bool isAnon = _ticket?['customer_id'] == null;
+    final String clientName = isAnon ? (_ticket?['client_name_temp'] ?? 'Anonyme') : (_ticket?['customers']?['full_name'] ?? 'Client');
+    final String clientPhone = isAnon ? (_ticket?['client_phone_temp'] ?? 'N/A') : (_ticket?['customers']?['phone_number'] ?? 'N/A');
+
+    return Column(
+      children: [
+        _buildCompactCard(Icons.phone_android, 'Appareil', _ticket?['device_name'] ?? 'N/A', color),
+        const SizedBox(height: 6),
+        _buildCompactCard(Icons.person, 'Client', '$clientName — $clientPhone', color),
+        const SizedBox(height: 6),
+        _buildCompactCard(Icons.visibility, 'Diagnostic', _ticket?['pre_diagnostic'] ?? 'Aucun', color),
+        const SizedBox(height: 6),
+        _buildCompactCard(Icons.attach_money, 'Finances', 'Est: ${((_ticket?['estimated_cost'] as num?)?.toDouble() ?? 0).toStringAsFixed(0)} DA — Avance: ${((_ticket?['advance_payment'] as num?)?.toDouble() ?? 0).toStringAsFixed(0)} DA', color),
+        if (_ticket?['imei']?.toString().isNotEmpty == true) ...[
+          const SizedBox(height: 6),
+          _buildCompactCard(Icons.qr_code_scanner, 'IMEI', _ticket!['imei'].toString(), color),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildCompactCard(IconData icon, String label, String value, Color color) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(color: _panelDark, borderRadius: BorderRadius.circular(10), border: Border.all(color: _glassBorder)),
+      child: Row(
+        children: [
+          Icon(icon, color: color, size: 18),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: const TextStyle(color: _textMuted, fontSize: 10, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 2),
+                Text(value, style: const TextStyle(color: Colors.white, fontSize: 13), maxLines: 2, overflow: TextOverflow.ellipsis),
+              ],
+            ),
           ),
         ],
       ),
@@ -1975,25 +2038,29 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
     );
   }
 
-  Widget _buildTopHeader(BuildContext context, Color color) {
+  Widget _buildTopHeader(BuildContext context, Color color, bool isDesktop) {
     final qrHash = _ticket?['qr_code_hash']?.toString() ?? 'TICKET';
     final shortHash = qrHash.length > 8 ? qrHash.substring(0, 8) : qrHash;
     final isCanceled = _ticket?['status'] == 'Annulé';
 
     return Container(
-      height: 80, padding: const EdgeInsets.symmetric(horizontal: 24),
+      height: isDesktop ? 72 : 56, padding: EdgeInsets.symmetric(horizontal: isDesktop ? 24 : 12),
       decoration: const BoxDecoration(color: _panelDark, border: Border(bottom: BorderSide(color: _glassBorder))),
       child: Row(
         children: [
-          IconButton(icon: const Icon(Icons.arrow_back, color: Colors.white), onPressed: () => context.pop()),
-          const SizedBox(width: 16),
-          Text('DOSSIER #${shortHash.toUpperCase()}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 18, letterSpacing: 2)),
-          const Spacer(),
+          IconButton(icon: const Icon(Icons.arrow_back, color: Colors.white, size: 20), padding: EdgeInsets.zero, constraints: const BoxConstraints(), onPressed: () => context.pop()),
+          const SizedBox(width: 12),
+          Expanded(child: Text('DOSSIER #${shortHash.toUpperCase()}', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: isDesktop ? 16 : 14, letterSpacing: 1), overflow: TextOverflow.ellipsis)),
           _buildStatusBadge(_ticket?['status'] ?? 'En attente', color),
-          if (!isCanceled) ...[
-            const SizedBox(width: 16),
+          const SizedBox(width: 8),
+          IconButton(
+            icon: Icon(Icons.print, color: color, size: 18),
+            tooltip: 'Imprimer bon de dépôt',
+            onPressed: () => _printTicketFromDetails(),
+          ),
+          if (!isCanceled)
             PopupMenuButton<String>(
-              icon: const Icon(Icons.more_vert, color: Colors.white),
+              icon: const Icon(Icons.more_vert, color: Colors.white, size: 18),
               color: _panelDark,
               itemBuilder: (_) => [
                 const PopupMenuItem(value: 'duplicate', child: Text('Dupliquer le ticket', style: TextStyle(color: _neonCyan))),
@@ -2003,8 +2070,7 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
                 if (val == 'cancel') _cancelTicket();
                 if (val == 'duplicate') _duplicateTicket();
               },
-            )
-          ]
+            ),
         ],
       ),
     );
