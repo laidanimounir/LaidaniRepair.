@@ -1067,9 +1067,8 @@ class _NewTicketFormState extends State<_NewTicketForm> {
                     ),
             ),
             
-            // Footer Actions (desktop only — mobile uses Stepper controls)
-            if (isDesktop)
-              Container(
+            // Footer Actions
+            Container(
               padding: const EdgeInsets.all(20),
               decoration: const BoxDecoration(border: Border(top: BorderSide(color: _glassBorder))),
               child: Row(
