@@ -15,6 +15,13 @@ import 'package:laidani_repair/core/utils/invoice_pdf.dart';
 import 'package:laidani_repair/core/utils/quote_pdf.dart';
 import 'package:laidani_repair/core/utils/warranty_pdf.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:laidani_repair/constants/repair_status.dart';
+import 'package:laidani_repair/services/print_service.dart';
+import 'package:laidani_repair/widgets/repairs/ticket_header_widget.dart';
+import 'package:laidani_repair/widgets/repairs/device_info_sidebar.dart';
+import 'package:laidani_repair/widgets/repairs/repair_parts_widget.dart';
+import 'package:laidani_repair/widgets/repairs/ticket_financials_widget.dart';
+import 'package:laidani_repair/widgets/repairs/stock_search_dialog.dart';
 
 // --- Cyber Glass Theme Constants ---
 const Color _bgCarbon = Color(0xFF050914);
@@ -1695,12 +1702,9 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
   void _showSearchStockDialog(BuildContext context, Color color) {
     showDialog(
       context: context,
-      builder: (ctx) => BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
-        child: _StockSearchDialog(
-          color: color,
-          onProductSelected: (product) => _addPartToTicket(product),
-        ),
+      builder: (ctx) => StockSearchDialog(
+        color: color,
+        onProductSelected: (product) => _addPartToTicket(product),
       ),
     );
   }
@@ -2039,208 +2043,39 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
   }
 
   Widget _buildTopHeader(BuildContext context, Color color, bool isDesktop) {
-    final qrHash = _ticket?['qr_code_hash']?.toString() ?? 'TICKET';
-    final shortHash = qrHash.length > 8 ? qrHash.substring(0, 8) : qrHash;
-    final isCanceled = _ticket?['status'] == 'Annulé';
-
-    return Container(
-      height: isDesktop ? 72 : 56, padding: EdgeInsets.symmetric(horizontal: isDesktop ? 24 : 12),
-      decoration: const BoxDecoration(color: _panelDark, border: Border(bottom: BorderSide(color: _glassBorder))),
-      child: Row(
-        children: [
-          IconButton(icon: const Icon(Icons.arrow_back, color: Colors.white, size: 20), padding: EdgeInsets.zero, constraints: const BoxConstraints(), onPressed: () => context.pop()),
-          const SizedBox(width: 12),
-          Expanded(child: Text('DOSSIER #${shortHash.toUpperCase()}', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: isDesktop ? 16 : 14, letterSpacing: 1), overflow: TextOverflow.ellipsis)),
-          _buildStatusBadge(_ticket?['status'] ?? 'En attente', color),
-          const SizedBox(width: 8),
-          IconButton(
-            icon: Icon(Icons.print, color: color, size: 18),
-            tooltip: 'Imprimer bon de dépôt',
-            onPressed: () => _printTicketFromDetails(),
-          ),
-          if (!isCanceled)
-            PopupMenuButton<String>(
-              icon: const Icon(Icons.more_vert, color: Colors.white, size: 18),
-              color: _panelDark,
-              itemBuilder: (_) => [
-                const PopupMenuItem(value: 'duplicate', child: Text('Dupliquer le ticket', style: TextStyle(color: _neonCyan))),
-                const PopupMenuItem(value: 'cancel', child: Text('Annuler le dossier (Retour Stock)', style: TextStyle(color: Colors.redAccent))),
-              ],
-              onSelected: (val) {
-                if (val == 'cancel') _cancelTicket();
-                if (val == 'duplicate') _duplicateTicket();
-              },
-            ),
-        ],
-      ),
+    return TicketHeaderWidget(
+      ticket: _ticket!,
+      accentColor: color,
+      isDesktop: isDesktop,
+      onBack: () => context.pop(),
+      onDuplicate: _duplicateTicket,
+      onCancel: _cancelTicket,
     );
   }
 
   Widget _buildLeftSidebar(Color color) {
-    final bool isAnon = _ticket?['customer_id'] == null;
-    final String clientName = isAnon ? (_ticket?['client_name_temp'] ?? 'Anonyme') : (_ticket?['customers']?['full_name'] ?? 'Client');
-    final String clientPhone = isAnon ? (_ticket?['client_phone_temp'] ?? 'N/A') : (_ticket?['customers']?['phone_number'] ?? 'N/A');
-
-    return Container(
-      width: 350, padding: const EdgeInsets.all(24),
-      decoration: const BoxDecoration(border: Border(right: BorderSide(color: _glassBorder))),
-      child: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildSectionHeader('INFORMATIONS APPAREIL', Icons.smartphone, color),
-            _buildInfoTile('Modèle', _ticket?['device_name'] ?? 'N/A', Icons.phone_android),
-            _buildInfoTile('IMEI / SN', _ticket?['imei'] ?? 'N/A', Icons.qr_code_scanner),
-            _buildInfoTile('Code / Schéma', _ticket?['device_password'] ?? 'Aucun', Icons.lock_open),
-            const SizedBox(height: 24),
-            _buildSectionHeader('DIAGNOSTIC INITIAL', Icons.visibility, color),
-            Text(_ticket?['pre_diagnostic'] ?? 'Aucun constat.', style: const TextStyle(color: _textMuted, fontSize: 13, height: 1.5)),
-            const SizedBox(height: 24),
-            _buildSectionHeader('PHOTOS', Icons.camera_alt, color),
-            SizedBox(
-              height: 80,
-              child: Row(
-                children: [
-                  Expanded(
-                    child: ListView.builder(
-                      scrollDirection: Axis.horizontal,
-                      itemCount: _photos.length + 1,
-                      itemBuilder: (ctx, i) {
-                        if (i == 0) {
-                          return GestureDetector(
-                            onTap: () => _uploadPhoto(color),
-                            child: Container(
-                              width: 70, height: 70, margin: const EdgeInsets.only(right: 8),
-                              decoration: BoxDecoration(color: _bgCarbon, borderRadius: BorderRadius.circular(8), border: Border.all(color: _glassBorder, style: BorderStyle.solid)),
-                              child: const Icon(Icons.add_a_photo, color: _textMuted, size: 24),
-                            ),
-                          );
-                        }
-                        final photo = _photos[i - 1];
-                        final path = photo['storage_path'] as String? ?? '';
-                        final thumbUrl = (photo['signed_url'] as String?) ?? '';
-                        return GestureDetector(
-                          onTap: () => _viewPhoto(path, photo['caption'] as String?),
-                          onLongPress: () => _deletePhoto(photo, color),
-                          child: Container(
-                            width: 70, height: 70, margin: const EdgeInsets.only(right: 8),
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: _glassBorder),
-                              image: thumbUrl.isNotEmpty ? DecorationImage(
-                                image: NetworkImage(thumbUrl),
-                                fit: BoxFit.cover,
-                              ) : null,
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
-            _buildSectionHeader('NOTIFICATIONS CLIENT', Icons.notifications, color),
-            SizedBox(
-              height: _notifications.isEmpty ? 80 : 120,
-              child: _notifications.isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        GestureDetector(
-                          onTap: () => _showNotificationDialog(color),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                            decoration: BoxDecoration(color: _neonCyan.withOpacity(0.1), borderRadius: BorderRadius.circular(8), border: Border.all(color: _neonCyan.withOpacity(0.3))),
-                            child: const Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.add_alert, color: _neonCyan, size: 16), SizedBox(width: 8), Text('Nouvelle notification', style: TextStyle(color: _neonCyan, fontSize: 12))]),
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        GestureDetector(
-                          onTap: () => _showWhatsAppStatusDialog(),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                            decoration: BoxDecoration(color: const Color(0xFF25D366).withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
-                            child: const Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.chat, color: Color(0xFF25D366), size: 12), SizedBox(width: 4), Text('Envoyer WA', style: TextStyle(color: Color(0xFF25D366), fontSize: 10))]),
-                          ),
-                        ),
-                      ],
-                    ),
-                  )
-                : Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: ListView.builder(
-                          itemCount: _notifications.length,
-                          itemBuilder: (ctx, i) {
-                            final n = _notifications[i];
-                            final method = n['notification_method'] ?? '';
-                            final status = n['notification_status'] ?? '';
-                            final date = DateTime.tryParse(n['sent_at'] ?? '')?.toString().substring(0, 16) ?? '';
-                            return Padding(
-                              padding: const EdgeInsets.only(bottom: 4),
-                              child: Row(
-                                children: [
-                                  Icon(_notifIcon(method), color: _textMuted, size: 14),
-                                  const SizedBox(width: 6),
-                                  Expanded(child: Text('$date $status', style: const TextStyle(color: _textMuted, fontSize: 11))),
-                                ],
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                      GestureDetector(
-                        onTap: () => _showNotificationDialog(color),
-                        child: Row(children: [Icon(Icons.add, color: _neonCyan, size: 14), const SizedBox(width: 4), Text('Ajouter', style: TextStyle(color: _neonCyan, fontSize: 11))]),
-                      ),
-                    ],
-                  ),
-            ),
-            const SizedBox(height: 24),
-            _buildSectionHeader('CLIENT', Icons.person, color),
-            Text(clientName, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
-            Text(clientPhone, style: const TextStyle(color: _textMuted, fontSize: 13)),
-            const SizedBox(height: 24),
-            _buildSectionHeader('TECHNICIEN AFFECTÉ', Icons.build, color),
-            FutureBuilder<List<Map<String, dynamic>>>(
-              future: ref.read(supabaseClientProvider).from('profiles').select('id, full_name').order('full_name'),
-              builder: (ctx, snap) {
-                final profiles = snap.data ?? [];
-                final currentId = _ticket?['assigned_technician_id'] as String?;
-                final currentName = profiles.where((p) => p['id'] == currentId).map((p) => p['full_name'] as String).firstOrNull ?? 'Non affecté';
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    InkWell(
-                      onTap: _ticket?['status'] == 'Annulé' ? null : () => _showAssignTechnicianDialog(profiles, currentId, color),
-                      borderRadius: BorderRadius.circular(8),
-                      child: Row(
-                        children: [
-                          Icon(Icons.person_pin, color: currentId != null ? _neonEmerald : _textMuted, size: 16),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(currentName, style: TextStyle(color: currentId != null ? Colors.white : _textMuted, fontSize: 13)),
-                          ),
-                          if (_ticket?['status'] != 'Annulé') ...[
-                            const SizedBox(width: 4),
-                            const Icon(Icons.edit, size: 12, color: _textMuted),
-                          ],
-                        ],
-                      ),
-                    ),
-                    if (snap.hasError)
-                      Text('Erreur: ${snap.error}', style: const TextStyle(color: Colors.redAccent, fontSize: 11)),
-                  ],
-                );
-              },
-            ),
-          ],
-        ),
-      ),
+    final profiles = <Map<String, dynamic>>[];
+    final currentId = _ticket?['assigned_technician_id'] as String?;
+    return FutureBuilder<List<Map<String, dynamic>>>(
+      future: ref.read(supabaseClientProvider).from('profiles').select('id, full_name').order('full_name'),
+      builder: (ctx, snap) {
+        final p = snap.data ?? [];
+        return DeviceInfoSidebar(
+          ticket: _ticket!,
+          accentColor: color,
+          photos: _photos,
+          notifications: _notifications,
+          profiles: p,
+          currentTechnicianId: currentId,
+          isCanceled: _ticket?['status'] == RepairStatus.annule,
+          onUploadPhoto: () => _uploadPhoto(color),
+          onViewPhoto: _viewPhoto,
+          onDeletePhoto: (photo) => _deletePhoto(photo, color),
+          onAddNotification: () => _showNotificationDialog(color),
+          onSendWhatsApp: _showWhatsAppStatusDialog,
+          onAssignTechnician: (profiles, currentId) => _showAssignTechnicianDialog(profiles, currentId, color),
+        );
+      },
     );
   }
 
@@ -2304,7 +2139,7 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
       children: [
         _buildQRCodeSection(color),
         const SizedBox(height: 16),
-        Expanded(child: _buildPartsSection(color)),
+        _buildPartsWidget(color, isOwner),
         const SizedBox(height: 16),
         _buildPaymentsSection(color),
         const SizedBox(height: 16),
@@ -2318,12 +2153,38 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
         const SizedBox(height: 16),
         _buildFeedbackSection(color),
         const SizedBox(height: 16),
-        _buildFinancialSummary(color),
+        _buildFinancialWidget(color),
         if (isOwner && _isNotCanceled) ...[
           const SizedBox(height: 16),
           _buildProfitMarginCard(color),
         ],
       ],
+    );
+  }
+
+  Widget _buildPartsWidget(Color color, bool isOwner) {
+    return RepairPartsWidget(
+      parts: _parts,
+      accentColor: color,
+      isCanceled: _ticket?['status'] == RepairStatus.annule,
+      isOwner: isOwner,
+      onAddPart: () => _showSearchStockDialog(context, color),
+      onEditPart: _editPartDetails,
+      onChangeStatus: _showPartStatusMenu,
+      onRemovePart: _removePart,
+      onSuggestAI: () => _suggestPartsAI(color),
+    );
+  }
+
+  Widget _buildFinancialWidget(Color color) {
+    return TicketFinancialsWidget(
+      ticket: _ticket!,
+      accentColor: color,
+      partsCost: _totalPartsCost,
+      totalPayments: _totalPayments,
+      isOwner: ref.watch(isOwnerProvider),
+      onEditLabor: () => _updateFinance('labor_cost', 'la Main d\'œuvre', (_ticket?['labor_cost'] as num?)?.toDouble() ?? 0),
+      onEditDiscount: () => _updateFinance('discount', 'la Remise', (_ticket?['discount'] as num?)?.toDouble() ?? 0),
     );
   }
 
