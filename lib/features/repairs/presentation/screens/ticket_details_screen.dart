@@ -387,6 +387,7 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
       ),
     );
 
+    if (!mounted) return;
     if (result == null) return;
 
     final client = ref.read(supabaseClientProvider);

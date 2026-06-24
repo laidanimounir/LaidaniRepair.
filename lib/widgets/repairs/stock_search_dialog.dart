@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:laidani_repair/constants/repair_status.dart';
 
@@ -55,10 +56,13 @@ class _StockSearchDialogState extends State<StockSearchDialog> {
         mainAxisSize: MainAxisSize.min,
         children: [
           TextField(
-            autofocus: true,
             style: const TextStyle(color: Colors.white, fontSize: 14),
             decoration: const InputDecoration(hintText: 'Rechercher une pièce...', hintStyle: TextStyle(color: _textMuted), prefixIcon: Icon(Icons.search, color: _textMuted), border: InputBorder.none),
-            onChanged: (v) => setState(() => _searchQuery = v),
+            onChanged: (v) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (mounted) setState(() => _searchQuery = v);
+              });
+            },
           ),
           if (!_isLoadingCats && _categories.isNotEmpty)
             SizedBox(
@@ -113,7 +117,14 @@ class _StockSearchDialogState extends State<StockSearchDialog> {
                     ),
                     ElevatedButton(
                       style: ElevatedButton.styleFrom(backgroundColor: _neonEmerald.withOpacity(0.1), foregroundColor: _neonEmerald, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6)),
-                      onPressed: stock == 0 ? () => _showZeroStockOverride(m) : () { Navigator.pop(context); widget.onProductSelected(m); },
+                      onPressed: stock == 0
+                          ? () => _showZeroStockOverride(m)
+                          : () {
+                              Navigator.pop(context);
+                              WidgetsBinding.instance.addPostFrameCallback((_) {
+                                widget.onProductSelected(m);
+                              });
+                            },
                       child: Text(stock == 0 ? 'Forcer' : 'Ajouter', style: const TextStyle(fontSize: 11)),
                     ),
                   ]),
@@ -149,7 +160,9 @@ class _StockSearchDialogState extends State<StockSearchDialog> {
               Navigator.pop(ctx);
               Navigator.pop(context);
               product['_override_reason'] = reasonCtrl.text.trim().isEmpty ? 'Dépassement stock autorisé' : reasonCtrl.text.trim();
-              widget.onProductSelected(product);
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                widget.onProductSelected(product);
+              });
             },
             child: const Text('Forcer l\'ajout'),
           ),
@@ -168,7 +181,11 @@ class _StockSearchDialogState extends State<StockSearchDialog> {
         selectedColor: _neonCyan,
         backgroundColor: _bgCarbon,
         side: BorderSide(color: selected ? _neonCyan : _glassBorder),
-        onSelected: (_) => setState(() => _selectedCategoryId = id),
+        onSelected: (_) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) setState(() => _selectedCategoryId = id);
+          });
+        },
       ),
     );
   }
