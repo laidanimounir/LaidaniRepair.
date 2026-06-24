@@ -82,15 +82,11 @@ class _RepairsScreenState extends ConsumerState<RepairsScreen> {
   String _scanBuffer = '';
   final _searchCtrl = TextEditingController();
   Timer? _debounce;
+  bool _isScannerActive = true;
 
   @override
   void initState() {
     super.initState();
-    _scanFocus.addListener(() {
-      if (!_scanFocus.hasFocus && _debounce == null) {
-        _scanFocus.requestFocus();
-      }
-    });
   }
 
   @override
@@ -162,6 +158,69 @@ class _RepairsScreenState extends ConsumerState<RepairsScreen> {
     );
   }
 
+  void _submitDesktopScan() {
+    final ctrl = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: _panelDark,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: _neonCyan)),
+        title: Row(
+          children: [
+            const Icon(Icons.qr_code_scanner, color: _neonCyan),
+            const SizedBox(width: 8),
+            const Text('Scanner / Saisir code', style: TextStyle(color: Colors.white)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: ctrl,
+              autofocus: true,
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                hintText: 'Collez ou scannez un code QR / ticket...',
+                hintStyle: const TextStyle(color: _textMuted, fontSize: 13),
+                filled: true,
+                fillColor: _bgCarbon.withOpacity(0.5),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: _glassBorder)),
+              ),
+              onSubmitted: (v) {
+                Navigator.pop(ctx);
+                _handleScanResult(v);
+              },
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              icon: const Icon(Icons.camera_alt, size: 16),
+              label: const Text('Ouvrir caméra'),
+              style: OutlinedButton.styleFrom(foregroundColor: _neonCyan),
+              onPressed: () {
+                Navigator.pop(ctx);
+                _showQrScanner();
+              },
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Annuler', style: TextStyle(color: _textMuted)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: _neonCyan, foregroundColor: _bgCarbon),
+            onPressed: () {
+              Navigator.pop(ctx);
+              _handleScanResult(ctrl.text);
+            },
+            child: const Text('Rechercher'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final ticketsAsync = ref.watch(_ticketsProvider);
@@ -190,15 +249,14 @@ class _RepairsScreenState extends ConsumerState<RepairsScreen> {
       body: Stack(
         children: [
           // --- Hidden HID scanner listener (desktop only) ---
-          if (isDesktop)
+          if (isDesktop && _isScannerActive)
             Positioned(
               left: -9999,
               child: SizedBox(
                 width: 1, height: 1,
-                child: TextField(
-                  focusNode: _scanFocus,
-                  autofocus: true,
-                  onChanged: (v) {
+                  child: TextField(
+                    focusNode: _scanFocus,
+                    onChanged: (v) {
                     if (!_scanStopwatch.isRunning) _scanStopwatch.start();
                     _scanBuffer = v;
                   },
@@ -211,7 +269,7 @@ class _RepairsScreenState extends ConsumerState<RepairsScreen> {
                       _handleScanResult(v);
                     }
                     Future.delayed(const Duration(milliseconds: 100), () {
-                      if (mounted) _scanFocus.requestFocus();
+                      if (mounted && _isScannerActive) _scanFocus.requestFocus();
                     });
                   },
                 ),
@@ -250,16 +308,21 @@ class _RepairsScreenState extends ConsumerState<RepairsScreen> {
                             decoration: InputDecoration(
                               hintText: 'Rechercher client, appareil, ticket...',
                               hintStyle: const TextStyle(color: _textMuted, fontSize: 13),
-                              prefixIcon: const Icon(Icons.search, color: _textMuted, size: 20),
+                              prefixIcon: IconButton(
+                                icon: const Icon(Icons.search, color: _textMuted, size: 20),
+                                onPressed: () {
+                                  _debounce?.cancel();
+                                  ref.read(_searchQueryProvider.notifier).state = _searchCtrl.text.trim();
+                                },
+                              ),
                               suffixIcon: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  if (!isDesktop)
-                                    IconButton(
-                                      icon: const Icon(Icons.qr_code_scanner, color: _neonCyan, size: 20),
-                                      tooltip: 'Scanner QR',
-                                      onPressed: _showQrScanner,
-                                    ),
+                                  IconButton(
+                                    icon: const Icon(Icons.qr_code_scanner, color: _neonCyan, size: 20),
+                                    tooltip: 'Scanner QR',
+                                    onPressed: isDesktop ? _submitDesktopScan : _showQrScanner,
+                                  ),
                                   if (searchQuery.isNotEmpty)
                                     IconButton(
                                       icon: const Icon(Icons.clear, color: _textMuted, size: 18),
@@ -289,6 +352,27 @@ class _RepairsScreenState extends ConsumerState<RepairsScreen> {
                             },
                           ),
                         ),
+                        if (isDesktop) ...[
+                          const SizedBox(width: 4),
+                          IconButton(
+                            icon: Icon(
+                              Icons.qr_code,
+                              color: _isScannerActive ? _neonEmerald : _textMuted,
+                              size: 20,
+                            ),
+                            tooltip: _isScannerActive ? 'Scanner HID actif' : 'Scanner HID désactivé',
+                            onPressed: () {
+                              setState(() {
+                                _isScannerActive = !_isScannerActive;
+                                if (_isScannerActive) {
+                                  _scanFocus.requestFocus();
+                                } else {
+                                  _scanFocus.unfocus();
+                                }
+                              });
+                            },
+                          ),
+                        ],
                         const SizedBox(width: 8),
                         IconButton(
                           icon: const Icon(Icons.refresh, color: _textMuted, size: 20),
