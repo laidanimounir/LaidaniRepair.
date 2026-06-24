@@ -1339,6 +1339,43 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
       await previewOrPrintWarrantyPdf(updatedTicket, List<Map<String, dynamic>>.from(parts));
     } catch (_) {}
     _showToast('Remise confirmée', Colors.green);
+
+    if (mounted) {
+      final confirm = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: _panelDark,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: _neonCyan)),
+          title: const Text('Marquer comme livré ?', style: TextStyle(color: Colors.white)),
+          content: const Text('L\'appareil a été remis au client. Voulez-vous passer le statut à « Livré » ?', style: TextStyle(color: _textMuted)),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Plus tard', style: TextStyle(color: _textMuted))),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: _neonEmerald, foregroundColor: _bgCarbon),
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Oui, Livré'),
+            ),
+          ],
+        ),
+      );
+      if (confirm == true) {
+        final ticketId = widget.ticketId;
+        await client.from('repair_tickets').update({
+          'status': 'Livré',
+          'delivered_at': DateTime.now().toIso8601String(),
+        }).eq('id', ticketId);
+        await client.from('repair_ticket_events').insert({
+          'ticket_id': ticketId,
+          'event_type': 'status_change',
+          'old_value': _ticket?['status'],
+          'new_value': 'Livré',
+          'created_by': user?.id,
+          'notes': 'Livré automatiquement après remise confirmée',
+        });
+        await _syncPaymentStatus();
+        _fetchFullData();
+      }
+    }
   }
 
   Future<void> _scheduleMaintenanceReminder(SupabaseClient client) async {
@@ -1611,7 +1648,13 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
       await client.from('repair_tickets')
           .update({'payment_status': newStatus})
           .eq('id', widget.ticketId);
-    } catch (_) {}
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erreur sync paiement: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
   }
 
   Future<void> _recordPayment(double amount, String method, String? notes) async {

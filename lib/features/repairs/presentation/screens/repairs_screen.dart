@@ -803,8 +803,16 @@ Future<void> _showBulkStatusDialog(WidgetRef ref, Set<String> selected) async {
   );
   if (status == null) return;
   final client = ref.read(supabaseClientProvider);
+  final user = Supabase.instance.client.auth.currentUser;
   for (final id in selected) {
     await client.from('repair_tickets').update({'status': status}).eq('id', id);
+    await client.from('repair_ticket_events').insert({
+      'ticket_id': id,
+      'event_type': 'status_change',
+      'new_value': status,
+      'created_by': user?.id,
+      'notes': 'Changement de statut groupé: → $status',
+    });
   }
   ref.invalidate(_ticketsProvider);
   ref.read(_selectedTicketsProvider.notifier).state = {};
