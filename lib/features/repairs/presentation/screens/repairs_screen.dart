@@ -18,6 +18,7 @@ const Color _panelDark = Color(0xFF0A0F1A);
 const Color _glassBorder = Color(0x1AFFFFFF);
 const Color _textMuted = Color(0xFF8A9BB4);
 const Color _neonCyan = Color(0xFF00E5FF);
+const Color _neonEmerald = Color(0xFF10B981);
 
 // ─── Providers ────────────────────────────────────────────────────────────────
 
@@ -905,9 +906,20 @@ class _NewTicketFormState extends State<_NewTicketForm> {
   final _costCtrl = TextEditingController();
   final _advanceCtrl = TextEditingController();
   final _laborCtrl = TextEditingController();
-  DateTime? _estimatedCompletionDate; 
+  DateTime? _estimatedCompletionDate;
+
+  String _deviceLockType = 'Aucun';
+  final _lockCodeCtrl = TextEditingController();
+  bool _lockCodeVisible = false;
+  final Set<String> _conditionChecklist = {};
+  int _currentStep = 0;
 
   bool _isLoading = false;
+
+  static const _brandSuggestions = [
+    'Samsung', 'Apple', 'Huawei', 'Xiaomi', 'Oppo', 'Vivo',
+    'Realme', 'Tecno', 'Infinix', 'Nokia', 'Autre',
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -918,7 +930,7 @@ class _NewTicketFormState extends State<_NewTicketForm> {
       backgroundColor: Colors.transparent,
       insetPadding: EdgeInsets.all(isDesktop ? 24 : 12),
       child: Container(
-        width: isDesktop ? 900 : double.infinity,
+        width: isDesktop ? 560 : double.infinity,
         constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.9),
         decoration: BoxDecoration(
           color: _panelDark.withOpacity(0.95),
@@ -943,33 +955,100 @@ class _NewTicketFormState extends State<_NewTicketForm> {
             
             // Form Body
             Expanded(
-              child: Padding(
-                padding: EdgeInsets.all(isDesktop ? 24 : 16),
-                child: isDesktop 
-                  ? Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(flex: 5, child: _buildLeftColumn()),
-                        Container(width: 1, color: _glassBorder, margin: const EdgeInsets.symmetric(horizontal: 24)),
-                        Expanded(flex: 4, child: _buildRightColumn()),
-                      ],
-                    )
-                  : SingleChildScrollView(
+              child: isDesktop
+                  ? SingleChildScrollView(
+                      padding: const EdgeInsets.all(24),
                       child: Column(
                         children: [
-                          _buildLeftColumn(),
-                          const SizedBox(height: 24),
-                          const Divider(color: _glassBorder),
-                          const SizedBox(height: 24),
-                          _buildRightColumn(),
+                          _buildClientSection(),
+                          const SizedBox(height: 32),
+                          _buildDeviceSection(),
+                          const SizedBox(height: 32),
+                          _buildSecuritySection(),
+                          const SizedBox(height: 32),
+                          _buildConditionSection(),
+                          const SizedBox(height: 32),
+                          _buildProblemSection(),
+                          const SizedBox(height: 32),
+                          _buildFinancialSection(),
                         ],
                       ),
+                    )
+                  : Stepper(
+                      type: StepperType.vertical,
+                      currentStep: _currentStep,
+                      onStepContinue: () {
+                        if (_currentStep < 5) {
+                          setState(() => _currentStep += 1);
+                        } else {
+                          _submit();
+                        }
+                      },
+                      onStepCancel: () {
+                        if (_currentStep > 0) {
+                          setState(() => _currentStep -= 1);
+                        }
+                      },
+                      onStepTapped: (step) => setState(() => _currentStep = step),
+                      controlsBuilder: (context, details) => Padding(
+                        padding: const EdgeInsets.only(top: 16),
+                        child: Row(
+                          children: [
+                            if (_currentStep > 0)
+                              TextButton(
+                                onPressed: details.onStepCancel,
+                                child: const Text('Précédent', style: TextStyle(color: _textMuted)),
+                              ),
+                            const Spacer(),
+                            ElevatedButton(
+                              onPressed: details.onStepContinue,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: _neonCyan,
+                                foregroundColor: _bgCarbon,
+                              ),
+                              child: Text(_currentStep == 5 ? 'Terminer' : 'Suivant'),
+                            ),
+                          ],
+                        ),
+                      ),
+                      steps: [
+                        Step(
+                          title: const Text('Client', style: TextStyle(color: Colors.white, fontSize: 11)),
+                          content: _buildClientSection(),
+                          isActive: _currentStep >= 0,
+                        ),
+                        Step(
+                          title: const Text('Appareil', style: TextStyle(color: Colors.white, fontSize: 11)),
+                          content: _buildDeviceSection(),
+                          isActive: _currentStep >= 1,
+                        ),
+                        Step(
+                          title: const Text('Sécurité', style: TextStyle(color: Colors.white, fontSize: 11)),
+                          content: _buildSecuritySection(),
+                          isActive: _currentStep >= 2,
+                        ),
+                        Step(
+                          title: const Text('État', style: TextStyle(color: Colors.white, fontSize: 11)),
+                          content: _buildConditionSection(),
+                          isActive: _currentStep >= 3,
+                        ),
+                        Step(
+                          title: const Text('Problème', style: TextStyle(color: Colors.white, fontSize: 11)),
+                          content: _buildProblemSection(),
+                          isActive: _currentStep >= 4,
+                        ),
+                        Step(
+                          title: const Text('Finances', style: TextStyle(color: Colors.white, fontSize: 11)),
+                          content: _buildFinancialSection(),
+                          isActive: _currentStep >= 5,
+                        ),
+                      ],
                     ),
-              ),
             ),
             
-            // Footer Actions
-            Container(
+            // Footer Actions (desktop only — mobile uses Stepper controls)
+            if (isDesktop)
+              Container(
               padding: const EdgeInsets.all(20),
               decoration: const BoxDecoration(border: Border(top: BorderSide(color: _glassBorder))),
               child: Row(
@@ -1001,137 +1080,253 @@ class _NewTicketFormState extends State<_NewTicketForm> {
     );
   }
 
-  // --- Left Column ---
-  Widget _buildLeftColumn() {
-    return SingleChildScrollView(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildSectionTitle('1. Informations Client', Icons.person_outline),
-          SwitchListTile(
-            title: const Text('Client de passage (Anonyme)', style: TextStyle(color: Colors.white, fontSize: 14)),
-            subtitle: const Text('Ne pas enregistrer ce client dans la base', style: TextStyle(color: _textMuted, fontSize: 12)),
-            value: _isAnonymous,
-            activeColor: _neonCyan,
-            contentPadding: EdgeInsets.zero,
-            onChanged: (v) => setState(() => _isAnonymous = v),
+  // --- Section Builders ---
+  Widget _buildClientSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionTitle('1. Informations Client', Icons.person_outline),
+        SwitchListTile(
+          title: const Text('Client de passage (Anonyme)', style: TextStyle(color: Colors.white, fontSize: 14)),
+          subtitle: const Text('Ne pas enregistrer ce client dans la base', style: TextStyle(color: _textMuted, fontSize: 12)),
+          value: _isAnonymous,
+          activeColor: _neonCyan,
+          contentPadding: EdgeInsets.zero,
+          onChanged: (v) => setState(() => _isAnonymous = v),
+        ),
+        const SizedBox(height: 12),
+        if (_isAnonymous) ...[
+          Row(
+            children: [
+              Expanded(child: _buildTextField(_anonNameCtrl, 'Nom (Optionnel)', icon: Icons.person)),
+              const SizedBox(width: 16),
+              Expanded(child: _buildTextField(_anonPhoneCtrl, 'Téléphone (Optionnel)', icon: Icons.phone)),
+            ],
           ),
-          const SizedBox(height: 12),
-          if (_isAnonymous) ...[
-            Row(
-              children: [
-                Expanded(child: _buildTextField(_anonNameCtrl, 'Nom (Optionnel)', icon: Icons.person)),
-                const SizedBox(width: 16),
-                Expanded(child: _buildTextField(_anonPhoneCtrl, 'Téléphone (Optionnel)', icon: Icons.phone)),
-              ],
-            ),
-          ] else ...[
-            FutureBuilder(
-              future: widget.ref.read(supabaseClientProvider).from('customers').select('id, full_name, phone_number').eq('is_registered', true).order('full_name'),
-              builder: (ctx, snap) {
-                if (!snap.hasData) return const CircularProgressIndicator(color: _neonCyan);
-                final custs = snap.data as List;
-                return DropdownButtonFormField<String>(
-                  value: _selectedCustomerId,
-                  dropdownColor: _panelDark,
-                  style: const TextStyle(color: Colors.white),
-                  decoration: _inputDecoration('Sélectionner un client *', Icons.people),
-                  items: custs.map((c) => DropdownMenuItem<String>(
-                    value: c['id'] as String,
-                    child: Text('${c['full_name']} — ${c['phone_number'] ?? ''}'),
-                  )).toList(),
-                  onChanged: (v) => setState(() => _selectedCustomerId = v),
-                );
-              },
-            ),
-          ],
-          
-          const SizedBox(height: 32),
-          _buildSectionTitle('2. L\'appareil', Icons.smartphone),
-          _buildTextField(_deviceCtrl, 'Modèle de l\'appareil * (ex: Samsung S23)', icon: Icons.phone_android),
-          const SizedBox(height: 12),
-          DropdownButtonFormField<String>(
-            value: _deviceType,
-            dropdownColor: _panelDark,
-            style: const TextStyle(color: Colors.white),
-            decoration: _inputDecoration('Type d\'appareil', Icons.devices),
-            items: ['Téléphone', 'Tablette', 'Ordinateur', 'Console', 'Montre', 'Autre']
-                .map((t) => DropdownMenuItem(value: t, child: Text(t)))
-                .toList(),
-            onChanged: (v) => setState(() => _deviceType = v),
+        ] else ...[
+          FutureBuilder(
+            future: widget.ref.read(supabaseClientProvider).from('customers').select('id, full_name, phone_number').eq('is_registered', true).order('full_name'),
+            builder: (ctx, snap) {
+              if (!snap.hasData) return const CircularProgressIndicator(color: _neonCyan);
+              final custs = snap.data as List;
+              return DropdownButtonFormField<String>(
+                value: _selectedCustomerId,
+                dropdownColor: _panelDark,
+                style: const TextStyle(color: Colors.white),
+                decoration: _inputDecoration('Sélectionner un client *', Icons.people),
+                items: custs.map((c) => DropdownMenuItem<String>(
+                  value: c['id'] as String,
+                  child: Text('${c['full_name']} — ${c['phone_number'] ?? ''}'),
+                )).toList(),
+                onChanged: (v) => setState(() => _selectedCustomerId = v),
+              );
+            },
           ),
-          const SizedBox(height: 12),
-          _buildTextField(_brandCtrl, 'Marque (ex: Samsung, Apple)', icon: Icons.badge),
-          const SizedBox(height: 16),
-          _buildTextField(_issueCtrl, 'Problème signalé par le client *', icon: Icons.warning_amber_rounded, maxLines: 2),
-          const SizedBox(height: 12),
-          _buildDiagnosticAIButton(),
-          const SizedBox(height: 8),
-          _buildPriceEstimatorButton(),
         ],
-      ),
+      ],
     );
   }
 
-  // --- Right Column ---
-  Widget _buildRightColumn() {
-    return SingleChildScrollView(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildSectionTitle('3. Diagnostic & Sécurité (Optionnel)', Icons.security),
-          Row(
-            children: [
-              Expanded(child: _buildTextField(_imeiCtrl, 'IMEI', icon: Icons.qr_code)),
-              const SizedBox(width: 16),
-              Expanded(child: _buildTextField(_serialCtrl, 'N° de série', icon: Icons.confirmation_number)),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(child: _buildTextField(_passwordCtrl, 'Code / Schéma', icon: Icons.lock_open)),
-              const SizedBox(width: 16),
-              Expanded(child: _buildTextField(_accessoriesCtrl, 'Accessoires fournis', icon: Icons.backpack)),
-            ],
-          ),
-          const SizedBox(height: 16),
-          _buildTextField(_diagCtrl, 'Bilan visuel / État initial (ex: écran déjà fissuré)', icon: Icons.visibility_outlined, maxLines: 2),
+  Widget _buildDeviceSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionTitle('2. L\'appareil', Icons.smartphone),
+        _buildTextField(_deviceCtrl, 'Modèle de l\'appareil * (ex: Galaxy S23)', icon: Icons.phone_android),
+        const SizedBox(height: 12),
+        DropdownButtonFormField<String>(
+          value: _deviceType,
+          dropdownColor: _panelDark,
+          style: const TextStyle(color: Colors.white),
+          decoration: _inputDecoration('Type d\'appareil', Icons.devices),
+          items: ['Téléphone', 'Tablette', 'Laptop', 'Montre', 'Autre']
+              .map((t) => DropdownMenuItem(value: t, child: Text(t)))
+              .toList(),
+          onChanged: (v) => setState(() => _deviceType = v),
+        ),
+        const SizedBox(height: 12),
+        Autocomplete<String>(
+          optionsBuilder: (textEditingValue) {
+            if (textEditingValue.text.isEmpty) return _brandSuggestions;
+            return _brandSuggestions.where((b) => b.toLowerCase().contains(textEditingValue.text.toLowerCase()));
+          },
+          fieldViewBuilder: (context, ctrl, focusNode, onSubmit) {
+            _brandCtrl.text = ctrl.text;
+            return _buildTextField(ctrl, 'Marque (ex: Samsung, Apple)', icon: Icons.badge);
+          },
+        ),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _imeiCtrl,
+                maxLength: 15,
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                style: const TextStyle(color: Colors.white, fontSize: 14),
+                decoration: _inputDecoration('IMEI', Icons.qr_code).copyWith(
+                  suffixIcon: IconButton(
+                    icon: const Icon(Icons.paste, color: _textMuted, size: 18),
+                    onPressed: () async {
+                      final data = await Clipboard.getData(Clipboard.kTextPlain);
+                      if (data?.text != null) {
+                        _imeiCtrl.text = data!.text!.replaceAll(RegExp(r'[^0-9]'), '').substring(0, 15);
+                      }
+                    },
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(child: _buildTextField(_serialCtrl, 'N° de série', icon: Icons.confirmation_number)),
+          ],
+        ),
+      ],
+    );
+  }
 
-          const SizedBox(height: 32),
-          _buildSectionTitle('4. Finances initiales', Icons.attach_money),
-          _buildTextField(_costCtrl, 'Coût estimé (Pièces incluses)', icon: Icons.calculate, isNumber: true, suffix: 'DA'),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(child: _buildTextField(_advanceCtrl, 'Acompte (Avance)', icon: Icons.payments_outlined, isNumber: true, suffix: 'DA')),
-              const SizedBox(width: 16),
-              Expanded(child: _buildTextField(_laborCtrl, 'Main d\'œuvre (M.O)', icon: Icons.handyman_outlined, isNumber: true, suffix: 'DA')),
-            ],
-          ),
-          const SizedBox(height: 16),
-          InkWell(
-            onTap: () async {
-              final picked = await showDatePicker(
-                context: context,
-                initialDate: DateTime.now().add(const Duration(days: 3)),
-                firstDate: DateTime.now(),
-                lastDate: DateTime.now().add(const Duration(days: 365)),
-              );
-              if (picked != null) setState(() => _estimatedCompletionDate = picked);
-            },
-            child: InputDecorator(
-              decoration: _inputDecoration('Date fin estimée (SLA)', Icons.schedule).copyWith(suffixIcon: const Icon(Icons.date_range, color: _textMuted, size: 18)),
-              child: Text(
-                _estimatedCompletionDate != null
-                    ? '${_estimatedCompletionDate!.day.toString().padLeft(2, '0')}/${_estimatedCompletionDate!.month.toString().padLeft(2, '0')}/${_estimatedCompletionDate!.year}'
-                    : 'Sélectionner une date',
-                style: TextStyle(color: _estimatedCompletionDate != null ? Colors.white : _textMuted, fontSize: 14),
+  Widget _buildSecuritySection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionTitle('3. Sécurité de l\'appareil', Icons.lock_outline),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          children: ['Aucun', 'PIN', 'Schéma', 'Mot de passe', 'Empreinte'].map((type) {
+            final selected = _deviceLockType == type;
+            return ChoiceChip(
+              label: Text(type, style: TextStyle(color: selected ? _bgCarbon : _textMuted, fontSize: 12)),
+              selected: selected,
+              selectedColor: _neonCyan,
+              backgroundColor: _panelDark,
+              side: BorderSide(color: selected ? _neonCyan : _glassBorder),
+              onSelected: (v) => setState(() {
+                _deviceLockType = type;
+                if (type == 'Aucun' || type == 'Empreinte') _lockCodeCtrl.clear();
+              }),
+            );
+          }).toList(),
+        ),
+        if (_deviceLockType != 'Aucun' && _deviceLockType != 'Empreinte') ...[
+          const SizedBox(height: 12),
+          TextField(
+            controller: _lockCodeCtrl,
+            obscureText: !_lockCodeVisible,
+            style: const TextStyle(color: Colors.white, fontSize: 14),
+            decoration: _inputDecoration('Code / Schéma / Mot de passe', Icons.vpn_key).copyWith(
+              helperText: 'Confidentiel — visible uniquement par le personnel autorisé',
+              helperStyle: const TextStyle(color: _textMuted, fontSize: 10),
+              suffixIcon: IconButton(
+                icon: Icon(_lockCodeVisible ? Icons.visibility : Icons.visibility_off, color: _textMuted, size: 18),
+                onPressed: () => setState(() => _lockCodeVisible = !_lockCodeVisible),
               ),
             ),
           ),
         ],
-      ),
+      ],
+    );
+  }
+
+  Widget _buildConditionSection() {
+    const conditions = [
+      ('Écran intact', Icons.smartphone),
+      ('Caméra fonctionne', Icons.camera_alt),
+      ('Boutons OK', Icons.touch_app),
+      ('Chargeur inclus', Icons.cable),
+      ('Coque incluse', Icons.cases_outlined),
+      ('Batterie OK', Icons.battery_std),
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionTitle('4. État & Accessoires', Icons.checklist),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 4,
+          children: conditions.map((c) {
+            final checked = _conditionChecklist.contains(c.$1);
+            return FilterChip(
+              label: Text(c.$1, style: TextStyle(color: checked ? _bgCarbon : _textMuted, fontSize: 11)),
+              selected: checked,
+              selectedColor: _neonEmerald.withOpacity(0.3),
+              backgroundColor: _panelDark,
+              checkmarkColor: _neonEmerald,
+              side: BorderSide(color: checked ? _neonEmerald.withOpacity(0.5) : _glassBorder),
+              avatar: Icon(c.$2, size: 16, color: checked ? _neonEmerald : _textMuted),
+              onSelected: (v) {
+                setState(() {
+                  if (v) {
+                    _conditionChecklist.add(c.$1);
+                  } else {
+                    _conditionChecklist.remove(c.$1);
+                  }
+                });
+              },
+            );
+          }).toList(),
+        ),
+        const SizedBox(height: 16),
+        _buildTextField(_accessoriesCtrl, 'Accessoires fournis (détails)', icon: Icons.backpack, maxLines: 2),
+      ],
+    );
+  }
+
+  Widget _buildProblemSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionTitle('5. Problème & Diagnostic', Icons.warning_amber_rounded),
+        _buildTextField(_issueCtrl, 'Problème signalé par le client *', icon: Icons.report_problem, maxLines: 2),
+        const SizedBox(height: 12),
+        _buildDiagnosticAIButton(),
+        const SizedBox(height: 12),
+        _buildTextField(_diagCtrl, 'Bilan visuel / État initial', icon: Icons.visibility_outlined, maxLines: 2),
+      ],
+    );
+  }
+
+  Widget _buildFinancialSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionTitle('6. Finances', Icons.attach_money),
+        _buildTextField(_costCtrl, 'Coût estimé (Pièces incluses)', icon: Icons.calculate, isNumber: true, suffix: 'DA'),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            Expanded(child: _buildTextField(_advanceCtrl, 'Acompte (Avance)', icon: Icons.payments_outlined, isNumber: true, suffix: 'DA')),
+            const SizedBox(width: 16),
+            Expanded(child: _buildTextField(_laborCtrl, 'Main d\'œuvre (M.O)', icon: Icons.handyman_outlined, isNumber: true, suffix: 'DA')),
+          ],
+        ),
+        const SizedBox(height: 12),
+        _buildPriceEstimatorButton(),
+        const SizedBox(height: 16),
+        InkWell(
+          onTap: () async {
+            final picked = await showDatePicker(
+              context: context,
+              initialDate: DateTime.now().add(const Duration(days: 3)),
+              firstDate: DateTime.now(),
+              lastDate: DateTime.now().add(const Duration(days: 365)),
+            );
+            if (picked != null) setState(() => _estimatedCompletionDate = picked);
+          },
+          child: InputDecorator(
+            decoration: _inputDecoration('Date fin estimée (SLA)', Icons.schedule).copyWith(suffixIcon: const Icon(Icons.date_range, color: _textMuted, size: 18)),
+            child: Text(
+              _estimatedCompletionDate != null
+                  ? '${_estimatedCompletionDate!.day.toString().padLeft(2, '0')}/${_estimatedCompletionDate!.month.toString().padLeft(2, '0')}/${_estimatedCompletionDate!.year}'
+                  : 'Sélectionner une date',
+              style: TextStyle(color: _estimatedCompletionDate != null ? Colors.white : _textMuted, fontSize: 14),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -1481,6 +1676,8 @@ class _NewTicketFormState extends State<_NewTicketForm> {
         'issue_description': issue,
         'imei': _imeiCtrl.text.trim(),
         'serial_number': _serialCtrl.text.trim(),
+        'device_lock_type': _deviceLockType,
+        'device_lock_code': _lockCodeCtrl.text.trim().isEmpty ? null : _lockCodeCtrl.text.trim(),
         'device_password': _passwordCtrl.text.trim(),
         'accessories': _accessoriesCtrl.text.trim(),
         'pre_diagnostic': _diagCtrl.text.trim(),
