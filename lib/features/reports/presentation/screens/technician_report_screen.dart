@@ -18,14 +18,25 @@ class _TechnicianReportScreenState extends ConsumerState<TechnicianReportScreen>
   Future<void> _load() async {
     setState(() => _loading = true);
     final client = ref.read(supabaseClientProvider);
-    final techs = await client.from('profiles').select('id, full_name, role_id').filter('role_id', 'not.is', null);
+
+    final results = await Future.wait([
+      client.from('profiles').select('id, full_name, role_id').filter('role_id', 'not.is', null),
+      client.from('repair_tickets').select('id, assigned_technician_id, status, created_at, completed_at, final_cost').not('assigned_technician_id', 'is', null),
+      client.from('warranty_claims').select('id, created_by'),
+      client.from('customer_feedback').select('ticket_id, rating'),
+    ]);
+
+    final techs = results[0] as List<dynamic>;
+    final allTickets = results[1] as List<dynamic>;
+    final allWarranty = results[2] as List<dynamic>;
+    final allFeedback = results[3] as List<dynamic>;
+
     final result = <Map<String, dynamic>>[];
     for (final t in techs) {
-      final repairs = await client
-          .from('repair_tickets')
-          .select('id, status, created_at, completed_at, final_cost')
-          .eq('assigned_technician_id', t['id']);
+      final techId = t['id'] as String;
+      final repairs = allTickets.where((r) => r['assigned_technician_id'] == techId).toList();
       final completed = repairs.where((r) => r['completed_at'] != null).toList();
+
       double totalMin = 0; int count = 0;
       for (final r in completed) {
         final a = DateTime.tryParse(r['created_at']?.toString() ?? '');
@@ -33,17 +44,29 @@ class _TechnicianReportScreenState extends ConsumerState<TechnicianReportScreen>
         if (a != null && b != null) { totalMin += b.difference(a).inMinutes; count++; }
       }
       final avgMin = count > 0 ? (totalMin / count).round() : 0;
+
       double totalRev = 0;
       for (final r in repairs) totalRev += (r['final_cost'] as num?)?.toDouble() ?? 0;
-      final wc = await client.from('warranty_claims').select('id').eq('created_by', t['id']);
+
+      final wc = allWarranty.where((w) => w['created_by'] == techId).toList();
       final warrantyRate = repairs.isNotEmpty ? (wc.length / repairs.length * 100).toStringAsFixed(1) : '0.0';
-      final ids = repairs.map((r) => r['id'] as String).toList();
+
+      final ids = repairs.map((r) => r['id'] as String).toSet();
       double avgRating = 0;
       if (ids.isNotEmpty) {
-        final fb = await client.from('customer_feedback').select('rating').inFilter('ticket_id', ids);
+        final fb = allFeedback.where((f) => ids.contains(f['ticket_id'] as String)).toList();
         if (fb.isNotEmpty) avgRating = fb.fold(0.0, (s, f) => s + ((f['rating'] as num?)?.toInt() ?? 0)) / fb.length;
       }
-      result.add({'name': t['full_name'] ?? 'Inconnu', 'total': repairs.length, 'completed': completed.length, 'avgTime': avgMin, 'revenue': totalRev, 'warrantyRate': warrantyRate, 'avgRating': avgRating});
+
+      result.add({
+        'name': t['full_name'] ?? 'Inconnu',
+        'total': repairs.length,
+        'completed': completed.length,
+        'avgTime': avgMin,
+        'revenue': totalRev,
+        'warrantyRate': warrantyRate,
+        'avgRating': avgRating,
+      });
     }
     if (mounted) setState(() { _items = result; _loading = false; });
   }

@@ -1571,6 +1571,7 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
         'accessories': _ticket?['accessories'],
         'pre_diagnostic': _ticket?['pre_diagnostic'],
         'estimated_cost': _ticket?['estimated_cost'],
+        'final_cost': _ticket?['final_cost'] ?? 0,
         'labor_cost': _ticket?['labor_cost'],
         'qr_code_hash': qrHash,
         'status': 'En attente',
