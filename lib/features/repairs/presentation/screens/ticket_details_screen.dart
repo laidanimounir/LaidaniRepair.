@@ -1775,12 +1775,13 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
     final client = ref.read(supabaseClientProvider);
     try {
       final ticket = await client.from('repair_tickets')
-          .select('final_cost, paid_amount')
+          .select('final_cost, paid_amount, payment_status')
           .eq('id', widget.ticketId)
           .maybeSingle();
       if (ticket == null) return;
       final finalCost = (ticket['final_cost'] as num?)?.toDouble() ?? 0;
       final paid = (ticket['paid_amount'] as num?)?.toDouble() ?? 0;
+      final currentStatus = ticket['payment_status'] as String? ?? '';
 
       String newStatus;
       if (paid >= finalCost && finalCost > 0) {
@@ -1790,6 +1791,8 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
       } else {
         newStatus = 'Non payé';
       }
+
+      if (newStatus == currentStatus) return;
 
       await client.from('repair_tickets')
           .update({'payment_status': newStatus})

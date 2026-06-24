@@ -1459,7 +1459,7 @@ class _NewTicketFormState extends State<_NewTicketForm> {
           dropdownColor: _panelDark,
           style: const TextStyle(color: Colors.white),
           decoration: _inputDecoration('Type d\'appareil', Icons.devices),
-          items: ['Téléphone', 'Tablette', 'Laptop', 'Montre', 'Autre']
+          items: ['Smartphone', 'Tablette', 'PC Portable', 'PC Bureau', 'Console', 'Montre connectée', 'Autre']
               .map((t) => DropdownMenuItem(value: t, child: Text(t)))
               .toList(),
           onChanged: (v) => setState(() => _deviceType = v),
