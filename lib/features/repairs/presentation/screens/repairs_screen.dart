@@ -6,6 +6,9 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:qr_flutter/qr_flutter.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
 
 import 'package:laidani_repair/core/providers/supabase_provider.dart';
 import 'package:laidani_repair/core/providers/shortcuts_provider.dart';
@@ -1665,7 +1668,7 @@ class _NewTicketFormState extends State<_NewTicketForm> {
       final advance = double.tryParse(_advanceCtrl.text) ?? 0;
       final labor = double.tryParse(_laborCtrl.text) ?? 0;
 
-      await client.from('repair_tickets').insert({
+      final newTicket = await client.from('repair_tickets').insert({
         'customer_id': _isAnonymous ? null : _selectedCustomerId,
         'client_name_temp': _isAnonymous ? _anonNameCtrl.text.trim() : null,
         'client_phone_temp': _isAnonymous ? _anonPhoneCtrl.text.trim() : null,
@@ -1687,12 +1690,12 @@ class _NewTicketFormState extends State<_NewTicketForm> {
         'qr_code_hash': qrHash,
         'status': 'En attente',
         'estimated_completion_date': _estimatedCompletionDate?.toIso8601String().substring(0, 10),
-      });
+      }).select().single();
       
       widget.ref.invalidate(_ticketsProvider);
       if (mounted) {
         Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Dossier créé avec succès !'), backgroundColor: Colors.green));
+        _showReceiptDialog(Map<String, dynamic>.from(newTicket), _isAnonymous ? _anonNameCtrl.text.trim() : null, _isAnonymous ? _anonPhoneCtrl.text.trim() : null);
       }
     } catch (e) {
       if (mounted) {
@@ -1701,5 +1704,205 @@ class _NewTicketFormState extends State<_NewTicketForm> {
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  void _showReceiptDialog(Map<String, dynamic> ticket, String? anonName, String? anonPhone) {
+    final isAnon = ticket['customer_id'] == null;
+    final clientName = isAnon ? (anonName?.isNotEmpty == true ? anonName! : 'Client Anonyme') : 'Client';
+    final qrData = 'LAIDANI:TICKET:${ticket['id']}:${ticket['qr_code_hash'] ?? ''}';
+    final estimatedCost = (ticket['estimated_cost'] as num?)?.toDouble() ?? 0;
+    final advance = (ticket['advance_payment'] as num?)?.toDouble() ?? 0;
+    final remaining = estimatedCost - advance - ((ticket['discount'] as num?)?.toDouble() ?? 0);
+    final createdAt = ticket['created_at']?.toString().substring(0, 16) ?? '';
+    final estimatedDate = ticket['estimated_completion_date']?.toString() ?? '';
+    final deviceName = ticket['device_name'] ?? '';
+    final imei = ticket['imei'] ?? '';
+    final issue = ticket['issue_description'] ?? '';
+    final ticketId = ticket['qr_code_hash']?.toString().substring(0, 8) ?? ticket['id']?.toString().substring(0, 8) ?? '';
+
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: _panelDark,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: _neonCyan, width: 1.5)),
+        title: Row(
+          children: [
+            const Icon(Icons.receipt_long, color: _neonCyan),
+            const SizedBox(width: 12),
+            const Expanded(child: Text('Bon de dépôt', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
+            IconButton(
+              icon: const Icon(Icons.close, color: _textMuted),
+              onPressed: () => Navigator.pop(ctx),
+            ),
+          ],
+        ),
+        content: SizedBox(
+          width: 380,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(color: _bgCarbon, borderRadius: BorderRadius.circular(8), border: Border.all(color: _glassBorder)),
+                  child: Column(
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text('N° Ticket', style: TextStyle(color: _textMuted, fontSize: 11)),
+                          Text('#$ticketId', style: const TextStyle(color: Colors.white, fontFamily: 'monospace', fontWeight: FontWeight.bold, fontSize: 14)),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text('Date', style: TextStyle(color: _textMuted, fontSize: 11)),
+                          Text(createdAt, style: const TextStyle(color: Colors.white, fontSize: 12)),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                _receiptRow('Client', clientName),
+                if (!isAnon) ...[
+                  _receiptRow('Téléphone', anonPhone ?? ''),
+                ],
+                _receiptRow('Appareil', deviceName),
+                if (imei.isNotEmpty) _receiptRow('IMEI', imei),
+                if (issue.isNotEmpty) _receiptRow('Problème', issue),
+                const Divider(color: _glassBorder, height: 24),
+                _receiptRow('Coût estimé', '${estimatedCost.toStringAsFixed(0)} DA'),
+                if (advance > 0) _receiptRow('Avance', '${advance.toStringAsFixed(0)} DA'),
+                _receiptRow('Reste à payer', '${remaining.toStringAsFixed(0)} DA'),
+                if (estimatedDate.isNotEmpty) _receiptRow('Délai estimé', estimatedDate),
+                const SizedBox(height: 16),
+                Center(
+                  child: QrImageView(
+                    data: qrData,
+                    version: QrVersions.auto,
+                    size: 120,
+                    backgroundColor: Colors.white,
+                    eyeStyle: const QrEyeStyle(color: _bgCarbon),
+                    dataModuleStyle: const QrDataModuleStyle(color: _bgCarbon),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(color: Colors.orangeAccent.withOpacity(0.1), borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.orangeAccent.withOpacity(0.3))),
+                  child: const Row(
+                    children: [
+                      Icon(Icons.warning_amber_rounded, color: Colors.orangeAccent, size: 14),
+                      SizedBox(width: 8),
+                      Expanded(child: Text('Nous ne sommes pas responsables des données personnelles sur l\'appareil.', style: TextStyle(color: Colors.orangeAccent, fontSize: 10))),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          OutlinedButton.icon(
+            icon: const Icon(Icons.print, size: 16),
+            label: const Text('Imprimer / PDF'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: _neonCyan,
+              side: const BorderSide(color: _neonCyan),
+            ),
+            onPressed: () => _printReceipt(ticket, anonName, anonPhone),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Fermer', style: TextStyle(color: _textMuted)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _receiptRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: const TextStyle(color: _textMuted, fontSize: 11)),
+          Flexible(child: Text(value, style: const TextStyle(color: Colors.white, fontSize: 12), textAlign: TextAlign.right)),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _printReceipt(Map<String, dynamic> ticket, String? anonName, String? anonPhone) async {
+    final pdf = pw.Document();
+    final isAnon = ticket['customer_id'] == null;
+    final clientName = isAnon ? (anonName?.isNotEmpty == true ? anonName! : 'Client Anonyme') : 'Client';
+    final createdAt = ticket['created_at']?.toString().substring(0, 16) ?? '';
+    final ticketId = ticket['qr_code_hash']?.toString().substring(0, 8) ?? '';
+    final deviceName = ticket['device_name'] ?? '';
+    final imei = ticket['imei'] ?? '';
+    final issue = ticket['issue_description'] ?? '';
+    final estimatedCost = (ticket['estimated_cost'] as num?)?.toDouble() ?? 0;
+    final advance = (ticket['advance_payment'] as num?)?.toDouble() ?? 0;
+    final discount = (ticket['discount'] as num?)?.toDouble() ?? 0;
+    final remaining = estimatedCost - advance - discount;
+    final estimatedDate = ticket['estimated_completion_date']?.toString() ?? '';
+    final qrData = 'LAIDANI:TICKET:${ticket['id']}:${ticket['qr_code_hash'] ?? ''}';
+
+    pdf.addPage(
+      pw.Page(
+        build: (ctx) => pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            pw.Center(child: pw.Text('LaidaniRepair', style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold))),
+            pw.Center(child: pw.Text('Bon de dépôt', style: pw.TextStyle(fontSize: 14))),
+            pw.SizedBox(height: 16),
+            _pdfRow('N° Ticket', '#$ticketId'),
+            _pdfRow('Date', createdAt),
+            _pdfRow('Client', clientName),
+            if (!isAnon) _pdfRow('Téléphone', anonPhone ?? ''),
+            _pdfRow('Appareil', deviceName),
+            if (imei.isNotEmpty) _pdfRow('IMEI', imei),
+            if (issue.isNotEmpty) _pdfRow('Problème', issue),
+            pw.Divider(),
+            _pdfRow('Coût estimé', '${estimatedCost.toStringAsFixed(0)} DA'),
+            if (advance > 0) _pdfRow('Avance', '${advance.toStringAsFixed(0)} DA'),
+            _pdfRow('Reste à payer', '${remaining.toStringAsFixed(0)} DA'),
+            if (estimatedDate.isNotEmpty) _pdfRow('Délai estimé', estimatedDate),
+            pw.SizedBox(height: 16),
+            pw.Center(child: pw.BarcodeWidget(data: qrData, barcode: pw.Barcode.qrCode(), width: 100, height: 100)),
+            pw.SizedBox(height: 12),
+            pw.Center(child: pw.Text('⚠ Nous ne sommes pas responsables des données\npersonnelles présentes sur l\'appareil.', style: pw.TextStyle(fontSize: 8), textAlign: pw.TextAlign.center)),
+          ],
+        ),
+      ),
+    );
+
+    try {
+      if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+        await Printing.layoutPdf(onLayout: (_) => pdf.save());
+      } else {
+        await Printing.sharePdf(bytes: await pdf.save(), filename: 'bon_depot_$ticketId.pdf');
+      }
+    } catch (_) {}
+  }
+
+  pw.Widget _pdfRow(String label, String value) {
+    return pw.Padding(
+      padding: pw.EdgeInsets.symmetric(vertical: 2),
+      child: pw.Row(
+        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+        children: [
+          pw.Text(label, style: pw.TextStyle(fontSize: 10)),
+          pw.Text(value, style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
+        ],
+      ),
+    );
   }
 }
