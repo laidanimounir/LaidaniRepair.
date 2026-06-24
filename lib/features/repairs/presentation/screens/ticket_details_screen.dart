@@ -41,11 +41,54 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
   List<Map<String, dynamic>> _photos = [];
   List<Map<String, dynamic>> _notifications = [];
   Map<String, dynamic>? _feedbackData;
+  RealtimeChannel? _channel;
 
   @override
   void initState() {
     super.initState();
     Future.microtask(() => _fetchFullData());
+    _channel = Supabase.instance.client
+        .channel('ticket_${widget.ticketId}')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'repair_tickets',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'id',
+            value: widget.ticketId,
+          ),
+          callback: (_) => _fetchFullData(),
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'repair_parts',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'ticket_id',
+            value: widget.ticketId,
+          ),
+          callback: (_) => _fetchFullData(),
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'repair_payments',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'ticket_id',
+            value: widget.ticketId,
+          ),
+          callback: (_) => _fetchFullData(),
+        )
+        .subscribe();
+  }
+
+  @override
+  void dispose() {
+    _channel?.unsubscribe();
+    super.dispose();
   }
 
   // --- جلب البيانات ---

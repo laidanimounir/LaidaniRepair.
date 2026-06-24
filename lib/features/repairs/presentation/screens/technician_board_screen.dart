@@ -10,7 +10,16 @@ const Color _glassBorder = Color(0x1AFFFFFF);
 const Color _textMuted = Color(0xFF8A9BB4);
 const Color _neonCyan = Color(0xFF00E5FF);
 
+final _realtimeTicker = StreamProvider<int>((ref) {
+  final client = ref.watch(supabaseClientProvider);
+  return client
+      .from('repair_tickets')
+      .stream(primaryKey: ['id'])
+      .map((_) => DateTime.now().millisecondsSinceEpoch);
+});
+
 final _myTicketsProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
+  ref.watch(_realtimeTicker);
   final client = ref.watch(supabaseClientProvider);
   final user = ref.watch(currentUserProvider);
   if (user == null) return [];
