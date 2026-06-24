@@ -137,7 +137,7 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
   // --- 0. Suggestion IA de pièces ---
   Future<void> _suggestPartsAI(Color color) async {
     final device = _ticket?['device_name']?.toString() ?? '';
-    final brand = _ticket?['brand']?.toString() ?? '';
+    final brand = _ticket?['device_brand']?.toString() ?? '';
     final issue = _ticket?['issue_description']?.toString() ?? '';
     final diag = _ticket?['pre_diagnostic']?.toString() ?? '';
     final deviceType = _ticket?['device_type']?.toString() ?? 'Appareil';
@@ -1562,7 +1562,7 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
         'client_phone_temp': _ticket?['client_phone_temp'],
         'worker_id': user?.id,
         'device_type': _ticket?['device_type'],
-        'brand': _ticket?['brand'],
+        'device_brand': _ticket?['device_brand'],
         'device_name': _ticket?['device_name'],
         'issue_description': _ticket?['issue_description'],
         'imei': _ticket?['imei'],

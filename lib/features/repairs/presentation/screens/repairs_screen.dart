@@ -1734,7 +1734,7 @@ class _NewTicketFormState extends State<_NewTicketForm> {
         'client_phone_temp': _isAnonymous ? _anonPhoneCtrl.text.trim() : null,
         'worker_id': user?.id,
         'device_type': _deviceType,
-        'brand': _brandCtrl.text.trim(),
+        'device_brand': _brandCtrl.text.trim(),
         'device_name': device,
         'issue_description': issue,
         'imei': _imeiCtrl.text.trim(),
