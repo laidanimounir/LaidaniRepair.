@@ -287,58 +287,67 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
             Expanded(child: Text('Ajouter: $name', style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold))),
           ],
         ),
-        content: SizedBox(
-          width: 320,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
+        content: StatefulBuilder(
+          builder: (ctx, setDialogState) {
+            qtyCtrl.addListener(() => setDialogState(() {}));
+            priceCtrl.addListener(() => setDialogState(() {}));
+            final enteredPrice = double.tryParse(priceCtrl.text) ?? refPrice;
+            final enteredQty = int.tryParse(qtyCtrl.text) ?? 1;
+            final total = enteredPrice * enteredQty;
+            return SizedBox(
+              width: 320,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Expanded(
-                    child: TextField(
-                      controller: qtyCtrl,
-                      keyboardType: TextInputType.number,
-                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                      style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
-                      textAlign: TextAlign.center,
-                      decoration: InputDecoration(
-                        labelText: 'Quantité',
-                        labelStyle: const TextStyle(color: _textMuted),
-                        helperText: 'Stock dispo: $stockQty',
-                        helperStyle: const TextStyle(color: _textMuted, fontSize: 10),
-                        filled: true,
-                        fillColor: _bgCarbon.withOpacity(0.5),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: _glassBorder)),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: qtyCtrl,
+                          keyboardType: TextInputType.number,
+                          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                          style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+                          textAlign: TextAlign.center,
+                          decoration: InputDecoration(
+                            labelText: 'Quantité',
+                            labelStyle: const TextStyle(color: _textMuted),
+                            helperText: 'Stock dispo: $stockQty',
+                            helperStyle: const TextStyle(color: _textMuted, fontSize: 10),
+                            filled: true,
+                            fillColor: _bgCarbon.withOpacity(0.5),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: _glassBorder)),
+                          ),
+                        ),
                       ),
-                    ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: TextField(
+                          controller: priceCtrl,
+                          keyboardType: TextInputType.number,
+                          inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[\d.]'))],
+                          style: const TextStyle(color: Colors.greenAccent, fontSize: 20, fontWeight: FontWeight.bold),
+                          textAlign: TextAlign.center,
+                          decoration: InputDecoration(
+                            labelText: 'Prix unitaire',
+                            suffixText: 'DA',
+                            labelStyle: const TextStyle(color: _textMuted),
+                            filled: true,
+                            fillColor: _bgCarbon.withOpacity(0.5),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: _glassBorder)),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: TextField(
-                      controller: priceCtrl,
-                      keyboardType: TextInputType.number,
-                      inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[\d.]'))],
-                      style: const TextStyle(color: Colors.greenAccent, fontSize: 20, fontWeight: FontWeight.bold),
-                      textAlign: TextAlign.center,
-                      decoration: InputDecoration(
-                        labelText: 'Prix unitaire',
-                        suffixText: 'DA',
-                        labelStyle: const TextStyle(color: _textMuted),
-                        filled: true,
-                        fillColor: _bgCarbon.withOpacity(0.5),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: _glassBorder)),
-                      ),
-                    ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Total: ${total.toStringAsFixed(0)} DA',
+                    style: const TextStyle(color: _neonCyan, fontWeight: FontWeight.w900, fontSize: 16),
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
-              Text(
-                'Total: ${(refPrice * (int.tryParse(qtyCtrl.text) ?? 1)).toStringAsFixed(0)} DA',
-                style: const TextStyle(color: _neonCyan, fontWeight: FontWeight.w900, fontSize: 16),
-              ),
-            ],
-          ),
+            );
+          },
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Annuler', style: TextStyle(color: _textMuted))),
@@ -412,6 +421,97 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
       _showToast('Erreur: $e', Colors.redAccent);
       _fetchFullData();
     }
+  }
+
+  Future<void> _editPartDetails(Map<String, dynamic> part) async {
+    final currentQty = (part['quantity'] as num?)?.toInt() ?? 1;
+    final currentPrice = (part['charged_price'] as num?)?.toDouble() ?? 0;
+    final qtyCtrl = TextEditingController(text: currentQty.toString());
+    final priceCtrl = TextEditingController(text: currentPrice.toStringAsFixed(0));
+
+    final result = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: _panelDark,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: _glassBorder)),
+        title: const Text('Modifier la pièce', style: TextStyle(color: Colors.white)),
+        content: StatefulBuilder(
+          builder: (ctx, setDialogState) {
+            qtyCtrl.addListener(() => setDialogState(() {}));
+            priceCtrl.addListener(() => setDialogState(() {}));
+            final qty = int.tryParse(qtyCtrl.text) ?? 1;
+            final price = double.tryParse(priceCtrl.text) ?? 0;
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: qtyCtrl,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  decoration: const InputDecoration(labelText: 'Quantité', labelStyle: TextStyle(color: _textMuted)),
+                  style: const TextStyle(color: Colors.white),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: priceCtrl,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[\d.]'))],
+                  decoration: const InputDecoration(labelText: 'Prix unitaire (DA)', labelStyle: TextStyle(color: _textMuted)),
+                  style: const TextStyle(color: Colors.white),
+                ),
+                const SizedBox(height: 8),
+                Text('Total: ${(qty * price).toStringAsFixed(0)} DA', style: const TextStyle(color: _neonCyan, fontWeight: FontWeight.bold)),
+              ],
+            );
+          },
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Annuler', style: TextStyle(color: _textMuted))),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: _neonCyan, foregroundColor: _bgCarbon),
+            onPressed: () {
+              Navigator.pop(ctx, {'quantity': int.tryParse(qtyCtrl.text) ?? currentQty, 'charged_price': double.tryParse(priceCtrl.text) ?? currentPrice});
+            },
+            child: const Text('Enregistrer'),
+          ),
+        ],
+      ),
+    );
+
+    if (result != null) {
+      final client = ref.read(supabaseClientProvider);
+      try {
+        await client.from('repair_parts').update({
+          'quantity': result['quantity'],
+          'charged_price': result['charged_price'],
+        }).eq('id', part['id']);
+        _fetchFullData();
+        _showToast('Pièce mise à jour', _neonEmerald);
+      } catch (e) {
+        _showToast('Erreur: $e', Colors.redAccent);
+      }
+    }
+  }
+
+  void _showPartStatusMenu(Map<String, dynamic> part) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: _panelDark,
+      builder: (ctx) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: ['Neuf', 'Occasion', 'Défectueux', 'Retourné'].map((status) => ListTile(
+          title: Text(status, style: const TextStyle(color: Colors.white)),
+          leading: Icon(
+            status == 'Neuf' ? Icons.check_circle : status == 'Occasion' ? Icons.recycling : status == 'Défectueux' ? Icons.report_problem : Icons.undo,
+            color: status == 'Neuf' ? _neonEmerald : status == 'Occasion' ? Colors.orangeAccent : status == 'Défectueux' ? Colors.redAccent : _textMuted,
+          ),
+          onTap: () {
+            Navigator.pop(ctx);
+            _changePartStatus(part, status);
+          },
+        )).toList(),
+      ),
+    );
   }
 
   // --- 4. تعديل المالية (اليد العاملة / التخفيض) ---
@@ -2504,33 +2604,71 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
               ? const Center(child: Text('Aucune pièce consommée', style: TextStyle(color: _textMuted)))
               : ListView.builder(
                   itemCount: _parts.length,
-                  itemBuilder: (context, index) {
+                   itemBuilder: (context, index) {
                     final part = _parts[index];
-                    final isDefective = part['part_status'] == 'Défectueux';
-                    final isReturned = part['part_status'] == 'Retourné';
-                    
-                    return ListTile(
-                      title: Text(part['products']?['product_name'] ?? 'Inconnu', style: TextStyle(color: isDefective ? Colors.redAccent : Colors.white, decoration: isReturned ? TextDecoration.lineThrough : null)),
-                      subtitle: Text('État: ${part['part_status'] ?? 'Utilisé'}', style: TextStyle(color: isDefective ? Colors.redAccent : color.withOpacity(0.7), fontSize: 12)),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
+                    final partStatus = part['part_status'] as String? ?? 'Utilisé';
+                    final isDefective = partStatus == 'Défectueux';
+                    final isReturned = partStatus == 'Retourné';
+                    final qty = (part['quantity'] as num?)?.toInt() ?? 1;
+                    final price = (part['charged_price'] as num?)?.toDouble() ?? 0;
+                    final total = price * qty;
+                    final productName = part['products']?['product_name'] ?? 'Inconnu';
+
+                    Color statusColor;
+                    switch (partStatus) {
+                      case 'Neuf': statusColor = _neonEmerald; break;
+                      case 'Occasion': statusColor = Colors.orangeAccent; break;
+                      case 'Défectueux': statusColor = Colors.redAccent; break;
+                      case 'Retourné': statusColor = _textMuted; break;
+                      default: statusColor = _neonCyan; break;
+                    }
+
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 4),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: isReturned || isDefective ? Colors.redAccent.withOpacity(0.05) : _panelDark,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
                         children: [
-                          Text('${part['charged_price']} DA', style: TextStyle(color: isReturned || isDefective ? _textMuted : Colors.white, fontWeight: FontWeight.bold, decoration: isReturned || isDefective ? TextDecoration.lineThrough : null)),
-                          if (!isCanceled && !isReturned) ...[
-                            const SizedBox(width: 8),
-                            PopupMenuButton<String>(
-                              icon: const Icon(Icons.more_vert, color: _textMuted, size: 18),
-                              color: _panelDark,
-                              itemBuilder: (_) => [
-                                if (!isDefective) const PopupMenuItem(value: 'defect', child: Text('Marquer Défectueux', style: TextStyle(color: Colors.orangeAccent))),
-                                const PopupMenuItem(value: 'delete', child: Text('Supprimer (Retour Stock)', style: TextStyle(color: Colors.redAccent))),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: statusColor.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(color: statusColor.withOpacity(0.3)),
+                            ),
+                            child: Text(partStatus, style: TextStyle(color: statusColor, fontSize: 10, fontWeight: FontWeight.bold)),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(productName, style: TextStyle(color: isReturned || isDefective ? _textMuted : Colors.white, fontSize: 13, fontWeight: FontWeight.w600, decoration: isReturned ? TextDecoration.lineThrough : null)),
+                                const SizedBox(height: 2),
+                                Text('$qty × $price DA = ${total.toStringAsFixed(0)} DA', style: const TextStyle(color: _textMuted, fontSize: 11)),
                               ],
-                              onSelected: (val) {
-                                if (val == 'delete') _removePart(part);
-                                if (val == 'defect') _changePartStatus(part, 'Défectueux');
-                              },
-                            )
-                          ]
+                            ),
+                          ),
+                          if (!isCanceled && !isReturned) ...[
+                            IconButton(
+                              icon: const Icon(Icons.edit_outlined, color: _textMuted, size: 18),
+                              tooltip: 'Modifier quantité/prix',
+                              onPressed: () => _editPartDetails(part),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.swap_horiz, color: _textMuted, size: 18),
+                              tooltip: 'Changer état',
+                              onPressed: () => _showPartStatusMenu(part),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 18),
+                              tooltip: 'Supprimer (retour stock)',
+                              onPressed: () => _removePart(part),
+                            ),
+                          ],
                         ],
                       ),
                     );
