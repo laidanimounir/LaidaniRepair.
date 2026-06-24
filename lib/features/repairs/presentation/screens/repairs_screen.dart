@@ -1742,7 +1742,7 @@ class _NewTicketFormState extends State<_NewTicketForm> {
         'device_lock_type': _deviceLockType,
         'device_lock_code': _lockCodeCtrl.text.trim().isEmpty ? null : _lockCodeCtrl.text.trim(),
         'device_password': _passwordCtrl.text.trim(),
-        'accessories_included': _accessoriesCtrl.text.trim(),
+        'accessories_included': _accessoriesCtrl.text.trim().isEmpty ? null : _accessoriesCtrl.text.trim(),
         'pre_diagnostic': _diagCtrl.text.trim(),
         'estimated_cost': cost,
         'advance_payment': advance,
