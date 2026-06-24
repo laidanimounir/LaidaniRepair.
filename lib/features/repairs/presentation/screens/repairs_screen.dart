@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 import 'dart:ui';
@@ -7,8 +8,10 @@ import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
 
 import 'package:laidani_repair/core/providers/supabase_provider.dart';
 import 'package:laidani_repair/core/providers/shortcuts_provider.dart';
@@ -48,14 +51,122 @@ final _slaFilter = StateProvider<String?>((ref) => null);
 final _bulkModeProvider = StateProvider<bool>((ref) => false);
 final _selectedTicketsProvider = StateProvider<Set<String>>((ref) => Set<String>());
 
+final _searchQueryProvider = StateProvider<String>((ref) => '');
+
+final _searchResultsProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
+  final query = ref.watch(_searchQueryProvider);
+  if (query.trim().isEmpty) return [];
+  final client = ref.watch(supabaseClientProvider);
+  final search = '%$query%';
+  final data = await client
+      .from('repair_tickets')
+      .select('*, customers(full_name, phone_number), profiles!repair_tickets_assigned_technician_id_fkey(full_name)')
+      .or('client_name_temp.ilike.$search,device_name.ilike.$search,qr_code_hash.ilike.$search')
+      .order('created_at', ascending: false)
+      .limit(20);
+  return List<Map<String, dynamic>>.from(data);
+});
+
 // ─── Repairs Screen (Responsive) ────────────────────────────────────────
 
-class RepairsScreen extends ConsumerWidget {
+class RepairsScreen extends ConsumerStatefulWidget {
   const RepairsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<RepairsScreen> createState() => _RepairsScreenState();
+}
+
+class _RepairsScreenState extends ConsumerState<RepairsScreen> {
+  final _scanFocus = FocusNode();
+  final _scanStopwatch = Stopwatch();
+  String _scanBuffer = '';
+  final _searchCtrl = TextEditingController();
+  Timer? _debounce;
+
+  @override
+  void initState() {
+    super.initState();
+    _scanFocus.addListener(() {
+      if (!_scanFocus.hasFocus && _debounce == null) {
+        _scanFocus.requestFocus();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _scanFocus.dispose();
+    _searchCtrl.dispose();
+    _debounce?.cancel();
+    super.dispose();
+  }
+
+  void _handleScanResult(String raw) {
+    if (raw.isEmpty) return;
+    final trimmed = raw.trim();
+
+    // Check if it's a LAIDANI:TICKET:... QR format
+    final ticketMatch = RegExp(r'LAIDANI:TICKET:([a-f0-9\-]+):').firstMatch(trimmed);
+    if (ticketMatch != null) {
+      final uuid = ticketMatch.group(1)!;
+      context.push('/repair-details/$uuid');
+      return;
+    }
+
+    // Try as raw hash or UUID
+    if (trimmed.length >= 8) {
+      ref.read(supabaseClientProvider).from('repair_tickets')
+          .select('id')
+          .eq('qr_code_hash', trimmed)
+          .maybeSingle()
+          .then((ticket) {
+        if (ticket != null && mounted) {
+          context.push('/repair-details/${ticket['id']}');
+        } else {
+          _searchCtrl.text = trimmed;
+          ref.read(_searchQueryProvider.notifier).state = trimmed;
+        }
+      });
+      return;
+    }
+
+    _searchCtrl.text = trimmed;
+    ref.read(_searchQueryProvider.notifier).state = trimmed;
+  }
+
+  void _showQrScanner() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.black,
+        contentPadding: EdgeInsets.zero,
+        content: SizedBox(
+          width: 400,
+          height: 300,
+          child: MobileScanner(
+            onDetect: (capture) {
+              final barcode = capture.barcodes.firstOrNull?.rawValue;
+              if (barcode == null || barcode.isEmpty) return;
+              Navigator.pop(ctx);
+              _handleScanResult(barcode);
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Fermer', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final ticketsAsync = ref.watch(_ticketsProvider);
+    final searchQuery = ref.watch(_searchQueryProvider);
+    final searchAsync = ref.watch(_searchResultsProvider);
     final statusF = ref.watch(_statusFilter);
     final slaF = ref.watch(_slaFilter);
     final bulkMode = ref.watch(_bulkModeProvider);
@@ -65,191 +176,281 @@ class RepairsScreen extends ConsumerWidget {
       _showNewTicketDialog(context, ref);
     });
 
-    // تحديد نوع الجهاز (حاسوب أم هاتف)
     final isDesktop = MediaQuery.of(context).size.width >= 850;
+    final isSearching = searchQuery.trim().isNotEmpty;
 
     return Scaffold(
       backgroundColor: _bgCarbon,
-      // 🌟 إضافة الزر العائم للهاتف فقط 🌟
       floatingActionButton: isDesktop ? null : FloatingActionButton(
         backgroundColor: _neonCyan,
         foregroundColor: _bgCarbon,
         onPressed: () => _showNewTicketDialog(context, ref),
         child: const Icon(Icons.add),
       ),
-      body: Column(
+      body: Stack(
         children: [
-          // 1. Header & Filters
-          Container(
-            padding: EdgeInsets.all(isDesktop ? 24 : 16),
-            decoration: const BoxDecoration(
-              color: _panelDark,
-              border: Border(bottom: BorderSide(color: _glassBorder, width: 1)),
+          // --- Hidden HID scanner listener (desktop only) ---
+          if (isDesktop)
+            Positioned(
+              left: -9999,
+              child: SizedBox(
+                width: 1, height: 1,
+                child: TextField(
+                  focusNode: _scanFocus,
+                  autofocus: true,
+                  onChanged: (v) {
+                    if (!_scanStopwatch.isRunning) _scanStopwatch.start();
+                    _scanBuffer = v;
+                  },
+                  onSubmitted: (v) {
+                    _scanStopwatch.stop();
+                    final elapsed = _scanStopwatch.elapsedMilliseconds;
+                    _scanStopwatch.reset();
+                    _scanBuffer = '';
+                    if (elapsed < 150 && v.trim().isNotEmpty) {
+                      _handleScanResult(v);
+                    }
+                    Future.delayed(const Duration(milliseconds: 100), () {
+                      if (mounted) _scanFocus.requestFocus();
+                    });
+                  },
+                ),
+              ),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+          // --- Visible UI ---
+          Column(
+            children: [
+              // Header & Search
+              Container(
+                padding: EdgeInsets.all(isDesktop ? 24 : 16),
+                decoration: const BoxDecoration(
+                  color: _panelDark,
+                  border: Border(bottom: BorderSide(color: _glassBorder, width: 1)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: _neonCyan.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: _neonCyan.withOpacity(0.3)),
-                      ),
-                      child: const Icon(Icons.build_circle_outlined, color: _neonCyan, size: 24),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Text(
-                        isDesktop ? 'GESTION DES RÉPARATIONS' : 'RÉPARATIONS',
-                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: isDesktop ? 18 : 16, letterSpacing: 1.5),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.refresh, color: _textMuted),
-                      onPressed: () => ref.invalidate(_ticketsProvider),
-                      tooltip: 'Rafraîchir',
-                    ),
-                    IconButton(
-                      icon: Icon(bulkMode ? Icons.checklist : Icons.checklist_outlined, color: bulkMode ? _neonCyan : _textMuted),
-                      onPressed: () {
-                        ref.read(_bulkModeProvider.notifier).state = !bulkMode;
-                        ref.read(_selectedTicketsProvider.notifier).state = {};
-                      },
-                      tooltip: 'Mode sélection multiple',
-                    ),
-                    // 🌟 إخفاء زر الإضافة من الأعلى في الهاتف 🌟
-                    if (isDesktop) ...[
-                      const SizedBox(width: 16),
-                      ElevatedButton.icon(
-                        onPressed: () => _showNewTicketDialog(context, ref),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: _neonCyan.withOpacity(0.1),
-                          foregroundColor: _neonCyan,
-                          elevation: 0,
-                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                          side: BorderSide(color: _neonCyan.withOpacity(0.5)),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    // Search bar row
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: _neonCyan.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: _neonCyan.withOpacity(0.3)),
+                          ),
+                          child: const Icon(Icons.build_circle_outlined, color: _neonCyan, size: 24),
                         ),
-                        icon: const Icon(Icons.add_box_outlined),
-                        label: const Text('NOUVEAU TICKET', style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1)),
-                      ),
-                    ]
-                  ],
-                ),
-                const SizedBox(height: 24),
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: [
-                      _StatusChip(label: 'Tous', value: null, current: statusF, ref: ref),
-                      _StatusChip(label: 'En attente', value: 'En attente', current: statusF, ref: ref),
-                      _StatusChip(label: 'En cours', value: 'En cours', current: statusF, ref: ref),
-                      _StatusChip(label: 'Terminé', value: 'Terminé', current: statusF, ref: ref),
-                      _StatusChip(label: 'Livré', value: 'Livré', current: statusF, ref: ref),
-                      _StatusChip(label: '📋 Historique', value: '__history__', current: statusF, ref: ref),
-                      const SizedBox(width: 16),
-                      Container(width: 1, height: 24, color: _glassBorder),
-                      const SizedBox(width: 16),
-                      _SlaChip(label: '🟢 Dans les temps', value: 'green', ref: ref),
-                      _SlaChip(label: '🟡 Urgent (<24h)', value: 'yellow', ref: ref),
-                      _SlaChip(label: '🔴 En retard', value: 'red', ref: ref),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // 2. Custom Cyber Data Table (Responsive)
-          Expanded(
-            child: ticketsAsync.when(
-              loading: () => const Center(child: CircularProgressIndicator(color: _neonCyan)),
-              error: (e, _) => Center(child: Text('Erreur: $e', style: const TextStyle(color: Colors.redAccent))),
-              data: (tickets) {
-                final filtered = statusF == null ? tickets : statusF == '__history__'
-                    ? tickets.where((t) => t['status'] == 'Terminé' || t['status'] == 'Livré').toList()
-                    : tickets.where((t) => t['status'] == statusF).toList();
-
-                List<Map<String, dynamic>> slaFiltered = filtered;
-                if (slaF != null) {
-                  slaFiltered = filtered.where((t) {
-                    final sla = _getSlaStatus(t);
-                    return sla == slaF;
-                  }).toList();
-                }
-                
-                if (slaFiltered.isEmpty) return _buildEmptyState();
-
-                return Column(
-                  children: [
-                    if (bulkMode && selectedTickets.isNotEmpty)
-                      _buildBulkActionBar(ref, slaFiltered, selectedTickets),
-
-                    // 🌟 إظهار رأس الجدول للحاسوب فقط 🌟
-                    if (isDesktop)
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                        decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: _glassBorder, width: 1))),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: TextField(
+                            controller: _searchCtrl,
+                            style: const TextStyle(color: Colors.white, fontSize: 14),
+                            decoration: InputDecoration(
+                              hintText: 'Rechercher client, appareil, ticket...',
+                              hintStyle: const TextStyle(color: _textMuted, fontSize: 13),
+                              prefixIcon: const Icon(Icons.search, color: _textMuted, size: 20),
+                              suffixIcon: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (!isDesktop)
+                                    IconButton(
+                                      icon: const Icon(Icons.qr_code_scanner, color: _neonCyan, size: 20),
+                                      tooltip: 'Scanner QR',
+                                      onPressed: _showQrScanner,
+                                    ),
+                                  if (searchQuery.isNotEmpty)
+                                    IconButton(
+                                      icon: const Icon(Icons.clear, color: _textMuted, size: 18),
+                                      onPressed: () {
+                                        _searchCtrl.clear();
+                                        ref.read(_searchQueryProvider.notifier).state = '';
+                                      },
+                                    ),
+                                ],
+                              ),
+                              filled: true,
+                              fillColor: _bgCarbon.withOpacity(0.6),
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: _glassBorder)),
+                              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: _glassBorder)),
+                              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: _neonCyan)),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            ),
+                            onChanged: (v) {
+                              _debounce?.cancel();
+                              _debounce = Timer(const Duration(milliseconds: 300), () {
+                                ref.read(_searchQueryProvider.notifier).state = v.trim();
+                              });
+                            },
+                            onSubmitted: (v) {
+                              _debounce?.cancel();
+                              ref.read(_searchQueryProvider.notifier).state = v.trim();
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        IconButton(
+                          icon: const Icon(Icons.refresh, color: _textMuted, size: 20),
+                          onPressed: () {
+                            ref.invalidate(_ticketsProvider);
+                            ref.invalidate(_searchResultsProvider);
+                          },
+                          tooltip: 'Rafraîchir',
+                        ),
+                        IconButton(
+                          icon: Icon(bulkMode ? Icons.checklist : Icons.checklist_outlined, color: bulkMode ? _neonCyan : _textMuted, size: 20),
+                          onPressed: () {
+                            ref.read(_bulkModeProvider.notifier).state = !bulkMode;
+                            ref.read(_selectedTicketsProvider.notifier).state = {};
+                          },
+                          tooltip: 'Mode sélection multiple',
+                        ),
+                        if (isDesktop) ...[
+                          const SizedBox(width: 8),
+                          ElevatedButton.icon(
+                            onPressed: () => _showNewTicketDialog(context, ref),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: _neonCyan.withOpacity(0.1),
+                              foregroundColor: _neonCyan,
+                              elevation: 0,
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                              side: BorderSide(color: _neonCyan.withOpacity(0.5)),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            ),
+                            icon: const Icon(Icons.add_box_outlined, size: 18),
+                            label: const Text('NOUVEAU', style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1, fontSize: 12)),
+                          ),
+                        ],
+                      ],
+                    ),
+                    if (!isSearching) ...[
+                      const SizedBox(height: 16),
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
                         child: Row(
                           children: [
-                            _buildTableHead('TICKET / DATE', flex: 2),
-                            _buildTableHead('CLIENT', flex: 2),
-                            _buildTableHead('APPAREIL & PROBLÈME', flex: 3),
-                            _buildTableHead('STATUT', flex: 2),
-                            _buildTableHead('FINANCES', flex: 2),
-                            _buildTableHead('ACTIONS', flex: 1, alignRight: true),
+                            _StatusChip(label: 'Tous', value: null, current: statusF, ref: ref),
+                            _StatusChip(label: 'En attente', value: 'En attente', current: statusF, ref: ref),
+                            _StatusChip(label: 'En cours', value: 'En cours', current: statusF, ref: ref),
+                            _StatusChip(label: 'Terminé', value: 'Terminé', current: statusF, ref: ref),
+                            _StatusChip(label: 'Livré', value: 'Livré', current: statusF, ref: ref),
+                            _StatusChip(label: '📋 Historique', value: '__history__', current: statusF, ref: ref),
+                            const SizedBox(width: 16),
+                            Container(width: 1, height: 24, color: _glassBorder),
+                            const SizedBox(width: 16),
+                            _SlaChip(label: '🟢 Dans les temps', value: 'green', ref: ref),
+                            _SlaChip(label: '🟡 Urgent (<24h)', value: 'yellow', ref: ref),
+                            _SlaChip(label: '🔴 En retard', value: 'red', ref: ref),
                           ],
                         ),
                       ),
-                    Expanded(
-                      child: ListView.builder(
-                        itemCount: slaFiltered.length,
-                        itemBuilder: (context, index) {
-                          final ticket = slaFiltered[index];
-                          final ticketId = ticket['id'] as String;
-                          final isSelected = selectedTickets.contains(ticketId);
+                    ],
+                  ],
+                ),
+              ),
 
-                          if (bulkMode) {
-                            return GestureDetector(
-                              onTap: () {
-                                final set = Set<String>.from(selectedTickets);
-                                if (isSelected) {
-                                  set.remove(ticketId);
-                                } else {
-                                  set.add(ticketId);
-                                }
-                                ref.read(_selectedTicketsProvider.notifier).state = set;
-                              },
-                              child: isDesktop
-                                  ? _CyberTableRow.withCheckbox(
-                                      ticket: ticket, ref: ref,
-                                      selected: isSelected,
-                                    )
-                                  : _MobileTicketCard.withCheckbox(
-                                      ticket: ticket, ref: ref,
-                                      selected: isSelected,
-                                    ),
+              // Body: search results or normal list
+              Expanded(
+                child: isSearching
+                    ? searchAsync.when(
+                        loading: () => const Center(child: CircularProgressIndicator(color: _neonCyan)),
+                        error: (e, _) => Center(child: Text('Erreur: $e', style: const TextStyle(color: Colors.redAccent))),
+                        data: (searchTickets) {
+                          if (searchTickets.isEmpty) {
+                            return Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const Icon(Icons.search_off, size: 48, color: _textMuted),
+                                  const SizedBox(height: 12),
+                                  Text('Aucun résultat pour "$searchQuery"', style: const TextStyle(color: _textMuted)),
+                                ],
+                              ),
                             );
                           }
-
-                          // 🌟 اختيار طريقة العرض المناسبة 🌟
-                          return isDesktop 
-                              ? _CyberTableRow(ticket: slaFiltered[index], ref: ref)
-                              : _MobileTicketCard(ticket: slaFiltered[index], ref: ref);
+                          return _buildTicketList(context, ref, searchTickets, statusF, slaF, bulkMode, selectedTickets, isDesktop, false);
                         },
+                      )
+                    : ticketsAsync.when(
+                        loading: () => const Center(child: CircularProgressIndicator(color: _neonCyan)),
+                        error: (e, _) => Center(child: Text('Erreur: $e', style: const TextStyle(color: Colors.redAccent))),
+                        data: (tickets) => _buildTicketList(context, ref, tickets, statusF, slaF, bulkMode, selectedTickets, isDesktop, true),
                       ),
-                    ),
-                  ],
-                );
-              },
-            ),
+              ),
+            ],
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildTicketList(BuildContext context, WidgetRef ref, List<Map<String, dynamic>> tickets,
+      String? statusF, String? slaF, bool bulkMode, Set<String> selectedTickets, bool isDesktop, bool applyFilters) {
+    final filtered = !applyFilters
+        ? tickets
+        : statusF == null
+            ? tickets
+            : statusF == '__history__'
+                ? tickets.where((t) => t['status'] == 'Terminé' || t['status'] == 'Livré').toList()
+                : tickets.where((t) => t['status'] == statusF).toList();
+
+    List<Map<String, dynamic>> slaFiltered = filtered;
+    if (applyFilters && slaF != null) {
+      slaFiltered = filtered.where((t) {
+        final sla = _getSlaStatus(t);
+        return sla == slaF;
+      }).toList();
+    }
+
+    if (slaFiltered.isEmpty) return _buildEmptyState();
+
+    return Column(
+      children: [
+        if (bulkMode && selectedTickets.isNotEmpty)
+          _buildBulkActionBar(ref, slaFiltered, selectedTickets),
+        if (isDesktop)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+            decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: _glassBorder, width: 1))),
+            child: Row(
+              children: [
+                _buildTableHead('TICKET / DATE', flex: 2),
+                _buildTableHead('CLIENT', flex: 2),
+                _buildTableHead('APPAREIL & PROBLÈME', flex: 3),
+                _buildTableHead('STATUT', flex: 2),
+                _buildTableHead('FINANCES', flex: 2),
+                _buildTableHead('ACTIONS', flex: 1, alignRight: true),
+              ],
+            ),
+          ),
+        Expanded(
+          child: ListView.builder(
+            itemCount: slaFiltered.length,
+            itemBuilder: (context, index) {
+              final ticket = slaFiltered[index];
+              final ticketId = ticket['id'] as String;
+              final isSelected = selectedTickets.contains(ticketId);
+
+              if (bulkMode) {
+                return GestureDetector(
+                  onTap: () {
+                    final set = Set<String>.from(selectedTickets);
+                    if (isSelected) { set.remove(ticketId); } else { set.add(ticketId); }
+                    ref.read(_selectedTicketsProvider.notifier).state = set;
+                  },
+                  child: isDesktop
+                      ? _CyberTableRow.withCheckbox(ticket: ticket, ref: ref, selected: isSelected)
+                      : _MobileTicketCard.withCheckbox(ticket: ticket, ref: ref, selected: isSelected),
+                );
+              }
+              return isDesktop
+                  ? _CyberTableRow(ticket: ticket, ref: ref)
+                  : _MobileTicketCard(ticket: ticket, ref: ref);
+            },
+          ),
+        ),
+      ],
     );
   }
 
@@ -1876,7 +2077,7 @@ class _NewTicketFormState extends State<_NewTicketForm> {
               foregroundColor: _neonCyan,
               side: const BorderSide(color: _neonCyan),
             ),
-            onPressed: () => _printReceipt(ticket, anonName, anonPhone),
+            onPressed: () => _showPrintOptions(ticket, anonName, anonPhone),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx),
@@ -1901,12 +2102,79 @@ class _NewTicketFormState extends State<_NewTicketForm> {
     );
   }
 
-  Future<void> _printReceipt(Map<String, dynamic> ticket, String? anonName, String? anonPhone) async {
+  void _showPrintOptions(Map<String, dynamic> ticket, String? anonName, String? anonPhone) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: _panelDark,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: _neonCyan)),
+        title: const Text('Imprimer', style: TextStyle(color: Colors.white)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _printOption(ctx, Icons.receipt_long, 'Bon client seul (A4)', 'Reçu détaillé pour le client', () {
+              Navigator.pop(ctx);
+              _printDocument(ticket, anonName, anonPhone, includeSticker: false);
+            }),
+            const SizedBox(height: 8),
+            _printOption(ctx, Icons.label_outline, 'Étiquette appareil seule (50mm)', 'Autocollant à coller au dos du téléphone', () {
+              Navigator.pop(ctx);
+              _printDocument(ticket, anonName, anonPhone, includeSticker: true, stickerOnly: true);
+            }),
+            const SizedBox(height: 8),
+            _printOption(ctx, Icons.copy_all, 'Imprimer les deux (A4 + Étiquette)', 'Bon client + étiquette appareil', () {
+              Navigator.pop(ctx);
+              _printDocument(ticket, anonName, anonPhone, includeSticker: true);
+            }),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Annuler', style: TextStyle(color: _textMuted)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _printOption(BuildContext ctx, IconData icon, String title, String subtitle, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: _bgCarbon.withOpacity(0.5),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: _glassBorder),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: _neonCyan, size: 20),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600)),
+                  Text(subtitle, style: const TextStyle(color: _textMuted, fontSize: 11)),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right, color: _textMuted, size: 18),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _printDocument(Map<String, dynamic> ticket, String? anonName, String? anonPhone, {required bool includeSticker, bool stickerOnly = false}) async {
     final pdf = pw.Document();
     final isAnon = ticket['customer_id'] == null;
     final clientName = isAnon ? (anonName?.isNotEmpty == true ? anonName! : 'Client Anonyme') : 'Client';
     final createdAt = ticket['created_at']?.toString().substring(0, 16) ?? '';
-    final ticketId = ticket['qr_code_hash']?.toString().substring(0, 8) ?? '';
+    final ticketId = ticket['qr_code_hash']?.toString().substring(0, 8) ?? ticket['id']?.toString().substring(0, 8) ?? '';
     final deviceName = ticket['device_name'] ?? '';
     final imei = ticket['imei'] ?? '';
     final issue = ticket['issue_description'] ?? '';
@@ -1916,41 +2184,100 @@ class _NewTicketFormState extends State<_NewTicketForm> {
     final remaining = estimatedCost - advance - discount;
     final estimatedDate = ticket['estimated_completion_date']?.toString() ?? '';
     final qrData = 'LAIDANI:TICKET:${ticket['id']}:${ticket['qr_code_hash'] ?? ''}';
+    final phone = isAnon ? (anonPhone ?? '') : '';
 
-    pdf.addPage(
-      pw.Page(
-        build: (ctx) => pw.Column(
-          crossAxisAlignment: pw.CrossAxisAlignment.start,
-          children: [
-            pw.Center(child: pw.Text('LaidaniRepair', style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold))),
-            pw.Center(child: pw.Text('Bon de dépôt', style: pw.TextStyle(fontSize: 14))),
-            pw.SizedBox(height: 16),
-            _pdfRow('N° Ticket', '#$ticketId'),
-            _pdfRow('Date', createdAt),
-            _pdfRow('Client', clientName),
-            if (!isAnon) _pdfRow('Téléphone', anonPhone ?? ''),
-            _pdfRow('Appareil', deviceName),
-            if (imei.isNotEmpty) _pdfRow('IMEI', imei),
-            if (issue.isNotEmpty) _pdfRow('Problème', issue),
-            pw.Divider(),
-            _pdfRow('Coût estimé', '${estimatedCost.toStringAsFixed(0)} DA'),
-            if (advance > 0) _pdfRow('Avance', '${advance.toStringAsFixed(0)} DA'),
-            _pdfRow('Reste à payer', '${remaining.toStringAsFixed(0)} DA'),
-            if (estimatedDate.isNotEmpty) _pdfRow('Délai estimé', estimatedDate),
-            pw.SizedBox(height: 16),
-            pw.Center(child: pw.BarcodeWidget(data: qrData, barcode: pw.Barcode.qrCode(), width: 100, height: 100)),
-            pw.SizedBox(height: 12),
-            pw.Center(child: pw.Text('⚠ Nous ne sommes pas responsables des données\npersonnelles présentes sur l\'appareil.', style: pw.TextStyle(fontSize: 8), textAlign: pw.TextAlign.center)),
-          ],
+    if (!stickerOnly) {
+      pdf.addPage(
+        pw.Page(
+          pageFormat: PdfPageFormat.a4,
+          build: (ctx) => pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pw.Center(child: pw.Text('LaidaniRepair', style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold))),
+              pw.Center(child: pw.Text('Bon de dépôt', style: pw.TextStyle(fontSize: 14))),
+              pw.SizedBox(height: 16),
+              _pdfRow('N° Ticket', '#$ticketId'),
+              _pdfRow('Date', createdAt),
+              _pdfRow('Client', clientName),
+              if (phone.isNotEmpty) _pdfRow('Téléphone', phone),
+              _pdfRow('Appareil', deviceName),
+              if (imei.isNotEmpty) _pdfRow('IMEI', imei),
+              if (issue.isNotEmpty) _pdfRow('Problème', issue),
+              pw.Divider(),
+              _pdfRow('Coût estimé', '${estimatedCost.toStringAsFixed(0)} DA'),
+              if (advance > 0) _pdfRow('Avance', '${advance.toStringAsFixed(0)} DA'),
+              _pdfRow('Reste à payer', '${remaining.toStringAsFixed(0)} DA'),
+              if (estimatedDate.isNotEmpty) _pdfRow('Délai estimé', estimatedDate),
+              pw.SizedBox(height: 16),
+              pw.Center(child: pw.BarcodeWidget(data: qrData, barcode: pw.Barcode.qrCode(), width: 150, height: 150)),
+              pw.SizedBox(height: 12),
+              pw.Center(child: pw.Text('⚠ Nous ne sommes pas responsables des données\npersonnelles présentes sur l\'appareil.', style: pw.TextStyle(fontSize: 8), textAlign: pw.TextAlign.center)),
+              pw.SizedBox(height: 20),
+              pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
+                pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+                  pw.Text('Signature client :', style: pw.TextStyle(fontSize: 10)),
+                  pw.SizedBox(height: 24),
+                  pw.Container(width: 150, child: pw.Divider()),
+                ]),
+                pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+                  pw.Text('Date : __/__/____', style: pw.TextStyle(fontSize: 10)),
+                ]),
+              ]),
+            ],
+          ),
         ),
-      ),
-    );
+      );
+    }
+
+    if (includeSticker) {
+      pdf.addPage(
+        pw.Page(
+          pageFormat: PdfPageFormat(141.7, 85.0), // 50mm x 30mm
+          margin: pw.EdgeInsets.all(4),
+          build: (ctx) => pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            mainAxisSize: pw.MainAxisSize.min,
+            children: [
+              pw.Text('🔧 LAIDANI REPAIR', style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold)),
+              pw.SizedBox(height: 2),
+              pw.Text(clientName, style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
+              pw.Text('$deviceName — ${phone.isNotEmpty ? phone : ''}', style: pw.TextStyle(fontSize: 6)),
+              pw.SizedBox(height: 2),
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.BarcodeWidget(
+                    data: qrData,
+                    barcode: pw.Barcode.qrCode(errorCorrectLevel: pw.BarcodeQRCorrectionLevel.low),
+                    width: 70, height: 70,
+                  ),
+                  pw.SizedBox(width: 4),
+                  pw.Expanded(
+                    child: pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Text('N° #$ticketId', style: pw.TextStyle(fontSize: 5, font: pw.Font.courier())),
+                        pw.Text('Date: ${createdAt.substring(0, 10)}', style: pw.TextStyle(fontSize: 5)),
+                        pw.SizedBox(height: 4),
+                        pw.Text('⚠ Conserver', style: pw.TextStyle(fontSize: 5)),
+                        pw.Text('ce ticket pour', style: pw.TextStyle(fontSize: 5)),
+                        pw.Text('le suivi.', style: pw.TextStyle(fontSize: 5)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      );
+    }
 
     try {
       if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
         await Printing.layoutPdf(onLayout: (_) => pdf.save());
       } else {
-        await Printing.sharePdf(bytes: await pdf.save(), filename: 'bon_depot_$ticketId.pdf');
+        await Printing.sharePdf(bytes: await pdf.save(), filename: 'depot_$ticketId.pdf');
       }
     } catch (_) {}
   }
