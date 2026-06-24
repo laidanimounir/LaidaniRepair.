@@ -1575,6 +1575,8 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
         'labor_cost': _ticket?['labor_cost'],
         'qr_code_hash': qrHash,
         'status': 'En attente',
+        'payment_status': 'Non payé',
+        'paid_amount': _ticket?['advance_payment'] ?? 0,
       });
 
       _showToast('Ticket dupliqué avec succès !', _neonCyan);

@@ -1706,6 +1706,8 @@ class _NewTicketFormState extends State<_NewTicketForm> {
         'labor_cost': labor,
         'qr_code_hash': qrHash,
         'status': 'En attente',
+        'payment_status': 'Non payé',
+        'paid_amount': advance,
         'estimated_completion_date': _estimatedCompletionDate?.toIso8601String().substring(0, 10),
       }).select().single();
       
