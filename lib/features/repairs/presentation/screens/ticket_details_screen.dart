@@ -2050,6 +2050,11 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
       onBack: () => context.pop(),
       onDuplicate: _duplicateTicket,
       onCancel: _cancelTicket,
+      onPrintComplete: () {
+        setState(() {
+          _ticket!['customer_ticket_printed_at'] = DateTime.now().toIso8601String();
+        });
+      },
     );
   }
 
@@ -2504,121 +2509,7 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
     );
   }
 
-  Widget _buildPartsSection(Color color) {
-    final isCanceled = _ticket?['status'] == 'Annulé';
-    return Container(
-      decoration: BoxDecoration(color: _panelDark.withOpacity(0.5), borderRadius: BorderRadius.circular(16), border: Border.all(color: _glassBorder)),
-      child: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text('PIÈCES ET COMPOSANTS', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                if (!isCanceled)
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      ElevatedButton.icon(
-                        onPressed: () => _suggestPartsAI(color),
-                        icon: const Icon(Icons.psychology, size: 14),
-                        label: const Text('IA', style: TextStyle(fontSize: 11)),
-                        style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF9C27B0).withOpacity(0.1), foregroundColor: const Color(0xFF9C27B0)),
-                      ),
-                      const SizedBox(width: 8),
-                      ElevatedButton.icon(
-                        onPressed: () => _showSearchStockDialog(context, color),
-                        icon: const Icon(Icons.add_shopping_cart, size: 16),
-                        label: const Text('AJOUTER'),
-                        style: ElevatedButton.styleFrom(backgroundColor: color.withOpacity(0.1), foregroundColor: color),
-                      ),
-                    ],
-                  ),
-              ],
-            ),
-          ),
-          const Divider(color: _glassBorder, height: 1),
-          Expanded(
-            child: _parts.isEmpty 
-              ? const Center(child: Text('Aucune pièce consommée', style: TextStyle(color: _textMuted)))
-              : ListView.builder(
-                  itemCount: _parts.length,
-                   itemBuilder: (context, index) {
-                    final part = _parts[index];
-                    final partStatus = part['part_status'] as String? ?? 'Utilisé';
-                    final isDefective = partStatus == 'Défectueux';
-                    final isReturned = partStatus == 'Retourné';
-                    final qty = (part['quantity'] as num?)?.toInt() ?? 1;
-                    final price = (part['charged_price'] as num?)?.toDouble() ?? 0;
-                    final total = price * qty;
-                    final productName = part['products']?['product_name'] ?? 'Inconnu';
 
-                    Color statusColor;
-                    switch (partStatus) {
-                      case 'Neuf': statusColor = _neonEmerald; break;
-                      case 'Occasion': statusColor = Colors.orangeAccent; break;
-                      case 'Défectueux': statusColor = Colors.redAccent; break;
-                      case 'Retourné': statusColor = _textMuted; break;
-                      default: statusColor = _neonCyan; break;
-                    }
-
-                    return Container(
-                      margin: const EdgeInsets.only(bottom: 4),
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                      decoration: BoxDecoration(
-                        color: isReturned || isDefective ? Colors.redAccent.withOpacity(0.05) : _panelDark,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: statusColor.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(6),
-                              border: Border.all(color: statusColor.withOpacity(0.3)),
-                            ),
-                            child: Text(partStatus, style: TextStyle(color: statusColor, fontSize: 10, fontWeight: FontWeight.bold)),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(productName, style: TextStyle(color: isReturned || isDefective ? _textMuted : Colors.white, fontSize: 13, fontWeight: FontWeight.w600, decoration: isReturned ? TextDecoration.lineThrough : null)),
-                                const SizedBox(height: 2),
-                                Text('$qty × $price DA = ${total.toStringAsFixed(0)} DA', style: const TextStyle(color: _textMuted, fontSize: 11)),
-                              ],
-                            ),
-                          ),
-                          if (!isCanceled && !isReturned) ...[
-                            IconButton(
-                              icon: const Icon(Icons.edit_outlined, color: _textMuted, size: 18),
-                              tooltip: 'Modifier quantité/prix',
-                              onPressed: () => _editPartDetails(part),
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.swap_horiz, color: _textMuted, size: 18),
-                              tooltip: 'Changer état',
-                              onPressed: () => _showPartStatusMenu(part),
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 18),
-                              tooltip: 'Supprimer (retour stock)',
-                              onPressed: () => _removePart(part),
-                            ),
-                          ],
-                        ],
-                      ),
-                    );
-                  },
-                ),
-          ),
-        ],
-      ),
-    );
-  }
 
   Widget _buildPaymentsSection(Color color) {
     final isCanceled = _ticket?['status'] == 'Annulé';
@@ -2673,31 +2564,7 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
     );
   }
 
-  Widget _buildFinancialSummary(Color color) {
-    final partsTotal = _totalPartsCost;
-    final labor = (_ticket?['labor_cost'] as num?)?.toDouble() ?? 0;
-    final discount = (_ticket?['discount'] as num?)?.toDouble() ?? 0;
-    final totalPaid = _totalPayments;
-    final remaining = _remainingBalance;
 
-    final isCanceled = _ticket?['status'] == 'Annulé';
-
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(color: _panelDark, borderRadius: BorderRadius.circular(16), border: Border.all(color: color.withOpacity(0.3))),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: [
-          _buildMoneyStat('PIÈCES', partsTotal, _textMuted),
-          _buildEditableMoneyStat('M.O (Main d\'œuvre)', labor, _textMuted, isCanceled ? null : () => _updateFinance('labor_cost', 'la Main d\'œuvre', labor)),
-          _buildEditableMoneyStat('REMISE', discount, Colors.redAccent, isCanceled ? null : () => _updateFinance('discount', 'la Remise', discount)),
-          _buildMoneyStat('PAYÉ', totalPaid, _neonEmerald),
-          Container(width: 1, height: 40, color: _glassBorder),
-          _buildMoneyStat(isCanceled ? 'ANNULÉ' : 'RESTE', isCanceled ? 0 : remaining, isCanceled ? Colors.redAccent : color, isBig: true),
-        ],
-      ),
-    );
-  }
 
   // --- Helpers ---
   Widget _buildSectionHeader(String title, IconData icon, Color color) {
@@ -2741,103 +2608,3 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
   }
 }
 
-// --- نافذة البحث الزجاجية (لم تتغير) ---
-class _StockSearchDialog extends StatefulWidget {
-  final Color color;
-  final Function(Map<String, dynamic>) onProductSelected;
-  const _StockSearchDialog({required this.color, required this.onProductSelected});
-
-  @override
-  State<_StockSearchDialog> createState() => _StockSearchDialogState();
-}
-
-class _StockSearchDialogState extends State<_StockSearchDialog> {
-  String _searchQuery = '';
-  int? _selectedCategoryId;
-  List<dynamic> _categories = [];
-  bool _isLoadingCats = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _fetchCategories();
-  }
-
-  Future<void> _fetchCategories() async {
-    try {
-      final res = await Supabase.instance.client.from('categories').select('id, category_name');
-      if (mounted) setState(() { _categories = res; _isLoadingCats = false; });
-    } catch (e) {
-      if (mounted) setState(() => _isLoadingCats = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final client = Supabase.instance.client;
-    var baseQuery = client.from('products').select('*, categories(category_name)').gt('stock_quantity', 0).ilike('product_name', '%$_searchQuery%');
-    if (_selectedCategoryId != null) baseQuery = baseQuery.eq('category_id', _selectedCategoryId!);
-    final futureQuery = baseQuery.limit(15);
-
-    return AlertDialog(
-      backgroundColor: _panelDark,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: _glassBorder)),
-      title: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          TextField(
-            autofocus: true,
-            style: const TextStyle(color: Colors.white),
-            decoration: InputDecoration(hintText: 'Rechercher une pièce...', hintStyle: const TextStyle(color: _textMuted), prefixIcon: Icon(Icons.search, color: widget.color), border: InputBorder.none),
-            onChanged: (v) => setState(() => _searchQuery = v),
-          ),
-          if (!_isLoadingCats && _categories.isNotEmpty) ...[
-            const Divider(color: _glassBorder, height: 1), const SizedBox(height: 8),
-            SingleChildScrollView(scrollDirection: Axis.horizontal, child: Row(children: [_buildCatChip('Tous', null), ..._categories.map((c) => _buildCatChip(c['category_name'], c['id']))])),
-          ]
-        ],
-      ),
-      content: SizedBox(
-        width: 500, height: 400,
-        child: FutureBuilder(
-          future: futureQuery,
-          builder: (ctx, snap) {
-            if (snap.connectionState == ConnectionState.waiting) return Center(child: CircularProgressIndicator(color: widget.color));
-            final products = snap.data as List? ?? [];
-            if (products.isEmpty) return const Center(child: Text('Aucun produit disponible', style: TextStyle(color: _textMuted)));
-            return ListView.separated(
-              itemCount: products.length, separatorBuilder: (_, __) => const Divider(color: _glassBorder, height: 1),
-              itemBuilder: (ctx, i) {
-                final p = products[i];
-                final catName = p['categories']?['category_name'] ?? 'N/A';
-                return ListTile(
-                  title: Row(children: [Expanded(child: Text(p['product_name'] ?? 'Inconnu', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold))), Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2), decoration: BoxDecoration(color: widget.color.withOpacity(0.1), borderRadius: BorderRadius.circular(4), border: Border.all(color: widget.color.withOpacity(0.3))), child: Text(catName, style: TextStyle(color: widget.color, fontSize: 10, fontWeight: FontWeight.bold)))]),
-                  subtitle: Text('Stock: ${p['stock_quantity']} | Prix: ${p['reference_price']} DA', style: const TextStyle(color: _textMuted, fontSize: 13)),
-                  trailing: IconButton(icon: Icon(Icons.add_shopping_cart, color: widget.color), onPressed: () { widget.onProductSelected(p); Navigator.pop(context); }),
-                  onTap: () { widget.onProductSelected(p); Navigator.pop(context); },
-                );
-              },
-            );
-          },
-        ),
-      ),
-      actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Fermer', style: TextStyle(color: _textMuted)))],
-    );
-  }
-
-  Widget _buildCatChip(String label, int? id) {
-    final selected = _selectedCategoryId == id;
-    return Padding(
-      padding: const EdgeInsets.only(right: 8),
-      child: FilterChip(
-        label: Text(label, style: TextStyle(color: selected ? widget.color : _textMuted, fontSize: 11)),
-        selected: selected,
-        onSelected: (_) => setState(() => _selectedCategoryId = selected ? null : id),
-        backgroundColor: Colors.transparent, selectedColor: widget.color.withOpacity(0.1),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8), side: BorderSide(color: selected ? widget.color : _glassBorder)),
-        showCheckmark: false,
-      ),
-    );
-  }
-}

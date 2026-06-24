@@ -145,7 +145,12 @@ class _StockSearchDialogState extends State<StockSearchDialog> {
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Annuler', style: TextStyle(color: _textMuted))),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent, foregroundColor: Colors.white),
-            onPressed: () { Navigator.pop(ctx); Navigator.pop(context); widget.onProductSelected(product); },
+            onPressed: () {
+              Navigator.pop(ctx);
+              Navigator.pop(context);
+              product['_override_reason'] = reasonCtrl.text.trim().isEmpty ? 'Dépassement stock autorisé' : reasonCtrl.text.trim();
+              widget.onProductSelected(product);
+            },
             child: const Text('Forcer l\'ajout'),
           ),
         ],

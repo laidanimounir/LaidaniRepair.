@@ -9,6 +9,7 @@ class TicketHeaderWidget extends StatelessWidget {
   final VoidCallback onBack;
   final VoidCallback onDuplicate;
   final VoidCallback onCancel;
+  final VoidCallback? onPrintComplete;
 
   const TicketHeaderWidget({
     super.key,
@@ -18,6 +19,7 @@ class TicketHeaderWidget extends StatelessWidget {
     required this.onBack,
     required this.onDuplicate,
     required this.onCancel,
+    this.onPrintComplete,
   });
 
   @override
@@ -99,6 +101,7 @@ class TicketHeaderWidget extends StatelessWidget {
 
   Future<void> _print(BuildContext context) async {
     await PrintService.printFull(ticket: ticket, parts: const [], context: context);
+    onPrintComplete?.call();
   }
 }
 
