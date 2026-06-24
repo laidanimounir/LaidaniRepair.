@@ -25,7 +25,7 @@ final _myTicketsProvider = FutureProvider<List<Map<String, dynamic>>>((ref) asyn
   if (user == null) return [];
   return await client
       .from('repair_tickets')
-      .select('*, customers(full_name, phone_number), profiles(full_name)')
+      .select('*, customers(full_name, phone_number), profiles!repair_tickets_assigned_technician_id_fkey(full_name)')
       .eq('assigned_technician_id', user.id)
       .order('created_at', ascending: false)
       .limit(50);
