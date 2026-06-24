@@ -1568,7 +1568,7 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
         'imei': _ticket?['imei'],
         'serial_number': _ticket?['serial_number'],
         'device_password': _ticket?['device_password'],
-        'accessories': _ticket?['accessories'],
+        'accessories_included': _ticket?['accessories_included'],
         'pre_diagnostic': _ticket?['pre_diagnostic'],
         'estimated_cost': _ticket?['estimated_cost'],
         'final_cost': _ticket?['final_cost'] ?? 0,
