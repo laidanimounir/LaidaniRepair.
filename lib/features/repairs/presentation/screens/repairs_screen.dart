@@ -916,6 +916,7 @@ class _NewTicketFormState extends State<_NewTicketForm> {
   bool _lockCodeVisible = false;
   final Set<String> _conditionChecklist = {};
   int _currentStep = 0;
+  final Map<String, String?> _fieldErrors = {};
 
   bool _isLoading = false;
 
@@ -1129,16 +1130,30 @@ class _NewTicketFormState extends State<_NewTicketForm> {
             builder: (ctx, snap) {
               if (!snap.hasData) return const CircularProgressIndicator(color: _neonCyan);
               final custs = snap.data as List;
-              return DropdownButtonFormField<String>(
-                value: _selectedCustomerId,
-                dropdownColor: _panelDark,
-                style: const TextStyle(color: Colors.white),
-                decoration: _inputDecoration('Sélectionner un client *', Icons.people),
-                items: custs.map((c) => DropdownMenuItem<String>(
-                  value: c['id'] as String,
-                  child: Text('${c['full_name']} — ${c['phone_number'] ?? ''}'),
-                )).toList(),
-                onChanged: (v) => setState(() => _selectedCustomerId = v),
+              final custError = _fieldErrors['customer'];
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  DropdownButtonFormField<String>(
+                    value: _selectedCustomerId,
+                    dropdownColor: _panelDark,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: _inputDecoration('Sélectionner un client *', Icons.people, error: custError != null),
+                    items: custs.map((c) => DropdownMenuItem<String>(
+                      value: c['id'] as String,
+                      child: Text('${c['full_name']} — ${c['phone_number'] ?? ''}'),
+                    )).toList(),
+                    onChanged: (v) => setState(() {
+                      _selectedCustomerId = v;
+                      _fieldErrors.remove('customer');
+                    }),
+                  ),
+                  if (custError != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4, left: 12),
+                      child: Text(custError, style: const TextStyle(color: Colors.redAccent, fontSize: 11)),
+                    ),
+                ],
               );
             },
           ),
@@ -1152,7 +1167,7 @@ class _NewTicketFormState extends State<_NewTicketForm> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _buildSectionTitle('2. L\'appareil', Icons.smartphone),
-        _buildTextField(_deviceCtrl, 'Modèle de l\'appareil * (ex: Galaxy S23)', icon: Icons.phone_android),
+        _buildTextField(_deviceCtrl, 'Modèle de l\'appareil * (ex: Galaxy S23)', icon: Icons.phone_android, errorKey: 'device_name'),
         const SizedBox(height: 12),
         DropdownButtonFormField<String>(
           value: _deviceType,
@@ -1300,7 +1315,7 @@ class _NewTicketFormState extends State<_NewTicketForm> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _buildSectionTitle('5. Problème & Diagnostic', Icons.warning_amber_rounded),
-        _buildTextField(_issueCtrl, 'Problème signalé par le client *', icon: Icons.report_problem, maxLines: 2),
+        _buildTextField(_issueCtrl, 'Problème signalé par le client *', icon: Icons.report_problem, maxLines: 2, errorKey: 'issue_description'),
         const SizedBox(height: 12),
         _buildDiagnosticAIButton(),
         const SizedBox(height: 12),
@@ -1639,41 +1654,69 @@ class _NewTicketFormState extends State<_NewTicketForm> {
     );
   }
 
-  Widget _buildTextField(TextEditingController ctrl, String label, {required IconData icon, int maxLines = 1, bool isNumber = false, String? suffix}) {
-    return TextField(
-      controller: ctrl,
-      maxLines: maxLines,
-      keyboardType: isNumber ? TextInputType.number : TextInputType.text,
-      inputFormatters: isNumber ? [FilteringTextInputFormatter.allow(RegExp(r'[\d.]'))] : null,
-      style: const TextStyle(color: Colors.white, fontSize: 14),
-      decoration: _inputDecoration(label, icon).copyWith(suffixText: suffix, suffixStyle: const TextStyle(color: _textMuted)),
+  Widget _buildTextField(TextEditingController ctrl, String label, {required IconData icon, int maxLines = 1, bool isNumber = false, String? suffix, String? errorKey}) {
+    final error = errorKey != null ? _fieldErrors[errorKey] : null;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        TextField(
+          controller: ctrl,
+          maxLines: maxLines,
+          keyboardType: isNumber ? TextInputType.number : TextInputType.text,
+          inputFormatters: isNumber ? [FilteringTextInputFormatter.allow(RegExp(r'[\d.]'))] : null,
+          style: const TextStyle(color: Colors.white, fontSize: 14),
+          decoration: _inputDecoration(label, icon, error: error != null).copyWith(
+            suffixText: suffix, 
+            suffixStyle: const TextStyle(color: _textMuted),
+          ),
+          onChanged: error != null ? (_) => setState(() => _fieldErrors.remove(errorKey)) : null,
+        ),
+        if (error != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 4, left: 12),
+            child: Text(error, style: const TextStyle(color: Colors.redAccent, fontSize: 11)),
+          ),
+      ],
     );
   }
 
-  InputDecoration _inputDecoration(String label, IconData icon) {
+  InputDecoration _inputDecoration(String label, IconData icon, {bool error = false}) {
     return InputDecoration(
       labelText: label,
-      labelStyle: const TextStyle(color: _textMuted, fontSize: 13),
-      prefixIcon: Icon(icon, color: _textMuted, size: 18),
+      labelStyle: TextStyle(color: error ? Colors.redAccent : _textMuted, fontSize: 13),
+      prefixIcon: Icon(icon, color: error ? Colors.redAccent : _textMuted, size: 18),
       filled: true,
       fillColor: _bgCarbon.withOpacity(0.5),
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: _glassBorder)),
-      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: _glassBorder)),
-      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: _neonCyan)),
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: error ? Colors.redAccent : _glassBorder)),
+      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: error ? Colors.redAccent : _glassBorder)),
+      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: error ? Colors.redAccent : _neonCyan)),
     );
   }
 
   Future<void> _submit() async {
     final device = _deviceCtrl.text.trim();
     final issue = _issueCtrl.text.trim();
-    
-    if ((!_isAnonymous && _selectedCustomerId == null) || device.isEmpty || issue.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Veuillez remplir les champs obligatoires (*)'), backgroundColor: Colors.redAccent),
-      );
-      return;
+    final isAnon = _isAnonymous || _selectedCustomerId == null;
+
+    _fieldErrors.clear();
+
+    if (!_isAnonymous && _selectedCustomerId == null) {
+      _fieldErrors['customer'] = 'Sélectionnez un client';
+    }
+    if (device.isEmpty) {
+      _fieldErrors['device_name'] = 'Modèle obligatoire';
+    }
+    if (issue.isEmpty) {
+      _fieldErrors['issue_description'] = 'Problème obligatoire';
     }
 
+    if (_fieldErrors.isNotEmpty) {
+      setState(() {});
+      if (!isAnon) return;
+    }
+
+    if (_fieldErrors.isNotEmpty) return;
+    
     setState(() => _isLoading = true);
     
     try {
