@@ -1994,16 +1994,43 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
     final bool isAnon = _ticket?['customer_id'] == null;
     final String clientName = isAnon ? (_ticket?['client_name_temp'] ?? 'Anonyme') : (_ticket?['customers']?['full_name'] ?? 'Client');
     final String clientPhone = isAnon ? (_ticket?['client_phone_temp'] ?? 'N/A') : (_ticket?['customers']?['phone_number'] ?? 'N/A');
+    final estimatedCost = (_ticket?['estimated_cost'] as num?)?.toDouble() ?? 0;
+    final advance = (_ticket?['advance_payment'] as num?)?.toDouble() ?? 0;
+    final paid = _totalPayments;
+    final remaining = _remainingBalance;
 
     return Column(
       children: [
-        _buildCompactCard(Icons.phone_android, 'Appareil', _ticket?['device_name'] ?? 'N/A', color),
-        const SizedBox(height: 6),
         _buildCompactCard(Icons.person, 'Client', '$clientName — $clientPhone', color),
         const SizedBox(height: 6),
-        _buildCompactCard(Icons.visibility, 'Diagnostic', _ticket?['pre_diagnostic'] ?? 'Aucun', color),
+        _buildCompactCard(Icons.phone_android, 'Appareil', _ticket?['device_name'] ?? 'N/A', color),
         const SizedBox(height: 6),
-        _buildCompactCard(Icons.attach_money, 'Finances', 'Est: ${((_ticket?['estimated_cost'] as num?)?.toDouble() ?? 0).toStringAsFixed(0)} DA — Avance: ${((_ticket?['advance_payment'] as num?)?.toDouble() ?? 0).toStringAsFixed(0)} DA', color),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(color: _panelDark, borderRadius: BorderRadius.circular(10), border: Border.all(color: _glassBorder)),
+          child: Row(
+            children: [
+              Icon(Icons.attach_money, color: color, size: 18),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('FINANCES', style: TextStyle(color: _textMuted, fontSize: 10, fontWeight: FontWeight.bold)),
+                    Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                      Text('Total: ${(estimatedCost).toStringAsFixed(0)} DA', style: const TextStyle(color: Colors.white, fontSize: 12)),
+                      Text('Payé: ${paid.toStringAsFixed(0)} DA', style: const TextStyle(color: _neonEmerald, fontSize: 12)),
+                    ]),
+                    if (remaining > 0)
+                      Padding(padding: const EdgeInsets.only(top: 2), child: Text('Reste: ${remaining.toStringAsFixed(0)} DA', style: const TextStyle(color: Colors.orangeAccent, fontSize: 12, fontWeight: FontWeight.bold))),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 6),
+        _buildCompactCard(Icons.visibility, 'Diagnostic', _ticket?['pre_diagnostic'] ?? 'Aucun', color),
         if (_ticket?['imei']?.toString().isNotEmpty == true) ...[
           const SizedBox(height: 6),
           _buildCompactCard(Icons.qr_code_scanner, 'IMEI', _ticket!['imei'].toString(), color),
@@ -2059,29 +2086,72 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
   }
 
   Widget _buildLeftSidebar(Color color) {
-    final profiles = <Map<String, dynamic>>[];
-    final currentId = _ticket?['assigned_technician_id'] as String?;
-    return FutureBuilder<List<Map<String, dynamic>>>(
-      future: ref.read(supabaseClientProvider).from('profiles').select('id, full_name').order('full_name'),
-      builder: (ctx, snap) {
-        final p = snap.data ?? [];
-        return DeviceInfoSidebar(
-          ticket: _ticket!,
-          accentColor: color,
-          photos: _photos,
-          notifications: _notifications,
-          profiles: p,
-          currentTechnicianId: currentId,
-          isCanceled: _ticket?['status'] == RepairStatus.annule,
-          onUploadPhoto: () => _uploadPhoto(color),
-          onViewPhoto: _viewPhoto,
-          onDeletePhoto: (photo) => _deletePhoto(photo, color),
-          onAddNotification: () => _showNotificationDialog(color),
-          onSendWhatsApp: _showWhatsAppStatusDialog,
-          onAssignTechnician: (profiles, currentId) => _showAssignTechnicianDialog(profiles, currentId, color),
-        );
-      },
+    final status = _ticket?['status'] as String? ?? 'En attente';
+    final statusClr = Color(RepairStatus.statusColor(status));
+
+    return Container(
+      width: 350,
+      decoration: const BoxDecoration(border: Border(right: BorderSide(color: _glassBorder))),
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.fromLTRB(24, 20, 24, 16),
+            decoration: BoxDecoration(
+              border: Border(bottom: BorderSide(color: _glassBorder)),
+              color: statusClr.withOpacity(0.05),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  decoration: BoxDecoration(color: statusClr.withOpacity(0.15), borderRadius: BorderRadius.circular(12), border: Border.all(color: statusClr.withOpacity(0.4))),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(_statusIcon(status), color: statusClr, size: 20),
+                    const SizedBox(width: 10),
+                    Text(status, style: TextStyle(color: statusClr, fontWeight: FontWeight.w800, fontSize: 15, letterSpacing: 1)),
+                  ]),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: FutureBuilder<List<Map<String, dynamic>>>(
+              future: ref.read(supabaseClientProvider).from('profiles').select('id, full_name').order('full_name'),
+              builder: (ctx, snap) {
+                final profiles = snap.data ?? [];
+                final currentId = _ticket?['assigned_technician_id'] as String?;
+                return DeviceInfoSidebar(
+                  ticket: _ticket!,
+                  accentColor: color,
+                  photos: _photos,
+                  notifications: _notifications,
+                  profiles: profiles,
+                  currentTechnicianId: currentId,
+                  isCanceled: _ticket?['status'] == RepairStatus.annule,
+                  onUploadPhoto: () => _uploadPhoto(color),
+                  onViewPhoto: _viewPhoto,
+                  onDeletePhoto: (photo) => _deletePhoto(photo, color),
+                  onAddNotification: () => _showNotificationDialog(color),
+                  onSendWhatsApp: _showWhatsAppStatusDialog,
+                  onAssignTechnician: (profiles, currentId) => _showAssignTechnicianDialog(profiles, currentId, color),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
     );
+  }
+
+  IconData _statusIcon(String? status) {
+    switch (status) {
+      case 'En attente': return Icons.hourglass_empty;
+      case 'En cours': return Icons.build;
+      case 'Terminé': return Icons.check_circle;
+      case 'Livré': return Icons.local_shipping;
+      case 'Annulé': return Icons.cancel;
+      default: return Icons.all_inbox;
+    }
   }
 
   Widget _buildQRCodeSection(Color color) {
@@ -2142,13 +2212,15 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
   Widget _buildMainOperations(Color color, bool isOwner) {
     return Column(
       children: [
-        _buildQRCodeSection(color),
+        _buildFinancialWidget(color),
         const SizedBox(height: 16),
         _buildPartsWidget(color, isOwner),
         const SizedBox(height: 16),
+        _buildQuoteSection(color),
+        const SizedBox(height: 16),
         _buildPaymentsSection(color),
         const SizedBox(height: 16),
-        _buildQuoteSection(color),
+        _buildQRCodeSection(color),
         const SizedBox(height: 16),
         _buildQCSection(color),
         const SizedBox(height: 16),
@@ -2157,8 +2229,6 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
         _buildHandoverSection(color),
         const SizedBox(height: 16),
         _buildFeedbackSection(color),
-        const SizedBox(height: 16),
-        _buildFinancialWidget(color),
         if (isOwner && _isNotCanceled) ...[
           const SizedBox(height: 16),
           _buildProfitMarginCard(color),
