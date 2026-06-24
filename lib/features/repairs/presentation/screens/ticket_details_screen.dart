@@ -42,6 +42,7 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
   List<Map<String, dynamic>> _notifications = [];
   Map<String, dynamic>? _feedbackData;
   RealtimeChannel? _channel;
+  DateTime _lastFetch = DateTime.fromMillisecondsSinceEpoch(0);
 
   @override
   void initState() {
@@ -94,6 +95,9 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
   // --- جلب البيانات ---
   Future<void> _fetchFullData() async {
     if (!mounted) return;
+    final now = DateTime.now();
+    if (now.difference(_lastFetch).inMilliseconds < 500) return;
+    _lastFetch = now;
     setState(() => _isLoading = true);
     try {
       final client = ref.read(supabaseClientProvider);
@@ -1761,6 +1765,9 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
       final labor = (_ticket?['labor_cost'] as num?)?.toDouble() ?? 0;
       final discount = (_ticket?['discount'] as num?)?.toDouble() ?? 0;
       final computed = partsTotal + labor - discount;
+      final currentFinalCost = (_ticket?['final_cost'] as num?)?.toDouble() ?? 0;
+
+      if ((computed - currentFinalCost).abs() < 0.01) return;
 
       await client
           .from('repair_tickets')
