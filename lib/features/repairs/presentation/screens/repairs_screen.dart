@@ -419,6 +419,7 @@ class _CyberTableRow extends StatelessWidget {
                       final updates = <String, dynamic>{'status': newStatus};
                       if (newStatus == 'Livré') {
                         updates['delivered_at'] = DateTime.now().toIso8601String();
+                        await _syncFinalCostBeforeDelivery(client, ticket['id'] as String, ticket);
                         _addLoyaltyPointsForRepair(client, ticket);
                       }
                       await client.from('repair_tickets').update(updates).eq('id', ticket['id']);
@@ -433,6 +434,23 @@ class _CyberTableRow extends StatelessWidget {
       ),
     );
   }
+}
+
+Future<void> _syncFinalCostBeforeDelivery(SupabaseClient client, String ticketId, Map<String, dynamic> ticket) async {
+  final parts = await client
+      .from('repair_parts')
+      .select('charged_price, quantity')
+      .eq('ticket_id', ticketId);
+  final partsTotal = parts.fold<double>(0, (sum, p) {
+    final price = (p['charged_price'] as num?)?.toDouble() ?? 0;
+    final qty = (p['quantity'] as num?)?.toDouble() ?? 1;
+    return sum + (price * qty);
+  });
+  final labor = (ticket['labor_cost'] as num?)?.toDouble() ?? 0;
+  final discount = (ticket['discount'] as num?)?.toDouble() ?? 0;
+  final computed = partsTotal + labor - discount;
+  await client.from('repair_tickets').update({'final_cost': computed}).eq('id', ticketId);
+  ticket['final_cost'] = computed;
 }
 
 Future<void> _addLoyaltyPointsForRepair(SupabaseClient client, Map<String, dynamic> ticket) async {
@@ -566,6 +584,7 @@ class _MobileTicketCard extends StatelessWidget {
                       final updates = <String, dynamic>{'status': newStatus};
                       if (newStatus == 'Livré') {
                         updates['delivered_at'] = DateTime.now().toIso8601String();
+                        await _syncFinalCostBeforeDelivery(client, ticket['id'] as String, ticket);
                         _addLoyaltyPointsForRepair(client, ticket);
                       }
                       await client.from('repair_tickets').update(updates).eq('id', ticket['id']);

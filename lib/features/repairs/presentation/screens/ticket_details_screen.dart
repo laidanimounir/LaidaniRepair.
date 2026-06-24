@@ -85,6 +85,7 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
         _isLoading = false;
       });
       _syncPaymentStatus();
+      _syncFinalCost();
     } catch (e) {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -1522,7 +1523,7 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
     double total = 0;
     for (var p in _parts) {
       if (p['part_status'] == 'Utilisé') {
-        final price = (p['charged_price'] as num).toDouble();
+        final price = (p['charged_price'] as num?)?.toDouble() ?? 0;
         final qty = (p['quantity'] as num?)?.toInt() ?? 1;
         total += price * qty;
       }
@@ -1533,7 +1534,7 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
   double get _totalPayments {
     double total = (_ticket?['advance_payment'] as num?)?.toDouble() ?? 0;
     for (var p in _payments) {
-      total += (p['amount'] as num).toDouble();
+      total += (p['amount'] as num?)?.toDouble() ?? 0;
     }
     return total;
   }
@@ -1558,6 +1559,33 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
     final finalCost = (_ticket?['final_cost'] as num?)?.toDouble() ?? 0;
     if (finalCost <= 0) return 0;
     return (_netProfit / finalCost) * 100;
+  }
+
+  Future<void> _syncFinalCost() async {
+    final client = ref.read(supabaseClientProvider);
+    try {
+      final parts = await client
+          .from('repair_parts')
+          .select('charged_price, quantity')
+          .eq('ticket_id', widget.ticketId);
+
+      final partsTotal = parts.fold<double>(0, (sum, p) {
+        final price = (p['charged_price'] as num?)?.toDouble() ?? 0;
+        final qty = (p['quantity'] as num?)?.toDouble() ?? 1;
+        return sum + (price * qty);
+      });
+
+      final labor = (_ticket?['labor_cost'] as num?)?.toDouble() ?? 0;
+      final discount = (_ticket?['discount'] as num?)?.toDouble() ?? 0;
+      final computed = partsTotal + labor - discount;
+
+      await client
+          .from('repair_tickets')
+          .update({'final_cost': computed})
+          .eq('id', widget.ticketId);
+
+      setState(() => _ticket!['final_cost'] = computed);
+    } catch (_) {}
   }
 
   Future<void> _syncPaymentStatus() async {
