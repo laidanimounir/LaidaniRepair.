@@ -933,7 +933,7 @@ class _NewTicketFormState extends State<_NewTicketForm> {
       backgroundColor: Colors.transparent,
       insetPadding: EdgeInsets.all(isDesktop ? 24 : 12),
       child: Container(
-        width: isDesktop ? 560 : double.infinity,
+        width: isDesktop ? 900 : double.infinity,
         constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.9),
         decoration: BoxDecoration(
           color: _panelDark.withOpacity(0.95),
@@ -959,23 +959,41 @@ class _NewTicketFormState extends State<_NewTicketForm> {
             // Form Body
             Expanded(
               child: isDesktop
-                  ? SingleChildScrollView(
-                      padding: const EdgeInsets.all(24),
-                      child: Column(
-                        children: [
-                          _buildClientSection(),
-                          const SizedBox(height: 32),
-                          _buildDeviceSection(),
-                          const SizedBox(height: 32),
-                          _buildSecuritySection(),
-                          const SizedBox(height: 32),
-                          _buildConditionSection(),
-                          const SizedBox(height: 32),
-                          _buildProblemSection(),
-                          const SizedBox(height: 32),
-                          _buildFinancialSection(),
-                        ],
-                      ),
+                  ? Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          flex: 5,
+                          child: SingleChildScrollView(
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              children: [
+                                _buildClientSection(),
+                                const SizedBox(height: 16),
+                                _buildDeviceSection(),
+                                const SizedBox(height: 16),
+                                _buildSecuritySection(),
+                              ],
+                            ),
+                          ),
+                        ),
+                        Container(width: 1, color: _glassBorder),
+                        Expanded(
+                          flex: 4,
+                          child: SingleChildScrollView(
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              children: [
+                                _buildConditionSection(),
+                                const SizedBox(height: 16),
+                                _buildProblemSection(),
+                                const SizedBox(height: 16),
+                                _buildFinancialSection(),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
                     )
                   : Stepper(
                       type: StepperType.vertical,
