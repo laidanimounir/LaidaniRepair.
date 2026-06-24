@@ -58,7 +58,7 @@ class _TrackingScreenState extends State<TrackingScreen> {
       final client = Supabase.instance.client;
       final data = await client
           .from('repair_tickets')
-          .select('*, customers(full_name, phone_number), profiles!repair_tickets_assigned_technician_id_fkey(full_name)')
+          .select('*, customers(full_name, phone_number), assigned_technician:profiles!repair_tickets_assigned_technician_id_fkey(full_name)')
           .eq('qr_code_hash', widget.qrCodeHash)
           .maybeSingle();
 
@@ -111,7 +111,7 @@ class _TrackingScreenState extends State<TrackingScreen> {
     final paid = (t['paid_amount'] as num?)?.toDouble() ?? 0;
     final balance = estimated - paid;
     final customerName = t['customers']?['full_name'] ?? t['client_name_temp'] ?? 'Client';
-    final technician = t['profiles']?['full_name'] ?? 'Non assigné';
+    final technician = t['assigned_technician']?['full_name'] ?? 'Non assigné';
     final estimatedDate = t['estimated_completion_date'] as String?;
     final qrHash = t['qr_code_hash'] ?? '';
     final currentIdx = _currentStepIndex(status);

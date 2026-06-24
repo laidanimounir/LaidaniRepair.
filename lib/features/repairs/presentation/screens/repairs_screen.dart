@@ -34,7 +34,7 @@ final _ticketsProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async 
   final client = ref.watch(supabaseClientProvider);
   return await client
       .from('repair_tickets')
-      .select('*, customers(full_name, phone_number), profiles(full_name)')
+      .select('*, customers(full_name, phone_number), assigned_technician:profiles!repair_tickets_assigned_technician_id_fkey(full_name), worker:profiles!repair_tickets_worker_id_fkey(full_name)')
       .order('created_at', ascending: false)
       .limit(100);
 });
