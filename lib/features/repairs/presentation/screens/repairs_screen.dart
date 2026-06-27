@@ -1202,6 +1202,8 @@ class _NewTicketFormState extends State<_NewTicketForm> {
 
   bool _isLoading = false;
   bool _showDetails = false;
+  String _billingType = 'parts_and_labor';
+  final List<Map<String, dynamic>> _preSelectedParts = [];
 
   static const _brandSuggestions = [
     'Samsung', 'Apple', 'Huawei', 'Xiaomi', 'Oppo', 'Vivo',
