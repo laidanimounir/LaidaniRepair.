@@ -3,13 +3,12 @@ class RepairStatus {
 
   // --- Ticket statuses ---
   static const String enAttente = 'En attente';
-  static const String enCours = 'En cours';
   static const String termine = 'Terminé';
   static const String livre = 'Livré';
   static const String annule = 'Annulé';
 
-  static const List<String> all = [enAttente, enCours, termine, livre, annule];
-  static const List<String> active = [enAttente, enCours, termine, livre];
+  static const List<String> all = [enAttente, termine, livre, annule];
+  static const List<String> active = [enAttente, termine, livre];
 
   // --- Payment statuses ---
   static const String nonPaye = 'Non payé';
@@ -44,7 +43,6 @@ class RepairStatus {
   static int statusColor(String? status) {
     switch (status) {
       case enAttente: return 0xFFFFAB40;   // orange
-      case enCours:   return 0xFF448AFF;   // blue
       case termine:   return 0xFF10B981;   // green
       case livre:     return 0xFFAB47BC;   // purple
       case annule:    return 0xFFEF5350;   // red
