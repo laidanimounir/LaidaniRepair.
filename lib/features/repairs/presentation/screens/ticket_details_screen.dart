@@ -397,6 +397,7 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
         'product_id': product['id'],
         'quantity': result['quantity'],
         'charged_price': result['charged_price'],
+        'shop_cost_price': product['purchase_price'] ?? 0,
         'part_status': 'Utilisé'
       });
       _fetchFullData();
