@@ -24,6 +24,12 @@ Future<Uint8List> generateInvoicePdf(Map<String, dynamic> ticket, List<Map<Strin
 
   final partsTotal = parts.fold<double>(0, (sum, p) => sum + ((p['charged_price'] as num?)?.toDouble() ?? 0) * ((p['quantity'] as num?)?.toInt() ?? 1));
 
+  final billingLabel = {
+    'labor_only':      'Main d\'œuvre uniquement',
+    'parts_only':      'Pièces uniquement',
+    'parts_and_labor': 'Pièces + Main d\'œuvre',
+  }[billingType] ?? 'Pièces + Main d\'œuvre';
+
   pdf.addPage(
     pw.Page(
       pageFormat: PdfPageFormat.a4,
@@ -49,6 +55,7 @@ Future<Uint8List> generateInvoicePdf(Map<String, dynamic> ticket, List<Map<Strin
           pw.Header(level: 1, text: 'Appareil & Diagnostic'),
           pw.Text('Appareil: $device'),
           pw.Text('Problème: $issue'),
+          pw.Text('Type de facturation: $billingLabel'),
           pw.SizedBox(height: 20),
           pw.Divider(),
           if (billingType != 'labor_only') ...[
