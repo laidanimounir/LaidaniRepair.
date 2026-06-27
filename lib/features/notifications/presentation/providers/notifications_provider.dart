@@ -47,7 +47,7 @@ final notificationsProvider = FutureProvider<List<AppNotification>>((ref) async 
   final overdueRepairs = await client
       .from('repair_tickets')
       .select('device_name, estimated_completion_date, status, client_name_temp')
-      .filter('status', 'in', '("En attente","En cours")')
+      .filter('status', 'in', '("En attente")')
       .limit(10);
   for (final r in overdueRepairs) {
     final estimated = r['estimated_completion_date'] as String?;

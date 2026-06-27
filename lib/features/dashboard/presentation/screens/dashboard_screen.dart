@@ -19,7 +19,7 @@ final _dashboardStatsProvider = FutureProvider<Map<String, dynamic>>((ref) async
   final todayEnd = todayStart.add(const Duration(days: 1));
 
   final allTickets = await client.from('repair_tickets').select('status, created_at, estimated_completion_date');
-  final activeRepairs = allTickets.where((t) => ['En attente', 'En cours'].contains(t['status'])).length;
+  final activeRepairs = allTickets.where((t) => ['En attente'].contains(t['status'])).length;
   final todayDelivered = allTickets.where((t) {
     if (t['status'] != 'Livré') return false;
     final deliveredRaw = t['delivered_at'];
