@@ -42,7 +42,6 @@ class _TrackingScreenState extends State<TrackingScreen> {
     if (status == 'Livré') return 6;
     if (status == 'Terminé') return 5;
     if (status == 'En réparation') return 3;
-    if (status == 'En cours') return 1;
     if (status == 'En attente') return 0;
     return 0;
   }
