@@ -1484,7 +1484,7 @@ class _NewTicketFormState extends State<_NewTicketForm> {
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 4),
                 child: InkWell(
-                  onTap: () => setState(() => _billingType = opt['value'] as String),
+                  onTap: () => setState(() { _billingType = opt['value'] as String; _recalculateCostFromParts(); }),
                   borderRadius: BorderRadius.circular(8),
                   child: Container(
                     padding: const EdgeInsets.symmetric(vertical: 10),
@@ -1532,7 +1532,7 @@ class _NewTicketFormState extends State<_NewTicketForm> {
                 Text('×${part['qty']}  ${part['price']} DA', style: const TextStyle(color: _neonCyan, fontSize: 12)),
                 const SizedBox(width: 8),
                 GestureDetector(
-                  onTap: () => setState(() => _preSelectedParts.removeAt(i)),
+                  onTap: () => setState(() { _preSelectedParts.removeAt(i); _recalculateCostFromParts(); }),
                   child: const Icon(Icons.close, size: 16, color: Colors.white38),
                 ),
               ],
@@ -1541,6 +1541,12 @@ class _NewTicketFormState extends State<_NewTicketForm> {
         }),
       ],
     );
+  }
+
+  void _recalculateCostFromParts() {
+    if (_billingType == 'labor_only') return;
+    final total = _preSelectedParts.fold<double>(0, (sum, p) => sum + ((p['price'] as num).toDouble() * (p['qty'] as int)));
+    _costCtrl.text = total > 0 ? total.toStringAsFixed(0) : '';
   }
 
   void _showPartsPickerDialog() {
@@ -1562,6 +1568,7 @@ class _NewTicketFormState extends State<_NewTicketForm> {
                 'shop_cost_price': (product['purchase_price'] as num?)?.toDouble() ?? 0,
               });
             }
+            _recalculateCostFromParts();
           });
         },
       ),
