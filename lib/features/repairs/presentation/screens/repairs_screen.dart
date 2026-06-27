@@ -4,7 +4,6 @@ import 'dart:math';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter/scheduler.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -18,7 +17,6 @@ import 'package:laidani_repair/core/providers/supabase_provider.dart';
 import 'package:laidani_repair/core/providers/shortcuts_provider.dart';
 import 'package:laidani_repair/core/services/groq_service.dart';
 import 'package:laidani_repair/core/utils/csv_export.dart';
-import 'package:laidani_repair/widgets/repairs/stock_search_dialog.dart';
 
 // --- Cyber Glass Theme Constants ---
 const Color _bgCarbon = Color(0xFF050914);
@@ -1273,10 +1271,7 @@ class _NewTicketFormState extends State<_NewTicketForm> {
                           if (_billingType != 'labor_only') ...[
                             const SizedBox(height: 8),
                             OutlinedButton.icon(
-                              onPressed: () => Future.delayed(
-                                Duration.zero,
-                                () { if (mounted) _openPartsPickerForCreation(context); }
-                              ),
+                              onPressed: () => setState(() {}),
                               icon: const Icon(Icons.add_shopping_cart, size: 16),
                               label: const Text('Ajouter pièce(s)'),
                               style: OutlinedButton.styleFrom(foregroundColor: _neonCyan, side: const BorderSide(color: _neonCyan)),
@@ -1392,10 +1387,7 @@ class _NewTicketFormState extends State<_NewTicketForm> {
                                 if (_billingType != 'labor_only') ...[
                                   const SizedBox(height: 12),
                                   OutlinedButton.icon(
-                                    onPressed: () => Future.delayed(
-                                Duration.zero,
-                                () { if (mounted) _openPartsPickerForCreation(context); }
-                              ),
+                                    onPressed: () => setState(() {}),
                                     icon: const Icon(Icons.add_shopping_cart, size: 16),
                                     label: const Text('Ajouter pièce(s)'),
                                     style: OutlinedButton.styleFrom(foregroundColor: _neonCyan, side: const BorderSide(color: _neonCyan)),
@@ -1548,66 +1540,6 @@ class _NewTicketFormState extends State<_NewTicketForm> {
           );
         }),
       ],
-    );
-  }
-
-  void _openPartsPickerForCreation(BuildContext context) {
-    showDialog(
-      context: context,
-      useRootNavigator: true,
-      builder: (_) => StockSearchDialog(
-        color: _neonCyan,
-        onProductSelected: (product) {
-          Future.delayed(Duration.zero, () {
-            if (!mounted) return;
-            final qtyCtrl = TextEditingController(text: '1');
-            showDialog(
-              context: context,
-              useRootNavigator: true,
-              builder: (ctx) => AlertDialog(
-                backgroundColor: _panelDark,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: _glassBorder)),
-                title: Text(product['product_name']?.toString() ?? 'Pièce', style: const TextStyle(color: Colors.white, fontSize: 15)),
-                content: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    TextField(
-                      controller: qtyCtrl,
-                      keyboardType: TextInputType.number,
-                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                      style: const TextStyle(color: Colors.white),
-                      decoration: const InputDecoration(labelText: 'Quantité', labelStyle: TextStyle(color: _textMuted)),
-                    ),
-                  ],
-                ),
-                actions: [
-                  TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Annuler', style: TextStyle(color: _textMuted))),
-                  TextButton(
-                    onPressed: () {
-                      final qty = int.tryParse(qtyCtrl.text) ?? 1;
-                      if (qty <= 0) return;
-                      Navigator.pop(ctx);
-                      WidgetsBinding.instance.addPostFrameCallback((_) {
-                        if (!mounted) return;
-                        setState(() {
-                          _preSelectedParts.add({
-                            'product_id': product['id'],
-                            'name': product['product_name']?.toString() ?? 'Pièce',
-                            'qty': qty,
-                            'price': (product['reference_price'] as num?)?.toDouble() ?? 0,
-                            'shop_cost_price': (product['purchase_price'] as num?)?.toDouble() ?? 0,
-                          });
-                        });
-                      });
-                    },
-                    child: const Text('Ajouter', style: TextStyle(color: _neonCyan)),
-                  ),
-                ],
-              ),
-            );
-          });
-        },
-      ),
     );
   }
 
