@@ -13,7 +13,8 @@ Future<Uint8List> generateInvoicePdf(Map<String, dynamic> ticket, List<Map<Strin
   final estimated = (ticket['estimated_cost'] as num?)?.toDouble() ?? 0;
   final finalCost = (ticket['final_cost'] as num?)?.toDouble() ?? estimated;
   final paid = (ticket['paid_amount'] as num?)?.toDouble() ?? 0;
-  final balance = finalCost - paid;
+  final advance = (ticket['advance_payment'] as num?)?.toDouble() ?? 0;
+  final balance = finalCost - advance - paid;
   final qrHash = ticket['qr_code_hash'] ?? '';
   final warrantyDays = ticket['warranty_days'] ?? 0;
   final createdAt = DateTime.tryParse(ticket['created_at'] ?? '')?.toString().substring(0, 10) ?? '';

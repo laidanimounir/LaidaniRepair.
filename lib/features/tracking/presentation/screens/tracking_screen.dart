@@ -108,7 +108,8 @@ class _TrackingScreenState extends State<TrackingScreen> {
     final issue = t['issue_description'] ?? '';
     final estimated = (t['estimated_cost'] as num?)?.toDouble() ?? 0;
     final paid = (t['paid_amount'] as num?)?.toDouble() ?? 0;
-    final balance = estimated - paid;
+    final advance = (t['advance_payment'] as num?)?.toDouble() ?? 0;
+    final balance = estimated - advance - paid;
     final customerName = t['customers']?['full_name'] ?? t['client_name_temp'] ?? 'Client';
     final technician = t['assigned_technician']?['full_name'] ?? 'Non assigné';
     final estimatedDate = t['estimated_completion_date'] as String?;

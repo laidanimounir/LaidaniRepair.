@@ -49,7 +49,7 @@ final _customerRepairsProvider = FutureProvider.family<List<Map<String, dynamic>
   (ref, customerId) async {
     final client = ref.watch(supabaseClientProvider);
     return await client.from('repair_tickets')
-        .select('id, device_name, status, estimated_cost, final_cost, created_at, paid_amount')
+        .select('id, device_name, status, estimated_cost, final_cost, created_at, paid_amount, advance_payment')
         .eq('customer_id', customerId)
         .order('created_at', ascending: false)
         .limit(20);
@@ -470,11 +470,12 @@ class _CustomerDetailPanel extends ConsumerWidget {
                     final date = DateTime.tryParse(r['created_at'] ?? '')?.toString().substring(0, 10) ?? '';
                     final cost = (r['final_cost'] as num?)?.toDouble() ?? (r['estimated_cost'] as num?)?.toDouble() ?? 0;
                     final paid = (r['paid_amount'] as num?)?.toDouble() ?? 0;
+                    final advance = (r['advance_payment'] as num?)?.toDouble() ?? 0;
                     final status = r['status'] ?? '';
                     return ListTile(
                       leading: const Icon(Icons.build_circle_outlined, color: AppTheme.primary, size: 20),
                       title: Text(r['device_name'] ?? '', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
-                      subtitle: Text('$date • $status • ${cost.toStringAsFixed(0)} DA (Payé: ${paid.toStringAsFixed(0)} DA)', style: const TextStyle(color: AppTheme.onSurfaceMuted, fontSize: 11)),
+                      subtitle: Text('$date • $status • ${cost.toStringAsFixed(0)} DA (Payé: ${(paid + advance).toStringAsFixed(0)} DA)', style: const TextStyle(color: AppTheme.onSurfaceMuted, fontSize: 11)),
                     );
                   }),
                   _listView(paymentsAsync, 'Aucun paiement', (p) {
