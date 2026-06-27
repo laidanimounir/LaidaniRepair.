@@ -2147,7 +2147,6 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
   IconData _statusIcon(String? status) {
     switch (status) {
       case 'En attente': return Icons.hourglass_empty;
-      case 'En cours': return Icons.build;
       case 'Terminé': return Icons.check_circle;
       case 'Livré': return Icons.local_shipping;
       case 'Annulé': return Icons.cancel;
