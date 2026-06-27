@@ -1201,6 +1201,7 @@ class _NewTicketFormState extends State<_NewTicketForm> {
   final Map<String, String?> _fieldErrors = {};
 
   bool _isLoading = false;
+  bool _showDetails = false;
 
   static const _brandSuggestions = [
     'Samsung', 'Apple', 'Huawei', 'Xiaomi', 'Oppo', 'Vivo',
@@ -1242,41 +1243,66 @@ class _NewTicketFormState extends State<_NewTicketForm> {
             // Form Body
             Expanded(
               child: isDesktop
-                  ? Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          flex: 5,
-                          child: SingleChildScrollView(
-                            padding: const EdgeInsets.all(16),
-                            child: Column(
-                              children: [
-                                _buildClientSection(),
-                                const SizedBox(height: 16),
-                                _buildDeviceSection(),
-                                const SizedBox(height: 16),
-                                _buildSecuritySection(),
-                              ],
+                  ? SingleChildScrollView(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        children: [
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(child: _buildClientSection()),
+                              const SizedBox(width: 24),
+                              Expanded(
+                                child: Column(
+                                  children: [
+                                    _buildSectionTitle('2. L\'appareil', Icons.smartphone),
+                                    _buildTextField(_deviceCtrl, 'Modèle de l\'appareil * (ex: Galaxy S23)', icon: Icons.phone_android, errorKey: 'device_name'),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 24),
+                              Expanded(child: _buildProblemSection()),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          Center(
+                            child: TextButton.icon(
+                              onPressed: () => setState(() => _showDetails = !_showDetails),
+                              icon: Icon(_showDetails ? Icons.expand_less : Icons.expand_more, color: _neonCyan),
+                              label: Text(_showDetails ? 'إخفاء التفاصيل ▲' : 'تفاصيل إضافية ▼', style: const TextStyle(color: _neonCyan)),
                             ),
                           ),
-                        ),
-                        Container(width: 1, color: _glassBorder),
-                        Expanded(
-                          flex: 4,
-                          child: SingleChildScrollView(
-                            padding: const EdgeInsets.all(16),
-                            child: Column(
+                          if (_showDetails) ...[
+                            const SizedBox(height: 8),
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                _buildConditionSection(),
-                                const SizedBox(height: 16),
-                                _buildProblemSection(),
-                                const SizedBox(height: 16),
-                                _buildFinancialSection(),
+                                Expanded(
+                                  flex: 5,
+                                  child: Column(
+                                    children: [
+                                      _buildDeviceExtrasSection(),
+                                      const SizedBox(height: 16),
+                                      _buildSecuritySection(),
+                                    ],
+                                  ),
+                                ),
+                                Container(width: 1, color: _glassBorder),
+                                Expanded(
+                                  flex: 4,
+                                  child: Column(
+                                    children: [
+                                      _buildConditionSection(),
+                                      const SizedBox(height: 16),
+                                      _buildFinancialSection(),
+                                    ],
+                                  ),
+                                ),
                               ],
                             ),
-                          ),
-                        ),
-                      ],
+                          ],
+                        ],
+                      ),
                     )
                   : Stepper(
                       type: StepperType.vertical,
@@ -1451,6 +1477,62 @@ class _NewTicketFormState extends State<_NewTicketForm> {
         _buildSectionTitle('2. L\'appareil', Icons.smartphone),
         _buildTextField(_deviceCtrl, 'Modèle de l\'appareil * (ex: Galaxy S23)', icon: Icons.phone_android, errorKey: 'device_name'),
         const SizedBox(height: 12),
+        DropdownButtonFormField<String>(
+          value: _deviceType,
+          dropdownColor: _panelDark,
+          style: const TextStyle(color: Colors.white),
+          decoration: _inputDecoration('Type d\'appareil', Icons.devices),
+          items: ['Smartphone', 'Tablette', 'PC Portable', 'PC Bureau', 'Console', 'Montre connectée', 'Autre']
+              .map((t) => DropdownMenuItem(value: t, child: Text(t)))
+              .toList(),
+          onChanged: (v) => setState(() => _deviceType = v),
+        ),
+        const SizedBox(height: 12),
+        Autocomplete<String>(
+          optionsBuilder: (textEditingValue) {
+            if (textEditingValue.text.isEmpty) return _brandSuggestions;
+            return _brandSuggestions.where((b) => b.toLowerCase().contains(textEditingValue.text.toLowerCase()));
+          },
+          fieldViewBuilder: (context, ctrl, focusNode, onSubmit) {
+            _brandCtrl.text = ctrl.text;
+            return _buildTextField(ctrl, 'Marque (ex: Samsung, Apple)', icon: Icons.badge);
+          },
+        ),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _imeiCtrl,
+                maxLength: 15,
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                style: const TextStyle(color: Colors.white, fontSize: 14),
+                decoration: _inputDecoration('IMEI', Icons.qr_code).copyWith(
+                  suffixIcon: IconButton(
+                    icon: const Icon(Icons.paste, color: _textMuted, size: 18),
+                    onPressed: () async {
+                      final data = await Clipboard.getData(Clipboard.kTextPlain);
+                      if (data?.text != null) {
+                        _imeiCtrl.text = data!.text!.replaceAll(RegExp(r'[^0-9]'), '').substring(0, 15);
+                      }
+                    },
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(child: _buildTextField(_serialCtrl, 'N° de série', icon: Icons.confirmation_number)),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDeviceExtrasSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
         DropdownButtonFormField<String>(
           value: _deviceType,
           dropdownColor: _panelDark,
