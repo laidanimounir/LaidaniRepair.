@@ -59,6 +59,11 @@ class PrintService {
     final remaining = estimatedCost - advance - discount;
     final estimatedDate = ticket['estimated_completion_date']?.toString() ?? '';
     final qrData = 'LAIDANI:TICKET:${ticket['id']}:${ticket['qr_code_hash'] ?? ''}';
+    final billingLabel = {
+      'labor_only':      'Type: Main d\'œuvre uniquement',
+      'parts_only':      'Type: Pièces uniquement',
+      'parts_and_labor': 'Type: Pièces + Main d\'œuvre',
+    }[ticket['billing_type']] ?? 'Type: Pièces + Main d\'œuvre';
 
     pdf.addPage(pw.Page(
       pageFormat: PdfPageFormat.a4,
@@ -75,6 +80,7 @@ class PrintService {
           _pdfRow('Appareil', deviceName),
           if (imei.isNotEmpty) _pdfRow('IMEI', imei),
           if (issue.isNotEmpty) _pdfRow('Problème', issue),
+          _pdfRow('Type', billingLabel),
           pw.Divider(),
           _pdfRow('Coût estimé', '${estimatedCost.toStringAsFixed(0)} DA'),
           if (advance > 0) _pdfRow('Avance', '${advance.toStringAsFixed(0)} DA'),

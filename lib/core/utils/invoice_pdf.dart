@@ -20,6 +20,8 @@ Future<Uint8List> generateInvoicePdf(Map<String, dynamic> ticket, List<Map<Strin
   final createdAt = DateTime.tryParse(ticket['created_at'] ?? '')?.toString().substring(0, 10) ?? '';
   final status = ticket['status'] ?? '';
 
+  final billingType = ticket['billing_type'] as String? ?? 'parts_and_labor';
+
   final partsTotal = parts.fold<double>(0, (sum, p) => sum + ((p['charged_price'] as num?)?.toDouble() ?? 0) * ((p['quantity'] as num?)?.toInt() ?? 1));
 
   pdf.addPage(
@@ -49,23 +51,28 @@ Future<Uint8List> generateInvoicePdf(Map<String, dynamic> ticket, List<Map<Strin
           pw.Text('Problème: $issue'),
           pw.SizedBox(height: 20),
           pw.Divider(),
-          pw.Header(level: 1, text: 'Pièces utilisées'),
-          if (parts.isEmpty)
-            pw.Text('Aucune pièce')
-          else
-            pw.TableHelper.fromTextArray(
-              headers: ['Pièce', 'Qté', 'Prix unitaire', 'Total'],
-              data: parts.map((p) => [
-                p['products']?['product_name'] ?? 'Pièce',
-                '${p['quantity']}',
-                '${(p['charged_price'] as num?)?.toDouble() ?? 0} DA',
-                '${((p['charged_price'] as num?)?.toDouble() ?? 0) * ((p['quantity'] as num?)?.toInt() ?? 1)} DA',
-              ]).toList(),
-            ),
-          pw.SizedBox(height: 20),
-          pw.Divider(),
+          if (billingType != 'labor_only') ...[
+            pw.Header(level: 1, text: 'Pièces utilisées'),
+            if (parts.isEmpty)
+              pw.Text('Aucune pièce')
+            else
+              pw.TableHelper.fromTextArray(
+                headers: ['Pièce', 'Qté', 'Prix unitaire', 'Total'],
+                data: parts.map((p) => [
+                  p['products']?['product_name'] ?? 'Pièce',
+                  '${p['quantity']}',
+                  '${(p['charged_price'] as num?)?.toDouble() ?? 0} DA',
+                  '${((p['charged_price'] as num?)?.toDouble() ?? 0) * ((p['quantity'] as num?)?.toInt() ?? 1)} DA',
+                ]).toList(),
+              ),
+            pw.SizedBox(height: 20),
+            pw.Divider(),
+          ],
           pw.Header(level: 1, text: 'Résumé financier'),
-          pw.Text('Total pièces: ${partsTotal.toStringAsFixed(0)} DA'),
+          if (billingType != 'labor_only')
+            pw.Text('Total pièces: ${partsTotal.toStringAsFixed(0)} DA'),
+          if (billingType != 'parts_only')
+            pw.Text('Main d\'œuvre: ${(ticket['labor_cost'] as num?)?.toDouble() ?? 0} DA'),
           pw.Text('Total facture: ${finalCost.toStringAsFixed(0)} DA'),
           pw.Text('Déjà payé: ${paid.toStringAsFixed(0)} DA'),
           pw.Text('Reste à payer: ${balance.toStringAsFixed(0)} DA',
