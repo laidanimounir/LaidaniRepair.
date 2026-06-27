@@ -1724,6 +1724,18 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
     return total;
   }
 
+  double get _totalPartsCostForProfit {
+    double total = 0;
+    for (var p in _parts) {
+      if (p['part_status'] == 'Utilisé') {
+        final cost = (p['shop_cost_price'] as num?)?.toDouble() ?? 0;
+        final qty = (p['quantity'] as num?)?.toInt() ?? 1;
+        total += cost * qty;
+      }
+    }
+    return total;
+  }
+
   double get _totalPayments {
     double total = 0;
     for (var p in _payments) {
@@ -1746,7 +1758,8 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
 
   double get _netProfit {
     final finalCost = (_ticket?['final_cost'] as num?)?.toDouble() ?? 0;
-    return finalCost - _totalCost;
+    final labor = (_ticket?['labor_cost'] as num?)?.toDouble() ?? 0;
+    return finalCost - _totalPartsCostForProfit - labor;
   }
 
   double get _profitMarginPercent {
