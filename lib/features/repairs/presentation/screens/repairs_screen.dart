@@ -2648,8 +2648,9 @@ class _PartsPickerDialog extends StatefulWidget {
 
 class _PartsPickerDialogState extends State<_PartsPickerDialog> {
   String _query = '';
+  List<Map<String, dynamic>> _allProducts = [];
   List<Map<String, dynamic>> _results = [];
-  bool _loading = false;
+  bool _loading = true;
   String? _error;
   Map<String, dynamic>? _selectedProduct;
   int _selectedQty = 1;
@@ -2660,19 +2661,33 @@ class _PartsPickerDialogState extends State<_PartsPickerDialog> {
   static const Color _neonCyan = Color(0xFF00E5FF);
   static const Color _neonEmerald = Color(0xFF10B981);
 
-  Future<void> _search(String q) async {
-    if (q.length < 2) { setState(() => _results = []); return; }
-    setState(() { _loading = true; _error = null; });
+  @override
+  void initState() {
+    super.initState();
+    _loadAll();
+  }
+
+  Future<void> _loadAll() async {
     try {
       final res = await Supabase.instance.client
           .from('products')
           .select('id, product_name, reference_price, purchase_price, stock_quantity')
-          .ilike('product_name', '%$q%')
           .gt('stock_quantity', 0)
-          .limit(10);
-      if (mounted) setState(() { _results = List<Map<String, dynamic>>.from(res); _loading = false; });
+          .order('product_name')
+          .limit(50);
+      if (mounted) setState(() { _allProducts = List<Map<String, dynamic>>.from(res); _results = List<Map<String, dynamic>>.from(_allProducts); _loading = false; });
     } catch (e) {
-      if (mounted) setState(() { _results = []; _loading = false; _error = e.toString(); });
+      if (mounted) setState(() { _loading = false; _error = e.toString(); });
+    }
+  }
+
+  void _filter(String q) {
+    _query = q;
+    if (q.isEmpty) {
+      setState(() => _results = List<Map<String, dynamic>>.from(_allProducts));
+    } else {
+      final lower = q.toLowerCase();
+      setState(() => _results = _allProducts.where((p) => (p['product_name']?.toString().toLowerCase() ?? '').contains(lower)).toList());
     }
   }
 
@@ -2701,7 +2716,7 @@ class _PartsPickerDialogState extends State<_PartsPickerDialog> {
                 fillColor: Colors.white.withOpacity(0.05),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: _glassBorder)),
               ),
-              onChanged: (v) { _query = v; _search(v); },
+              onChanged: (v) => _filter(v),
             ),
             const SizedBox(height: 12),
             if (_loading)
@@ -2772,7 +2787,7 @@ class _PartsPickerDialogState extends State<_PartsPickerDialog> {
                   },
                 ),
               )
-            else if (_query.length >= 2)
+            else if (_results.isEmpty)
               const Padding(padding: EdgeInsets.all(16), child: Text('Aucun résultat trouvé', style: TextStyle(color: _textMuted))),
             const SizedBox(height: 8),
             Align(
