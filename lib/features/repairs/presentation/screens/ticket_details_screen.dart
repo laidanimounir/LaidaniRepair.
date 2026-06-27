@@ -1734,7 +1734,8 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
   double get _remainingBalance {
     final labor = (_ticket?['labor_cost'] as num?)?.toDouble() ?? 0;
     final discount = (_ticket?['discount'] as num?)?.toDouble() ?? 0;
-    return (_totalPartsCost + labor - discount) - _totalPayments;
+    final advance = (_ticket?['advance_payment'] as num?)?.toDouble() ?? 0;
+    return (_totalPartsCost + labor - discount) - advance - _totalPayments;
   }
 
   double get _totalCost {
