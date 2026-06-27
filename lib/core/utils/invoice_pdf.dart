@@ -41,7 +41,7 @@ Future<Uint8List> generateInvoicePdf(Map<String, dynamic> ticket, List<Map<Strin
                 pw.Text('Date: $createdAt'),
                 pw.Text('Statut: $status'),
               ]),
-              pw.BarcodeWidget(data: qrHash, barcode: pw.Barcode.qrCode(), width: 80, height: 80),
+              pw.BarcodeWidget(data: 'LAIDANI:TICKET:${ticket['id']}:$qrHash', barcode: pw.Barcode.qrCode(), width: 80, height: 80),
             ],
           ),
           pw.SizedBox(height: 20),
