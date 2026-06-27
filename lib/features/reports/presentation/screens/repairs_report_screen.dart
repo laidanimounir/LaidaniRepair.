@@ -28,6 +28,7 @@ class _RepairsReportScreenState extends ConsumerState<RepairsReportScreen> {
   List<Map<String, dynamic>> _tickets = [];
   List<Map<String, dynamic>> _technicians = [];
   bool _loading = false;
+  String? _error;
 
   @override
   void initState() {
@@ -36,26 +37,34 @@ class _RepairsReportScreenState extends ConsumerState<RepairsReportScreen> {
   }
 
   Future<void> _loadData() async {
-    setState(() => _loading = true);
-    final client = ref.read(supabaseClientProvider);
-    final techs = await client.from('profiles').select('id, full_name');
-    setState(() => _technicians = List<Map<String, dynamic>>.from(techs));
-    await _runReport();
+    setState(() { _loading = true; _error = null; });
+    try {
+      final client = ref.read(supabaseClientProvider);
+      final techs = await client.from('profiles').select('id, full_name');
+      if (mounted) setState(() => _technicians = List<Map<String, dynamic>>.from(techs));
+      await _runReport();
+    } catch (e) {
+      if (mounted) setState(() { _error = e.toString(); _loading = false; });
+    }
   }
 
   Future<void> _runReport() async {
-    setState(() => _loading = true);
-    final client = ref.read(supabaseClientProvider);
-    var sel = client.from('repair_tickets')
-        .select('*, customers(full_name), assigned_technician:profiles(full_name)');
-    if (_technicianFilter != null) sel = sel.eq('assigned_technician_id', _technicianFilter!);
-    if (_statusFilter != null) sel = sel.eq('status', _statusFilter!);
-    if (_deviceTypeFilter != null) sel = sel.eq('device_type', _deviceTypeFilter!);
-    final data = await sel
-        .gte('created_at', _dateRange.start.toIso8601String())
-        .lte('created_at', _dateRange.end.toIso8601String())
-        .order('created_at', ascending: false);
-    setState(() { _tickets = List<Map<String, dynamic>>.from(data); _loading = false; });
+    setState(() { _loading = true; _error = null; });
+    try {
+      final client = ref.read(supabaseClientProvider);
+      var sel = client.from('repair_tickets')
+          .select('*, customers(full_name), profiles!repair_tickets_assigned_technician_id_fkey(full_name)');
+      if (_technicianFilter != null) sel = sel.eq('assigned_technician_id', _technicianFilter!);
+      if (_statusFilter != null) sel = sel.eq('status', _statusFilter!);
+      if (_deviceTypeFilter != null) sel = sel.eq('device_type', _deviceTypeFilter!);
+      final data = await sel
+          .gte('created_at', _dateRange.start.toIso8601String())
+          .lte('created_at', _dateRange.end.toIso8601String())
+          .order('created_at', ascending: false);
+      if (mounted) setState(() { _tickets = List<Map<String, dynamic>>.from(data); _loading = false; });
+    } catch (e) {
+      if (mounted) setState(() { _error = e.toString(); _loading = false; });
+    }
   }
 
   Future<void> _exportCsv(BuildContext context) async {
@@ -84,6 +93,13 @@ class _RepairsReportScreenState extends ConsumerState<RepairsReportScreen> {
     ref.listen(exportCsvRequestProvider, (_, __) {
       _exportCsv(context);
     });
+
+    if (_error != null) {
+      return Scaffold(
+        backgroundColor: _bgCarbon,
+        body: Center(child: Padding(padding: const EdgeInsets.all(24), child: Text('Erreur: $_error', style: const TextStyle(color: Colors.redAccent, fontSize: 14), textAlign: TextAlign.center))),
+      );
+    }
 
     final totalRepairs = _tickets.length;
     final completed = _tickets.where((t) => t['status'] == 'Terminé' || t['status'] == 'Livré').length;
