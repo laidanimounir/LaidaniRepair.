@@ -416,7 +416,6 @@ class _RepairsScreenState extends ConsumerState<RepairsScreen> {
                           children: [
                             _StatusChip(label: 'Tous', value: null, current: statusF, ref: ref),
                             _StatusChip(label: 'En attente', value: 'En attente', current: statusF, ref: ref),
-                            _StatusChip(label: 'En cours', value: 'En cours', current: statusF, ref: ref),
                             _StatusChip(label: 'Terminé', value: 'Terminé', current: statusF, ref: ref),
                             _StatusChip(label: 'Livré', value: 'Livré', current: statusF, ref: ref),
                             _StatusChip(label: '📋 Historique', value: '__history__', current: statusF, ref: ref),
