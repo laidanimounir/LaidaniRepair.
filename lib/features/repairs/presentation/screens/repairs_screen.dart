@@ -1204,11 +1204,6 @@ class _NewTicketFormState extends State<_NewTicketForm> {
   bool _showDetails = false;
   String _billingType = 'parts_and_labor';
   final List<Map<String, dynamic>> _preSelectedParts = [];
-  bool _showPartsSearch = false;
-  String _partsSearchQuery = '';
-  List<Map<String, dynamic>> _partsSearchResults = [];
-  bool _partsSearchLoading = false;
-  String? _partsSearchError;
 
   static const _brandSuggestions = [
     'Samsung', 'Apple', 'Huawei', 'Xiaomi', 'Oppo', 'Vivo',
@@ -1276,15 +1271,11 @@ class _NewTicketFormState extends State<_NewTicketForm> {
                           if (_billingType != 'labor_only') ...[
                             const SizedBox(height: 8),
                             OutlinedButton.icon(
-                              onPressed: () => setState(() => _showPartsSearch = !_showPartsSearch),
-                              icon: Icon(_showPartsSearch ? Icons.close : Icons.add_shopping_cart, size: 16),
-                              label: Text(_showPartsSearch ? 'Fermer recherche' : 'Ajouter pièce(s)'),
+                              onPressed: () => Future.delayed(Duration.zero, _showPartsPickerDialog),
+                              icon: const Icon(Icons.add_shopping_cart, size: 16),
+                              label: const Text('Ajouter pièce(s)'),
                               style: OutlinedButton.styleFrom(foregroundColor: _neonCyan, side: const BorderSide(color: _neonCyan)),
                             ),
-                            if (_showPartsSearch) ...[
-                              const SizedBox(height: 8),
-                              _buildInlinePartsSearch(),
-                            ],
                             _buildPreSelectedPartsList(),
                           ],
                           const SizedBox(height: 12),
@@ -1396,15 +1387,11 @@ class _NewTicketFormState extends State<_NewTicketForm> {
                                 if (_billingType != 'labor_only') ...[
                                   const SizedBox(height: 12),
                                   OutlinedButton.icon(
-                                    onPressed: () => setState(() => _showPartsSearch = !_showPartsSearch),
-                                    icon: Icon(_showPartsSearch ? Icons.close : Icons.add_shopping_cart, size: 16),
-                                    label: Text(_showPartsSearch ? 'Fermer recherche' : 'Ajouter pièce(s)'),
+                                    onPressed: () => Future.delayed(Duration.zero, _showPartsPickerDialog),
+                                    icon: const Icon(Icons.add_shopping_cart, size: 16),
+                                    label: const Text('Ajouter pièce(s)'),
                                     style: OutlinedButton.styleFrom(foregroundColor: _neonCyan, side: const BorderSide(color: _neonCyan)),
                                   ),
-                                  if (_showPartsSearch) ...[
-                                    const SizedBox(height: 8),
-                                    _buildInlinePartsSearch(),
-                                  ],
                                   _buildPreSelectedPartsList(),
                                 ],
                               ],
@@ -1556,93 +1543,28 @@ class _NewTicketFormState extends State<_NewTicketForm> {
     );
   }
 
-  Future<void> _searchPartsInline(String query) async {
-    setState(() { _partsSearchLoading = true; _partsSearchError = null; });
-    try {
-      final res = await Supabase.instance.client
-          .from('products')
-          .select('id, product_name, reference_price, purchase_price, stock_quantity')
-          .ilike('product_name', '%$query%')
-          .gt('stock_quantity', 0)
-          .limit(10);
-      if (mounted) setState(() { _partsSearchResults = List<Map<String, dynamic>>.from(res); _partsSearchLoading = false; });
-    } catch (e, stack) {
-      debugPrint('_searchPartsInline ERROR: $e');
-      debugPrint('Stack: $stack');
-      if (mounted) setState(() { _partsSearchResults = []; _partsSearchLoading = false; _partsSearchError = e.toString(); });
-    }
-  }
-
-  void _addPartToPreSelected(Map<String, dynamic> product) {
-    final existing = _preSelectedParts.indexWhere((p) => p['product_id'] == product['id']);
-    setState(() {
-      if (existing >= 0) {
-        _preSelectedParts[existing]['qty'] = (_preSelectedParts[existing]['qty'] as int) + 1;
-      } else {
-        _preSelectedParts.add({
-          'product_id': product['id'],
-          'name': product['product_name']?.toString() ?? 'Pièce',
-          'qty': 1,
-          'price': (product['reference_price'] as num?)?.toDouble() ?? 0,
-          'shop_cost_price': (product['purchase_price'] as num?)?.toDouble() ?? 0,
-        });
-      }
-      _partsSearchResults = [];
-      _partsSearchQuery = '';
-    });
-  }
-
-  Widget _buildInlinePartsSearch() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        TextField(
-          decoration: InputDecoration(
-            hintText: 'Rechercher une pièce...',
-            hintStyle: const TextStyle(color: Colors.white38),
-            prefixIcon: const Icon(Icons.search, color: Colors.white38, size: 18),
-            filled: true,
-            fillColor: Colors.white.withOpacity(0.05),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Colors.white12)),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          ),
-          style: const TextStyle(color: Colors.white, fontSize: 13),
-          onChanged: (v) {
-            setState(() => _partsSearchQuery = v);
-            if (v.length >= 2) { _searchPartsInline(v); } else { setState(() => _partsSearchResults = []); }
-          },
-        ),
-        if (_partsSearchLoading)
-          const Padding(padding: EdgeInsets.all(8), child: Center(child: CircularProgressIndicator(strokeWidth: 2, color: _neonCyan)))
-        else if (_partsSearchResults.isNotEmpty)
-          Container(
-            margin: const EdgeInsets.only(top: 4),
-            decoration: BoxDecoration(color: _panelDark, borderRadius: BorderRadius.circular(8), border: Border.all(color: _glassBorder)),
-            constraints: const BoxConstraints(maxHeight: 200),
-            child: ListView.builder(
-              shrinkWrap: true,
-              itemCount: _partsSearchResults.length,
-              itemBuilder: (context, index) {
-                final product = _partsSearchResults[index];
-                final stock = product['stock_quantity'] ?? 0;
-                final price = (product['reference_price'] as num?)?.toDouble() ?? 0;
-                return ListTile(
-                  dense: true,
-                  title: Text(product['product_name']?.toString() ?? '', style: const TextStyle(color: Colors.white, fontSize: 13)),
-                  subtitle: Text('Stock: $stock  •  Prix: ${price.toStringAsFixed(0)} DA', style: const TextStyle(color: Colors.white54, fontSize: 11)),
-                  trailing: IconButton(icon: const Icon(Icons.add_circle_outline, color: _neonCyan, size: 20), onPressed: () => _addPartToPreSelected(product)),
-                );
-              },
-            ),
-          ),
-        if (_partsSearchError != null)
-          Container(
-            margin: const EdgeInsets.only(top: 4),
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(color: Colors.red.withOpacity(0.1), borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.red.withOpacity(0.3))),
-            child: Text('Erreur: $_partsSearchError', style: const TextStyle(color: Colors.red, fontSize: 11)),
-          ),
-      ],
+  void _showPartsPickerDialog() {
+    showDialog(
+      context: context,
+      useRootNavigator: true,
+      builder: (ctx) => _PartsPickerDialog(
+        onPartAdded: (product, qty) {
+          final existing = _preSelectedParts.indexWhere((p) => p['product_id'] == product['id']);
+          setState(() {
+            if (existing >= 0) {
+              _preSelectedParts[existing]['qty'] = (_preSelectedParts[existing]['qty'] as int) + qty;
+            } else {
+              _preSelectedParts.add({
+                'product_id': product['id'],
+                'name': product['product_name']?.toString() ?? 'Pièce',
+                'qty': qty,
+                'price': (product['reference_price'] as num?)?.toDouble() ?? 0,
+                'shop_cost_price': (product['purchase_price'] as num?)?.toDouble() ?? 0,
+              });
+            }
+          });
+        },
+      ),
     );
   }
 
@@ -2371,8 +2293,8 @@ class _NewTicketFormState extends State<_NewTicketForm> {
             'shop_cost_price': part['shop_cost_price'],
             'part_status': 'Utilisé',
           });
-        }
-      }
+  }
+}
       
       widget.ref.invalidate(_ticketsProvider);
       if (mounted) {
@@ -2704,13 +2626,163 @@ class _NewTicketFormState extends State<_NewTicketForm> {
   pw.Widget _pdfRow(String label, String value) {
     return pw.Padding(
       padding: pw.EdgeInsets.symmetric(vertical: 2),
-      child: pw.Row(
-        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-        children: [
-          pw.Text(label, style: pw.TextStyle(fontSize: 10)),
-          pw.Text(value, style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
-        ],
-      ),
-    );
+        child: pw.Row(
+          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+          children: [
+            pw.Text(label, style: pw.TextStyle(fontSize: 10)),
+            pw.Text(value, style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
+          ],
+        ),
+      );
   }
 }
+
+
+class _PartsPickerDialog extends StatefulWidget {
+  final void Function(Map<String, dynamic> product, int qty) onPartAdded;
+  const _PartsPickerDialog({required this.onPartAdded});
+
+  @override
+  State<_PartsPickerDialog> createState() => _PartsPickerDialogState();
+}
+
+class _PartsPickerDialogState extends State<_PartsPickerDialog> {
+  String _query = '';
+  List<Map<String, dynamic>> _results = [];
+  bool _loading = false;
+  String? _error;
+  Map<String, dynamic>? _selectedProduct;
+  int _selectedQty = 1;
+
+  static const Color _panelDark = Color(0xFF0A0F1A);
+  static const Color _glassBorder = Color(0x1AFFFFFF);
+  static const Color _textMuted = Color(0xFF8A9BB4);
+  static const Color _neonCyan = Color(0xFF00E5FF);
+  static const Color _neonEmerald = Color(0xFF10B981);
+
+  Future<void> _search(String q) async {
+    if (q.length < 2) { setState(() => _results = []); return; }
+    setState(() { _loading = true; _error = null; });
+    try {
+      final res = await Supabase.instance.client
+          .from('products')
+          .select('id, product_name, reference_price, purchase_price, stock_quantity')
+          .ilike('product_name', '%$q%')
+          .gt('stock_quantity', 0)
+          .limit(10);
+      if (mounted) setState(() { _results = List<Map<String, dynamic>>.from(res); _loading = false; });
+    } catch (e) {
+      if (mounted) setState(() { _results = []; _loading = false; _error = e.toString(); });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: _panelDark,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: _glassBorder)),
+      child: Container(
+        width: 450,
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Rechercher une pièce', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 12),
+            TextField(
+              autofocus: true,
+              style: const TextStyle(color: Colors.white, fontSize: 14),
+              decoration: InputDecoration(
+                hintText: 'Tapez le nom de la pièce...',
+                hintStyle: const TextStyle(color: _textMuted),
+                prefixIcon: const Icon(Icons.search, color: _textMuted),
+                filled: true,
+                fillColor: Colors.white.withOpacity(0.05),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: _glassBorder)),
+              ),
+              onChanged: (v) { _query = v; _search(v); },
+            ),
+            const SizedBox(height: 12),
+            if (_loading)
+              const Center(child: Padding(padding: EdgeInsets.all(16), child: CircularProgressIndicator(strokeWidth: 2, color: _neonCyan)))
+            else if (_error != null)
+              Text('Erreur: $_error', style: const TextStyle(color: Colors.redAccent, fontSize: 12))
+            else if (_results.isNotEmpty)
+              Flexible(
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: _results.length,
+                  itemBuilder: (ctx, i) {
+                    final p = _results[i];
+                    final stock = (p['stock_quantity'] as num?)?.toInt() ?? 0;
+                    final price = (p['reference_price'] as num?)?.toDouble() ?? 0;
+                    final isSelected = _selectedProduct?['id'] == p['id'];
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 4),
+                      decoration: BoxDecoration(color: isSelected ? _neonCyan.withOpacity(0.1) : Colors.transparent, borderRadius: BorderRadius.circular(8), border: Border.all(color: isSelected ? _neonCyan.withOpacity(0.5) : _glassBorder)),
+                      child: Column(
+                        children: [
+                          InkWell(
+                            borderRadius: BorderRadius.circular(8),
+                            onTap: () => setState(() { _selectedProduct = isSelected ? null : p; _selectedQty = 1; }),
+                            child: Padding(
+                              padding: const EdgeInsets.all(10),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                      Text(p['product_name']?.toString() ?? '', style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600)),
+                                      const SizedBox(height: 2),
+                                      Text('Stock: $stock  •  $price DA', style: const TextStyle(color: _textMuted, fontSize: 11)),
+                                    ]),
+                                  ),
+                                  Icon(isSelected ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down, color: _textMuted),
+                                ],
+                              ),
+                            ),
+                          ),
+                          if (isSelected) ...[
+                            const Divider(color: _glassBorder, height: 1),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                              child: Row(
+                                children: [
+                                  IconButton(icon: const Icon(Icons.remove_circle_outline, color: _textMuted, size: 22), onPressed: _selectedQty > 1 ? () => setState(() => _selectedQty--) : null),
+                                  Text('$_selectedQty', style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                                  IconButton(icon: const Icon(Icons.add_circle_outline, color: _neonEmerald, size: 22), onPressed: _selectedQty < stock ? () => setState(() => _selectedQty++) : null),
+                                  const Spacer(),
+                                  Text('${(price * _selectedQty).toStringAsFixed(0)} DA', style: const TextStyle(color: _neonCyan, fontWeight: FontWeight.bold, fontSize: 14)),
+                                  const SizedBox(width: 8),
+                                  ElevatedButton(
+                                    style: ElevatedButton.styleFrom(backgroundColor: _neonEmerald, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 12)),
+                                    onPressed: () {
+                                      widget.onPartAdded(p, _selectedQty);
+                                      Navigator.pop(context);
+                                    },
+                                    child: const Text('Ajouter', style: TextStyle(fontWeight: FontWeight.bold)),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              )
+            else if (_query.length >= 2)
+              const Padding(padding: EdgeInsets.all(16), child: Text('Aucun résultat trouvé', style: TextStyle(color: _textMuted))),
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(onPressed: () => Navigator.pop(context), child: const Text('Fermer', style: TextStyle(color: _textMuted))),
+            ),
+          ],
+        ),
+      ),
+      );
+  }
+}
+
