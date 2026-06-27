@@ -1548,6 +1548,7 @@ class _NewTicketFormState extends State<_NewTicketForm> {
   void _openPartsPickerForCreation(BuildContext context) {
     showDialog(
       context: context,
+      useRootNavigator: true,
       builder: (_) => StockSearchDialog(
         color: _neonCyan,
         onProductSelected: (product) {
@@ -1556,6 +1557,7 @@ class _NewTicketFormState extends State<_NewTicketForm> {
             final qtyCtrl = TextEditingController(text: '1');
             showDialog(
               context: context,
+              useRootNavigator: true,
               builder: (ctx) => AlertDialog(
                 backgroundColor: _panelDark,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: _glassBorder)),
