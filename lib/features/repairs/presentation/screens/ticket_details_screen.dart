@@ -1838,9 +1838,8 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
           .select('amount')
           .eq('ticket_id', widget.ticketId);
       final totalPaid = paymentsSum.fold<num>(0, (s, p) => s + (p['amount'] as num));
-      final advance = (_ticket?['advance_payment'] as num?)?.toDouble() ?? 0;
       await client.from('repair_tickets')
-          .update({'paid_amount': totalPaid.toDouble() + advance})
+          .update({'paid_amount': totalPaid.toDouble()})
           .eq('id', widget.ticketId);
       await _syncPaymentStatus();
       _fetchFullData();
