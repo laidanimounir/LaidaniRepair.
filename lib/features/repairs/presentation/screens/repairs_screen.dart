@@ -1211,6 +1211,12 @@ class _NewTicketFormState extends State<_NewTicketForm> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    _laborCtrl.addListener(() { if (mounted) setState(() {}); });
+  }
+
+  @override
   Widget build(BuildContext context) {
     // 🌟 التجاوب في نافذة الإضافة 🌟
     final isDesktop = MediaQuery.of(context).size.width >= 850;
@@ -1549,6 +1555,14 @@ class _NewTicketFormState extends State<_NewTicketForm> {
     _costCtrl.text = total > 0 ? total.toStringAsFixed(0) : '';
   }
 
+  double get _grandTotal {
+    final parts = double.tryParse(_costCtrl.text) ?? 0;
+    final labor = double.tryParse(_laborCtrl.text) ?? 0;
+    if (_billingType == 'parts_and_labor') return parts + labor;
+    if (_billingType == 'labor_only') return parts;
+    return parts;
+  }
+
   void _showPartsPickerDialog() {
     showDialog(
       context: context,
@@ -1872,6 +1886,20 @@ class _NewTicketFormState extends State<_NewTicketForm> {
         ),
         const SizedBox(height: 12),
         _buildPriceEstimatorButton(),
+        if (_billingType == 'parts_and_labor' && _grandTotal > 0) ...[
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(color: _neonCyan.withOpacity(0.1), borderRadius: BorderRadius.circular(8), border: Border.all(color: _neonCyan.withOpacity(0.3))),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('Total (Pièces + M.O)', style: TextStyle(color: _neonCyan, fontWeight: FontWeight.w600, fontSize: 13)),
+                Text('${_grandTotal.toStringAsFixed(0)} DA', style: const TextStyle(color: _neonCyan, fontWeight: FontWeight.w900, fontSize: 16)),
+              ],
+            ),
+          ),
+        ],
         const SizedBox(height: 16),
         InkWell(
           onTap: () async {
@@ -2278,9 +2306,9 @@ class _NewTicketFormState extends State<_NewTicketForm> {
         'pre_diagnostic': _diagCtrl.text.trim(),
         'billing_type': _billingType,
         'estimated_cost': cost,
-        'final_cost': cost,
+        'final_cost': _grandTotal,
         'advance_payment': advance,
-        'labor_cost': _billingType == 'parts_only' ? 0.0 : labor,
+        'labor_cost': labor,
         'qr_code_hash': qrHash,
         'status': 'En attente',
         'payment_status': 'Non payé',
