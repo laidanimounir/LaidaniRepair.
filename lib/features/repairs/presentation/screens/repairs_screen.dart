@@ -689,7 +689,7 @@ class _CyberTableRow extends StatelessWidget {
                   PopupMenuButton<String>(
                     icon: const Icon(Icons.more_vert, color: _textMuted, size: 20),
                     color: _panelDark,
-                    itemBuilder: (_) => ['En attente', 'En cours', 'Terminé', 'Livré']
+                    itemBuilder: (_) => ['En attente', 'Terminé', 'Livré']
                         .map((s) => PopupMenuItem(value: s, child: Text(s, style: const TextStyle(color: Colors.white))))
                         .toList(),
                     onSelected: (newStatus) async {
@@ -854,7 +854,7 @@ class _MobileTicketCard extends StatelessWidget {
                   PopupMenuButton<String>(
                     icon: const Icon(Icons.more_vert, color: _textMuted, size: 20),
                     color: _panelDark,
-                    itemBuilder: (_) => ['En attente', 'En cours', 'Terminé', 'Livré']
+                    itemBuilder: (_) => ['En attente', 'Terminé', 'Livré']
                         .map((s) => PopupMenuItem(value: s, child: Text(s, style: const TextStyle(color: Colors.white))))
                         .toList(),
                     onSelected: (newStatus) async {
@@ -1074,7 +1074,7 @@ Widget _buildBulkActionBar(WidgetRef ref, List<Map<String, dynamic>> tickets, Se
 
 Future<void> _showBulkStatusDialog(WidgetRef ref, Set<String> selected) async {
   if (selected.isEmpty) return;
-  final statuses = ['En attente', 'En cours', 'Terminé', 'Livré'];
+  final statuses = ['En attente', 'Terminé', 'Livré'];
   final status = await showDialog<String>(
     context: ref.context,
     builder: (ctx) => AlertDialog(
