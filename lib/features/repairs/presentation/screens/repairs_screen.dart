@@ -1562,6 +1562,72 @@ class _NewTicketFormState extends State<_NewTicketForm> {
     }
   }
 
+  void _addPartToPreSelected(Map<String, dynamic> product) {
+    final existing = _preSelectedParts.indexWhere((p) => p['product_id'] == product['id']);
+    setState(() {
+      if (existing >= 0) {
+        _preSelectedParts[existing]['qty'] = (_preSelectedParts[existing]['qty'] as int) + 1;
+      } else {
+        _preSelectedParts.add({
+          'product_id': product['id'],
+          'name': product['product_name']?.toString() ?? 'Pièce',
+          'qty': 1,
+          'price': (product['reference_price'] as num?)?.toDouble() ?? 0,
+          'shop_cost_price': (product['purchase_price'] as num?)?.toDouble() ?? 0,
+        });
+      }
+      _partsSearchResults = [];
+      _partsSearchQuery = '';
+    });
+  }
+
+  Widget _buildInlinePartsSearch() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        TextField(
+          decoration: InputDecoration(
+            hintText: 'Rechercher une pièce...',
+            hintStyle: const TextStyle(color: Colors.white38),
+            prefixIcon: const Icon(Icons.search, color: Colors.white38, size: 18),
+            filled: true,
+            fillColor: Colors.white.withOpacity(0.05),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Colors.white12)),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          ),
+          style: const TextStyle(color: Colors.white, fontSize: 13),
+          onChanged: (v) {
+            setState(() => _partsSearchQuery = v);
+            if (v.length >= 2) { _searchPartsInline(v); } else { setState(() => _partsSearchResults = []); }
+          },
+        ),
+        if (_partsSearchLoading)
+          const Padding(padding: EdgeInsets.all(8), child: Center(child: CircularProgressIndicator(strokeWidth: 2, color: _neonCyan)))
+        else if (_partsSearchResults.isNotEmpty)
+          Container(
+            margin: const EdgeInsets.only(top: 4),
+            decoration: BoxDecoration(color: _panelDark, borderRadius: BorderRadius.circular(8), border: Border.all(color: _glassBorder)),
+            constraints: const BoxConstraints(maxHeight: 200),
+            child: ListView.builder(
+              shrinkWrap: true,
+              itemCount: _partsSearchResults.length,
+              itemBuilder: (context, index) {
+                final product = _partsSearchResults[index];
+                final stock = product['stock_quantity'] ?? 0;
+                final price = (product['reference_price'] as num?)?.toDouble() ?? 0;
+                return ListTile(
+                  dense: true,
+                  title: Text(product['product_name']?.toString() ?? '', style: const TextStyle(color: Colors.white, fontSize: 13)),
+                  subtitle: Text('Stock: $stock  •  Prix: ${price.toStringAsFixed(0)} DA', style: const TextStyle(color: Colors.white54, fontSize: 11)),
+                  trailing: IconButton(icon: const Icon(Icons.add_circle_outline, color: _neonCyan, size: 20), onPressed: () => _addPartToPreSelected(product)),
+                );
+              },
+            ),
+          ),
+      ],
+    );
+  }
+
   // --- Section Builders ---
   Widget _buildClientSection() {
     return Column(
