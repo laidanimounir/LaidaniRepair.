@@ -1884,8 +1884,10 @@ class _NewTicketFormState extends State<_NewTicketForm> {
         Row(
           children: [
             Expanded(child: _buildTextField(_advanceCtrl, 'Acompte (Avance)', icon: Icons.payments_outlined, isNumber: true, suffix: 'DA')),
-            const SizedBox(width: 16),
-            Expanded(child: _buildTextField(_laborCtrl, 'Main d\'œuvre (M.O)', icon: Icons.handyman_outlined, isNumber: true, suffix: 'DA')),
+            if (_billingType != 'parts_only') ...[
+              const SizedBox(width: 16),
+              Expanded(child: _buildTextField(_laborCtrl, 'Main d\'œuvre (M.O)', icon: Icons.handyman_outlined, isNumber: true, suffix: 'DA')),
+            ],
           ],
         ),
         const SizedBox(height: 12),
