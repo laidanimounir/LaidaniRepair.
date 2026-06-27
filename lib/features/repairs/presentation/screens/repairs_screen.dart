@@ -4,6 +4,7 @@ import 'dart:math';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -1550,47 +1551,53 @@ class _NewTicketFormState extends State<_NewTicketForm> {
       builder: (_) => StockSearchDialog(
         color: _neonCyan,
         onProductSelected: (product) {
-          final qtyCtrl = TextEditingController(text: '1');
-          showDialog(
-            context: context,
-            builder: (ctx) => AlertDialog(
-              backgroundColor: _panelDark,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: _glassBorder)),
-              title: Text(product['product_name']?.toString() ?? 'Pièce', style: const TextStyle(color: Colors.white, fontSize: 15)),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: qtyCtrl,
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                    style: const TextStyle(color: Colors.white),
-                    decoration: const InputDecoration(labelText: 'Quantité', labelStyle: TextStyle(color: _textMuted)),
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            final qtyCtrl = TextEditingController(text: '1');
+            showDialog(
+              context: context,
+              builder: (ctx) => AlertDialog(
+                backgroundColor: _panelDark,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: _glassBorder)),
+                title: Text(product['product_name']?.toString() ?? 'Pièce', style: const TextStyle(color: Colors.white, fontSize: 15)),
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: qtyCtrl,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                      style: const TextStyle(color: Colors.white),
+                      decoration: const InputDecoration(labelText: 'Quantité', labelStyle: TextStyle(color: _textMuted)),
+                    ),
+                  ],
+                ),
+                actions: [
+                  TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Annuler', style: TextStyle(color: _textMuted))),
+                  TextButton(
+                    onPressed: () {
+                      final qty = int.tryParse(qtyCtrl.text) ?? 1;
+                      if (qty <= 0) return;
+                      Navigator.pop(ctx);
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        if (!mounted) return;
+                        setState(() {
+                          _preSelectedParts.add({
+                            'product_id': product['id'],
+                            'name': product['product_name']?.toString() ?? 'Pièce',
+                            'qty': qty,
+                            'price': (product['reference_price'] as num?)?.toDouble() ?? 0,
+                            'shop_cost_price': (product['purchase_price'] as num?)?.toDouble() ?? 0,
+                          });
+                        });
+                      });
+                    },
+                    child: const Text('Ajouter', style: TextStyle(color: _neonCyan)),
                   ),
                 ],
               ),
-              actions: [
-                TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Annuler', style: TextStyle(color: _textMuted))),
-                TextButton(
-                  onPressed: () {
-                    final qty = int.tryParse(qtyCtrl.text) ?? 1;
-                    if (qty <= 0) return;
-                    setState(() {
-                      _preSelectedParts.add({
-                        'product_id': product['id'],
-                        'name': product['product_name']?.toString() ?? 'Pièce',
-                        'qty': qty,
-                        'price': (product['reference_price'] as num?)?.toDouble() ?? 0,
-                        'shop_cost_price': (product['purchase_price'] as num?)?.toDouble() ?? 0,
-                      });
-                    });
-                    Navigator.pop(ctx);
-                  },
-                  child: const Text('Ajouter', style: TextStyle(color: _neonCyan)),
-                ),
-              ],
-            ),
-          );
+            );
+          });
         },
       ),
     );
