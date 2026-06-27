@@ -1208,6 +1208,7 @@ class _NewTicketFormState extends State<_NewTicketForm> {
   String _partsSearchQuery = '';
   List<Map<String, dynamic>> _partsSearchResults = [];
   bool _partsSearchLoading = false;
+  String? _partsSearchError;
 
   static const _brandSuggestions = [
     'Samsung', 'Apple', 'Huawei', 'Xiaomi', 'Oppo', 'Vivo',
@@ -1556,7 +1557,7 @@ class _NewTicketFormState extends State<_NewTicketForm> {
   }
 
   Future<void> _searchPartsInline(String query) async {
-    setState(() => _partsSearchLoading = true);
+    setState(() { _partsSearchLoading = true; _partsSearchError = null; });
     try {
       final res = await Supabase.instance.client
           .from('products')
@@ -1565,8 +1566,10 @@ class _NewTicketFormState extends State<_NewTicketForm> {
           .gt('stock_quantity', 0)
           .limit(10);
       if (mounted) setState(() { _partsSearchResults = List<Map<String, dynamic>>.from(res); _partsSearchLoading = false; });
-    } catch (_) {
-      if (mounted) setState(() { _partsSearchResults = []; _partsSearchLoading = false; });
+    } catch (e, stack) {
+      debugPrint('_searchPartsInline ERROR: $e');
+      debugPrint('Stack: $stack');
+      if (mounted) setState(() { _partsSearchResults = []; _partsSearchLoading = false; _partsSearchError = e.toString(); });
     }
   }
 
@@ -1631,6 +1634,13 @@ class _NewTicketFormState extends State<_NewTicketForm> {
                 );
               },
             ),
+          ),
+        if (_partsSearchError != null)
+          Container(
+            margin: const EdgeInsets.only(top: 4),
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(color: Colors.red.withOpacity(0.1), borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.red.withOpacity(0.3))),
+            child: Text('Erreur: $_partsSearchError', style: const TextStyle(color: Colors.red, fontSize: 11)),
           ),
       ],
     );
