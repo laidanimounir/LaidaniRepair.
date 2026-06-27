@@ -2555,9 +2555,11 @@ class _NewTicketFormState extends State<_NewTicketForm> {
     final imei = ticket['imei'] ?? '';
     final issue = ticket['issue_description'] ?? '';
     final estimatedCost = (ticket['estimated_cost'] as num?)?.toDouble() ?? 0;
+    final finalCost = (ticket['final_cost'] as num?)?.toDouble() ?? estimatedCost;
+    final laborCost = (ticket['labor_cost'] as num?)?.toDouble() ?? 0;
     final advance = (ticket['advance_payment'] as num?)?.toDouble() ?? 0;
-    final discount = (ticket['discount'] as num?)?.toDouble() ?? 0;
-    final remaining = estimatedCost - advance - discount;
+    final remaining = finalCost - advance;
+    final billingType = ticket['billing_type'] as String? ?? 'parts_and_labor';
     final estimatedDate = ticket['estimated_completion_date']?.toString() ?? '';
     final qrData = 'LAIDANI:TICKET:${ticket['id']}:${ticket['qr_code_hash'] ?? ''}';
     final phone = isAnon ? (anonPhone ?? '') : '';
@@ -2581,6 +2583,9 @@ class _NewTicketFormState extends State<_NewTicketForm> {
               if (issue.isNotEmpty) _pdfRow('Problème', issue),
               pw.Divider(),
               _pdfRow('Coût estimé', '${estimatedCost.toStringAsFixed(0)} DA'),
+              if (billingType != 'parts_only' && laborCost > 0)
+                _pdfRow('Main d\'œuvre', '${laborCost.toStringAsFixed(0)} DA'),
+              _pdfRow('Total', '${finalCost.toStringAsFixed(0)} DA'),
               if (advance > 0) _pdfRow('Avance', '${advance.toStringAsFixed(0)} DA'),
               _pdfRow('Reste à payer', '${remaining.toStringAsFixed(0)} DA'),
               if (estimatedDate.isNotEmpty) _pdfRow('Délai estimé', estimatedDate),
