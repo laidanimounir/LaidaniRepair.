@@ -1724,7 +1724,7 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
   }
 
   double get _totalPayments {
-    double total = (_ticket?['advance_payment'] as num?)?.toDouble() ?? 0;
+    double total = 0;
     for (var p in _payments) {
       total += (p['amount'] as num?)?.toDouble() ?? 0;
     }
