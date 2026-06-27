@@ -1431,6 +1431,136 @@ class _NewTicketFormState extends State<_NewTicketForm> {
     );
   }
 
+  // --- Billing Type Selector ---
+  Widget _buildBillingTypeSelector() {
+    final options = [
+      {'value': 'labor_only',      'label': 'Main d\'œuvre', 'icon': Icons.build},
+      {'value': 'parts_only',       'label': 'Pièces',        'icon': Icons.inventory_2},
+      {'value': 'parts_and_labor',  'label': 'Pièces + M.O',  'icon': Icons.handyman},
+    ];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Type de facturation', style: TextStyle(color: _textMuted, fontSize: 13)),
+        const SizedBox(height: 8),
+        Row(
+          children: options.map((opt) {
+            final selected = _billingType == opt['value'];
+            return Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: InkWell(
+                  onTap: () => setState(() => _billingType = opt['value'] as String),
+                  borderRadius: BorderRadius.circular(8),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    decoration: BoxDecoration(
+                      color: selected ? _neonCyan.withOpacity(0.15) : Colors.white.withOpacity(0.05),
+                      border: Border.all(color: selected ? _neonCyan : Colors.white24, width: selected ? 1.5 : 1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Column(
+                      children: [
+                        Icon(opt['icon'] as IconData, color: selected ? _neonCyan : Colors.white54, size: 18),
+                        const SizedBox(height: 4),
+                        Text(opt['label'] as String, textAlign: TextAlign.center, style: TextStyle(color: selected ? _neonCyan : Colors.white70, fontSize: 11, fontWeight: selected ? FontWeight.bold : FontWeight.normal)),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
+
+  // --- Pre-selected Parts ---
+  Widget _buildPreSelectedPartsList() {
+    if (_preSelectedParts.isEmpty) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 8),
+        Text('Pièces pré-sélectionnées (${_preSelectedParts.length})', style: const TextStyle(color: _textMuted, fontSize: 12)),
+        const SizedBox(height: 4),
+        ..._preSelectedParts.asMap().entries.map((entry) {
+          final i = entry.key;
+          final part = entry.value;
+          return Container(
+            margin: const EdgeInsets.only(bottom: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(color: Colors.white.withOpacity(0.05), borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.white12)),
+            child: Row(
+              children: [
+                Expanded(child: Text('${part['name'] ?? ''}', style: const TextStyle(color: Colors.white, fontSize: 13))),
+                Text('×${part['qty']}  ${part['price']} DA', style: const TextStyle(color: _neonCyan, fontSize: 12)),
+                const SizedBox(width: 8),
+                GestureDetector(
+                  onTap: () => setState(() => _preSelectedParts.removeAt(i)),
+                  child: const Icon(Icons.close, size: 16, color: Colors.white38),
+                ),
+              ],
+            ),
+          );
+        }),
+      ],
+    );
+  }
+
+  void _openPartsPickerForCreation(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (_) => StockSearchDialog(
+        color: _neonCyan,
+        onProductSelected: (product) {
+          final qtyCtrl = TextEditingController(text: '1');
+          showDialog(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              backgroundColor: _panelDark,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: _glassBorder)),
+              title: Text(product['product_name']?.toString() ?? 'Pièce', style: const TextStyle(color: Colors.white, fontSize: 15)),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: qtyCtrl,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    style: const TextStyle(color: Colors.white),
+                    decoration: const InputDecoration(labelText: 'Quantité', labelStyle: TextStyle(color: _textMuted)),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Annuler', style: TextStyle(color: _textMuted))),
+                TextButton(
+                  onPressed: () {
+                    final qty = int.tryParse(qtyCtrl.text) ?? 1;
+                    if (qty <= 0) return;
+                    setState(() {
+                      _preSelectedParts.add({
+                        'product_id': product['id'],
+                        'name': product['product_name']?.toString() ?? 'Pièce',
+                        'qty': qty,
+                        'price': (product['reference_price'] as num?)?.toDouble() ?? 0,
+                        'shop_cost_price': (product['purchase_price'] as num?)?.toDouble() ?? 0,
+                      });
+                    });
+                    Navigator.pop(ctx);
+                  },
+                  child: const Text('Ajouter', style: TextStyle(color: _neonCyan)),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   // --- Section Builders ---
   Widget _buildClientSection() {
     return Column(
