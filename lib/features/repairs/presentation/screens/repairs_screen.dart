@@ -1267,6 +1267,18 @@ class _NewTicketFormState extends State<_NewTicketForm> {
                             ],
                           ),
                           const SizedBox(height: 12),
+                          _buildBillingTypeSelector(),
+                          if (_billingType != 'labor_only') ...[
+                            const SizedBox(height: 8),
+                            OutlinedButton.icon(
+                              onPressed: () => _openPartsPickerForCreation(context),
+                              icon: const Icon(Icons.add_shopping_cart, size: 16),
+                              label: const Text('Ajouter pièce(s)'),
+                              style: OutlinedButton.styleFrom(foregroundColor: _neonCyan, side: const BorderSide(color: _neonCyan)),
+                            ),
+                            _buildPreSelectedPartsList(),
+                          ],
+                          const SizedBox(height: 12),
                           _buildFinancialSection(),
                           const SizedBox(height: 12),
                           Center(
@@ -1310,7 +1322,7 @@ class _NewTicketFormState extends State<_NewTicketForm> {
                       type: StepperType.vertical,
                       currentStep: _currentStep,
                       onStepContinue: () {
-                        final maxStep = _showDetails ? 5 : 3;
+                        final maxStep = _showDetails ? 6 : 4;
                         if (_currentStep < maxStep) {
                           setState(() => _currentStep += 1);
                         } else {
@@ -1339,7 +1351,7 @@ class _NewTicketFormState extends State<_NewTicketForm> {
                                 backgroundColor: _neonCyan,
                                 foregroundColor: _bgCarbon,
                               ),
-                              child: Text(_currentStep == (_showDetails ? 5 : 3) ? 'Terminer' : 'Suivant'),
+                              child: Text(_currentStep == (_showDetails ? 6 : 4) ? 'Terminer' : 'Suivant'),
                             ),
                           ],
                         ),
@@ -1366,33 +1378,55 @@ class _NewTicketFormState extends State<_NewTicketForm> {
                           isActive: _currentStep >= 0,
                         ),
                         Step(
+                          title: const Text('Facturation', style: TextStyle(color: Colors.white, fontSize: 11)),
+                          content: Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: Column(
+                              children: [
+                                _buildBillingTypeSelector(),
+                                if (_billingType != 'labor_only') ...[
+                                  const SizedBox(height: 12),
+                                  OutlinedButton.icon(
+                                    onPressed: () => _openPartsPickerForCreation(context),
+                                    icon: const Icon(Icons.add_shopping_cart, size: 16),
+                                    label: const Text('Ajouter pièce(s)'),
+                                    style: OutlinedButton.styleFrom(foregroundColor: _neonCyan, side: const BorderSide(color: _neonCyan)),
+                                  ),
+                                  _buildPreSelectedPartsList(),
+                                ],
+                              ],
+                            ),
+                          ),
+                          isActive: _currentStep >= 1,
+                        ),
+                        Step(
                           title: const Text('Appareil', style: TextStyle(color: Colors.white, fontSize: 11)),
                           content: _showDetails
                               ? _buildDeviceSection()
                               : _buildTextField(_deviceCtrl, 'Modèle de l\'appareil * (ex: Galaxy S23)', icon: Icons.phone_android, errorKey: 'device_name'),
-                          isActive: _currentStep >= 1,
+                          isActive: _currentStep >= 2,
                         ),
                         if (_showDetails)
                           Step(
                             title: const Text('Sécurité', style: TextStyle(color: Colors.white, fontSize: 11)),
                             content: _buildSecuritySection(),
-                            isActive: _currentStep >= 2,
+                            isActive: _currentStep >= 3,
                           ),
                         if (_showDetails)
                           Step(
                             title: const Text('État', style: TextStyle(color: Colors.white, fontSize: 11)),
                             content: _buildConditionSection(),
-                            isActive: _currentStep >= 3,
+                            isActive: _currentStep >= 4,
                           ),
                         Step(
                           title: const Text('Problème', style: TextStyle(color: Colors.white, fontSize: 11)),
                           content: _buildProblemSection(),
-                          isActive: _currentStep >= (_showDetails ? 4 : 2),
+                          isActive: _currentStep >= (_showDetails ? 5 : 3),
                         ),
                         Step(
                           title: const Text('Finances', style: TextStyle(color: Colors.white, fontSize: 11)),
                           content: _buildFinancialSection(),
-                          isActive: _currentStep >= (_showDetails ? 5 : 3),
+                          isActive: _currentStep >= (_showDetails ? 6 : 4),
                         ),
                       ],
                     ),
