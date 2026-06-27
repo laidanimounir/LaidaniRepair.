@@ -1275,11 +1275,15 @@ class _NewTicketFormState extends State<_NewTicketForm> {
                           if (_billingType != 'labor_only') ...[
                             const SizedBox(height: 8),
                             OutlinedButton.icon(
-                              onPressed: () => setState(() {}),
-                              icon: const Icon(Icons.add_shopping_cart, size: 16),
-                              label: const Text('Ajouter pièce(s)'),
+                              onPressed: () => setState(() => _showPartsSearch = !_showPartsSearch),
+                              icon: Icon(_showPartsSearch ? Icons.close : Icons.add_shopping_cart, size: 16),
+                              label: Text(_showPartsSearch ? 'Fermer recherche' : 'Ajouter pièce(s)'),
                               style: OutlinedButton.styleFrom(foregroundColor: _neonCyan, side: const BorderSide(color: _neonCyan)),
                             ),
+                            if (_showPartsSearch) ...[
+                              const SizedBox(height: 8),
+                              _buildInlinePartsSearch(),
+                            ],
                             _buildPreSelectedPartsList(),
                           ],
                           const SizedBox(height: 12),
@@ -1391,11 +1395,15 @@ class _NewTicketFormState extends State<_NewTicketForm> {
                                 if (_billingType != 'labor_only') ...[
                                   const SizedBox(height: 12),
                                   OutlinedButton.icon(
-                                    onPressed: () => setState(() {}),
-                                    icon: const Icon(Icons.add_shopping_cart, size: 16),
-                                    label: const Text('Ajouter pièce(s)'),
+                                    onPressed: () => setState(() => _showPartsSearch = !_showPartsSearch),
+                                    icon: Icon(_showPartsSearch ? Icons.close : Icons.add_shopping_cart, size: 16),
+                                    label: Text(_showPartsSearch ? 'Fermer recherche' : 'Ajouter pièce(s)'),
                                     style: OutlinedButton.styleFrom(foregroundColor: _neonCyan, side: const BorderSide(color: _neonCyan)),
                                   ),
+                                  if (_showPartsSearch) ...[
+                                    const SizedBox(height: 8),
+                                    _buildInlinePartsSearch(),
+                                  ],
                                   _buildPreSelectedPartsList(),
                                 ],
                               ],
