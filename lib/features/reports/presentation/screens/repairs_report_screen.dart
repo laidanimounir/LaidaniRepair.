@@ -242,7 +242,7 @@ class _RepairsReportScreenState extends ConsumerState<RepairsReportScreen> {
         if (type == 'technician') {
           for (final t in _technicians) items.add({'label': t['full_name'], 'value': t['id']});
         } else if (type == 'status') {
-          for (final s in ['En attente', 'En cours', 'Terminé', 'Livré']) items.add({'label': s, 'value': s});
+          for (final s in ['En attente', 'Terminé', 'Livré']) items.add({'label': s, 'value': s});
         } else if (type == 'device_type') {
           for (final d in ['Smartphone', 'Tablette', 'PC Portable', 'PC Bureau', 'Console', 'Montre connectée', 'Autre']) items.add({'label': d, 'value': d});
         }
@@ -310,7 +310,6 @@ class _RepairsReportScreenState extends ConsumerState<RepairsReportScreen> {
   Color _statusColor(String? s) {
     switch (s) {
       case 'En attente': return Colors.orangeAccent;
-      case 'En cours': return Colors.blueAccent;
       case 'Terminé': return Colors.greenAccent;
       case 'Livré': return Colors.purpleAccent;
       default: return _neonCyan;

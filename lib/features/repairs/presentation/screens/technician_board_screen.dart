@@ -229,7 +229,6 @@ class _TicketCard extends StatelessWidget {
 Color _statusColor(String? status) {
   switch (status) {
     case 'En attente': return Colors.orangeAccent;
-    case 'En cours': return Colors.blueAccent;
     case 'Terminé': return Colors.greenAccent;
     case 'Livré': return Colors.purpleAccent;
     default: return _neonCyan;
