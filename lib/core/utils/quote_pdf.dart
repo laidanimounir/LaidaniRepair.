@@ -16,7 +16,8 @@ Future<Uint8List> generateQuotePdf(Map<String, dynamic> ticket, List<Map<String,
   final validityDate = DateTime.now().add(const Duration(days: 15)).toString().substring(0, 10);
 
   final partsTotal = parts.fold<double>(0, (sum, p) => sum + ((p['charged_price'] as num?)?.toDouble() ?? 0) * ((p['quantity'] as num?)?.toInt() ?? 1));
-  final totalEstimate = partsTotal + laborCost;
+  final billingType = ticket['billing_type'] as String? ?? 'parts_and_labor';
+  final grandTotal = billingType == 'labor_only' ? laborCost : partsTotal + laborCost;
 
   pdf.addPage(
     pw.MultiPage(
@@ -137,7 +138,7 @@ Future<Uint8List> generateQuotePdf(Map<String, dynamic> ticket, List<Map<String,
                 mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                 children: [
                   pw.Text('TOTAL ESTIMÉ', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
-                  pw.Text('${(estimatedCost > 0 ? estimatedCost : totalEstimate).toStringAsFixed(0)} DA',
+                  pw.Text('${grandTotal.toStringAsFixed(0)} DA',
                       style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold, color: PdfColors.blue700)),
                 ],
               ),
