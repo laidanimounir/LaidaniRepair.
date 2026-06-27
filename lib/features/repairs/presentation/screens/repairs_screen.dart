@@ -990,7 +990,6 @@ String _getSlaStatus(Map<String, dynamic> ticket) {
 Color _statusColor(String? status) {
   switch (status) {
     case 'En attente': return Colors.orangeAccent;
-    case 'En cours': return Colors.blueAccent;
     case 'Terminé': return Colors.greenAccent;
     case 'Livré': return Colors.purpleAccent;
     default: return _neonCyan;
@@ -1000,7 +999,6 @@ Color _statusColor(String? status) {
 IconData _statusIcon(String? status) {
   switch (status) {
     case 'En attente': return Icons.hourglass_empty;
-    case 'En cours': return Icons.build;
     case 'Terminé': return Icons.check_circle;
     case 'Livré': return Icons.local_shipping;
     default: return Icons.all_inbox;
