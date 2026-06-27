@@ -1304,11 +1304,12 @@ class _NewTicketFormState extends State<_NewTicketForm> {
                         ],
                       ),
                     )
-                  : Stepper(
+                   : Stepper(
                       type: StepperType.vertical,
                       currentStep: _currentStep,
                       onStepContinue: () {
-                        if (_currentStep < 5) {
+                        final maxStep = _showDetails ? 5 : 2;
+                        if (_currentStep < maxStep) {
                           setState(() => _currentStep += 1);
                         } else {
                           _submit();
@@ -1336,42 +1337,62 @@ class _NewTicketFormState extends State<_NewTicketForm> {
                                 backgroundColor: _neonCyan,
                                 foregroundColor: _bgCarbon,
                               ),
-                              child: Text(_currentStep == 5 ? 'Terminer' : 'Suivant'),
+                              child: Text(_currentStep == (_showDetails ? 5 : 2) ? 'Terminer' : 'Suivant'),
                             ),
                           ],
                         ),
                       ),
-                      steps: [
+                      steps: <Step>[
                         Step(
                           title: const Text('Client', style: TextStyle(color: Colors.white, fontSize: 11)),
-                          content: _buildClientSection(),
+                          content: Column(
+                            children: [
+                              _buildClientSection(),
+                              if (!_showDetails)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 12),
+                                  child: Center(
+                                    child: TextButton.icon(
+                                      onPressed: () => setState(() => _showDetails = true),
+                                      icon: const Icon(Icons.expand_more, color: _neonCyan, size: 18),
+                                      label: const Text('تفاصيل إضافية ▼', style: TextStyle(color: _neonCyan, fontSize: 12)),
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
                           isActive: _currentStep >= 0,
                         ),
                         Step(
                           title: const Text('Appareil', style: TextStyle(color: Colors.white, fontSize: 11)),
-                          content: _buildDeviceSection(),
+                          content: _showDetails
+                              ? _buildDeviceSection()
+                              : _buildTextField(_deviceCtrl, 'Modèle de l\'appareil * (ex: Galaxy S23)', icon: Icons.phone_android, errorKey: 'device_name'),
                           isActive: _currentStep >= 1,
                         ),
-                        Step(
-                          title: const Text('Sécurité', style: TextStyle(color: Colors.white, fontSize: 11)),
-                          content: _buildSecuritySection(),
-                          isActive: _currentStep >= 2,
-                        ),
-                        Step(
-                          title: const Text('État', style: TextStyle(color: Colors.white, fontSize: 11)),
-                          content: _buildConditionSection(),
-                          isActive: _currentStep >= 3,
-                        ),
+                        if (_showDetails)
+                          Step(
+                            title: const Text('Sécurité', style: TextStyle(color: Colors.white, fontSize: 11)),
+                            content: _buildSecuritySection(),
+                            isActive: _currentStep >= 2,
+                          ),
+                        if (_showDetails)
+                          Step(
+                            title: const Text('État', style: TextStyle(color: Colors.white, fontSize: 11)),
+                            content: _buildConditionSection(),
+                            isActive: _currentStep >= 3,
+                          ),
                         Step(
                           title: const Text('Problème', style: TextStyle(color: Colors.white, fontSize: 11)),
                           content: _buildProblemSection(),
-                          isActive: _currentStep >= 4,
+                          isActive: _currentStep >= (_showDetails ? 4 : 2),
                         ),
-                        Step(
-                          title: const Text('Finances', style: TextStyle(color: Colors.white, fontSize: 11)),
-                          content: _buildFinancialSection(),
-                          isActive: _currentStep >= 5,
-                        ),
+                        if (_showDetails)
+                          Step(
+                            title: const Text('Finances', style: TextStyle(color: Colors.white, fontSize: 11)),
+                            content: _buildFinancialSection(),
+                            isActive: _currentStep >= 5,
+                          ),
                       ],
                     ),
             ),
