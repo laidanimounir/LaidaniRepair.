@@ -1204,6 +1204,10 @@ class _NewTicketFormState extends State<_NewTicketForm> {
   bool _showDetails = false;
   String _billingType = 'parts_and_labor';
   final List<Map<String, dynamic>> _preSelectedParts = [];
+  bool _showPartsSearch = false;
+  String _partsSearchQuery = '';
+  List<Map<String, dynamic>> _partsSearchResults = [];
+  bool _partsSearchLoading = false;
 
   static const _brandSuggestions = [
     'Samsung', 'Apple', 'Huawei', 'Xiaomi', 'Oppo', 'Vivo',
@@ -1541,6 +1545,21 @@ class _NewTicketFormState extends State<_NewTicketForm> {
         }),
       ],
     );
+  }
+
+  Future<void> _searchPartsInline(String query) async {
+    setState(() => _partsSearchLoading = true);
+    try {
+      final res = await Supabase.instance.client
+          .from('products')
+          .select('id, product_name, reference_price, purchase_price, stock_quantity')
+          .ilike('product_name', '%$query%')
+          .gt('stock_quantity', 0)
+          .limit(10);
+      if (mounted) setState(() { _partsSearchResults = List<Map<String, dynamic>>.from(res); _partsSearchLoading = false; });
+    } catch (_) {
+      if (mounted) setState(() { _partsSearchResults = []; _partsSearchLoading = false; });
+    }
   }
 
   // --- Section Builders ---
