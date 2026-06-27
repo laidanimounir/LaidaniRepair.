@@ -17,6 +17,7 @@ import 'package:laidani_repair/core/providers/supabase_provider.dart';
 import 'package:laidani_repair/core/providers/shortcuts_provider.dart';
 import 'package:laidani_repair/core/services/groq_service.dart';
 import 'package:laidani_repair/core/utils/csv_export.dart';
+import 'package:laidani_repair/widgets/repairs/stock_search_dialog.dart';
 
 // --- Cyber Glass Theme Constants ---
 const Color _bgCarbon = Color(0xFF050914);
@@ -2296,15 +2297,32 @@ class _NewTicketFormState extends State<_NewTicketForm> {
         'device_password': _passwordCtrl.text.trim(),
         'accessories_included': _accessoriesCtrl.text.trim().isEmpty ? null : _accessoriesCtrl.text.trim(),
         'pre_diagnostic': _diagCtrl.text.trim(),
+        'billing_type': _billingType,
         'estimated_cost': cost,
+        'final_cost': cost,
         'advance_payment': advance,
-        'labor_cost': labor,
+        'labor_cost': _billingType == 'parts_only' ? 0.0 : labor,
         'qr_code_hash': qrHash,
         'status': 'En attente',
         'payment_status': 'Non payé',
         'paid_amount': 0,
         'estimated_completion_date': _estimatedCompletionDate?.toIso8601String().substring(0, 10),
       }).select().single();
+
+      // Batch insert pre-selected parts
+      if (_preSelectedParts.isNotEmpty) {
+        final ticketId = newTicket['id'] as String;
+        for (final part in _preSelectedParts) {
+          await client.from('repair_parts').insert({
+            'ticket_id': ticketId,
+            'product_id': part['product_id'],
+            'quantity': part['qty'],
+            'charged_price': part['price'],
+            'shop_cost_price': part['shop_cost_price'],
+            'part_status': 'Utilisé',
+          });
+        }
+      }
       
       widget.ref.invalidate(_ticketsProvider);
       if (mounted) {
