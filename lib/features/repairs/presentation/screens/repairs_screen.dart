@@ -1265,6 +1265,8 @@ class _NewTicketFormState extends State<_NewTicketForm> {
                             ],
                           ),
                           const SizedBox(height: 12),
+                          _buildFinancialSection(),
+                          const SizedBox(height: 12),
                           Center(
                             child: TextButton.icon(
                               onPressed: () => setState(() => _showDetails = !_showDetails),
@@ -1293,8 +1295,6 @@ class _NewTicketFormState extends State<_NewTicketForm> {
                                   child: Column(
                                     children: [
                                       _buildConditionSection(),
-                                      const SizedBox(height: 16),
-                                      _buildFinancialSection(),
                                     ],
                                   ),
                                 ),
@@ -1308,7 +1308,7 @@ class _NewTicketFormState extends State<_NewTicketForm> {
                       type: StepperType.vertical,
                       currentStep: _currentStep,
                       onStepContinue: () {
-                        final maxStep = _showDetails ? 5 : 2;
+                        final maxStep = _showDetails ? 5 : 3;
                         if (_currentStep < maxStep) {
                           setState(() => _currentStep += 1);
                         } else {
@@ -1337,7 +1337,7 @@ class _NewTicketFormState extends State<_NewTicketForm> {
                                 backgroundColor: _neonCyan,
                                 foregroundColor: _bgCarbon,
                               ),
-                              child: Text(_currentStep == (_showDetails ? 5 : 2) ? 'Terminer' : 'Suivant'),
+                              child: Text(_currentStep == (_showDetails ? 5 : 3) ? 'Terminer' : 'Suivant'),
                             ),
                           ],
                         ),
@@ -1387,12 +1387,11 @@ class _NewTicketFormState extends State<_NewTicketForm> {
                           content: _buildProblemSection(),
                           isActive: _currentStep >= (_showDetails ? 4 : 2),
                         ),
-                        if (_showDetails)
-                          Step(
-                            title: const Text('Finances', style: TextStyle(color: Colors.white, fontSize: 11)),
-                            content: _buildFinancialSection(),
-                            isActive: _currentStep >= 5,
-                          ),
+                        Step(
+                          title: const Text('Finances', style: TextStyle(color: Colors.white, fontSize: 11)),
+                          content: _buildFinancialSection(),
+                          isActive: _currentStep >= (_showDetails ? 5 : 3),
+                        ),
                       ],
                     ),
             ),
