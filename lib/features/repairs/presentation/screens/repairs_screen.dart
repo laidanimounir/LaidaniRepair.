@@ -2032,7 +2032,7 @@ class _NewTicketFormState extends State<_NewTicketForm> {
         'qr_code_hash': qrHash,
         'status': 'En attente',
         'payment_status': 'Non payé',
-        'paid_amount': advance,
+        'paid_amount': 0,
         'estimated_completion_date': _estimatedCompletionDate?.toIso8601String().substring(0, 10),
       }).select().single();
       
