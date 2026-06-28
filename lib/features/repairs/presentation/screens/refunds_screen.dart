@@ -51,27 +51,28 @@ class _RefundsScreenState extends ConsumerState<RefundsScreen> with SingleTicker
     setState(() { _loading = true; _error = null; _searchError = null; _ticket = null; });
     try {
       final client = ref.read(supabaseClientProvider);
-      final data = await client
-          .from('repair_tickets')
-          .select('*, customers(full_name, phone_number)')
-          .ilike('id', '$q%')
-          .maybeSingle();
+      Map<String, dynamic>? result;
 
-      if (data == null) {
-        final phoneData = await client
+      if (q.contains('-') && q.length >= 36) {
+        result = await client
             .from('repair_tickets')
             .select('*, customers(full_name, phone_number)')
-            .or('client_phone_temp.ilike.$q%,customers.phone_number.ilike.$q%')
+            .eq('id', q.trim())
+            .maybeSingle();
+      } else {
+        result = await client
+            .from('repair_tickets')
+            .select('*, customers(full_name, phone_number)')
+            .or('client_phone_temp.ilike.%$q%')
             .limit(1)
             .maybeSingle();
-        if (phoneData != null) {
-          await _loadTicketDetails(client, Map<String, dynamic>.from(phoneData));
-          return;
-        }
+      }
+
+      if (result == null) {
         if (mounted) setState(() { _searchError = 'Aucun ticket trouvé'; _loading = false; });
         return;
       }
-      await _loadTicketDetails(client, Map<String, dynamic>.from(data));
+      await _loadTicketDetails(client, Map<String, dynamic>.from(result));
     } catch (e) {
       if (mounted) setState(() { _error = e.toString(); _loading = false; });
     }
