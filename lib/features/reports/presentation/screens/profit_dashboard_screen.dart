@@ -81,15 +81,14 @@ class _ProfitDashboardScreenState extends ConsumerState<ProfitDashboardScreen> {
           .neq('status', 'Annulé')
           .neq('payment_status', 'Remboursé');
 
-      final ticketIds = (ticketsResp as List).map((t) => "'${(t as Map<String, dynamic>)['id']}'").toList();
+      final ticketIds = (ticketsResp as List).map((t) => (t as Map<String, dynamic>)['id'] as String).toList();
       List<Map<String, dynamic>> allParts = [];
       if (ticketIds.isNotEmpty) {
         final partsResp = await client
             .from('repair_parts')
             .select('ticket_id, shop_cost_price, quantity, charged_price')
-            .gte('ticket_id', ticketIds.first)
-            .limit(10000);
-        allParts = List<Map<String, dynamic>>.from(partsResp).where((p) => ticketIds.contains((p as Map)['ticket_id'] as String)).toList();
+            .inFilter('ticket_id', ticketIds);
+        allParts = List<Map<String, dynamic>>.from(partsResp);
       }
 
       double totalRevenue = 0;
