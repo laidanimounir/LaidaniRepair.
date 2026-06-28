@@ -30,6 +30,9 @@ class _ProfitDashboardScreenState extends ConsumerState<ProfitDashboardScreen> {
   double _totalNetProfit = 0;
   int _ticketCount = 0;
   double _avgProfitPerTicket = 0;
+  double _posRevenue = 0;
+  double _posCost = 0;
+  int _posCount = 0;
   List<Map<String, dynamic>> _byTechnician = [];
   List<Map<String, dynamic>> _byDevice = [];
   bool _showTechnician = true;
@@ -98,6 +101,53 @@ class _ProfitDashboardScreenState extends ConsumerState<ProfitDashboardScreen> {
       final techMap = <String, Map<String, double>>{};
       final deviceMap = <String, Map<String, dynamic>>{};
 
+      // --- POS sales ---
+      double posRevenue = 0;
+      double posCost = 0;
+      int posCount = 0;
+      final salesResp = await client
+          .from('sales_invoices')
+          .select('id, final_amount, worker_id, profiles!sales_invoices_worker_id_fkey(full_name)')
+          .gte('invoice_date', _startDate.toIso8601String())
+          .lte('invoice_date', _endDate.toIso8601String());
+      final salesData = (salesResp as List).cast<Map<String, dynamic>>();
+
+      final salesInvoiceIds = salesData.map((s) => s['id'] as String).toList();
+      Map<String, Map<String, double>> salesItemsByInvoice = {};
+      if (salesInvoiceIds.isNotEmpty) {
+        final itemsResp = await client
+            .from('sales_items')
+            .select('invoice_id, quantity, sell_price, products!sales_items_product_id_fkey(purchase_price)')
+            .inFilter('invoice_id', salesInvoiceIds);
+        for (final item in (itemsResp as List)) {
+          final m = Map<String, dynamic>.from(item as Map<String, dynamic>);
+          final invId = m['invoice_id'] as String;
+          final qty = (m['quantity'] as num?)?.toDouble() ?? 0;
+          final purchase = ((m['products'] as Map?)?.let((p) => p['purchase_price'] as num?)?.toDouble()) ?? 0;
+          salesItemsByInvoice.putIfAbsent(invId, () => {'cost': 0, 'qty': 0});
+          salesItemsByInvoice[invId]!['cost'] = salesItemsByInvoice[invId]!['cost']! + (purchase * qty);
+          salesItemsByInvoice[invId]!['qty'] = salesItemsByInvoice[invId]!['qty']! + qty;
+        }
+      }
+
+      for (final s in salesData) {
+        final invId = s['id'] as String;
+        final revenue = (s['final_amount'] as num?)?.toDouble() ?? 0;
+        final cost = salesItemsByInvoice[invId]?['cost'] ?? 0;
+        final profit = revenue - cost;
+        final techName = (s['profiles'] as Map?)?.let((p) => p['full_name'] as String?) ?? 'Non assigné';
+
+        posRevenue += revenue;
+        posCost += cost;
+        posCount++;
+
+        techMap.putIfAbsent(techName, () => {'tickets': 0, 'revenue': 0, 'parts': 0, 'labor': 0, 'profit': 0});
+        techMap[techName]!['tickets'] = techMap[techName]!['tickets']! + 1;
+        techMap[techName]!['revenue'] = techMap[techName]!['revenue']! + revenue;
+        techMap[techName]!['parts'] = techMap[techName]!['parts']! + cost;
+        techMap[techName]!['profit'] = techMap[techName]!['profit']! + profit;
+      }
+
       for (final t in ticketsResp) {
         final tMap = Map<String, dynamic>.from(t as Map<String, dynamic>);
         final ticketId = tMap['id'] as String;
@@ -133,7 +183,7 @@ class _ProfitDashboardScreenState extends ConsumerState<ProfitDashboardScreen> {
         deviceMap[deviceKey]!['profit'] = deviceMap[deviceKey]!['profit'] + revenue - partsCost - labor;
       }
 
-      final totalNetProfit = totalRevenue - totalPartsCost - totalLaborCost;
+      final totalNetProfit = totalRevenue + posRevenue - totalPartsCost - posCost - totalLaborCost;
 
       final byTech = techMap.entries.map((e) => {
         'name': e.key,
@@ -156,12 +206,15 @@ class _ProfitDashboardScreenState extends ConsumerState<ProfitDashboardScreen> {
 
       if (mounted) {
         setState(() {
-          _totalRevenue = totalRevenue;
-          _totalPartsCost = totalPartsCost;
+          _totalRevenue = totalRevenue + posRevenue;
+          _totalPartsCost = totalPartsCost + posCost;
           _totalLaborCost = totalLaborCost;
           _totalNetProfit = totalNetProfit;
           _ticketCount = ticketCount;
-          _avgProfitPerTicket = ticketCount > 0 ? totalNetProfit / ticketCount : 0;
+          _posRevenue = posRevenue;
+          _posCost = posCost;
+          _posCount = posCount;
+          _avgProfitPerTicket = (ticketCount + posCount) > 0 ? totalNetProfit / (ticketCount + posCount) : 0;
           _byTechnician = byTech;
           _byDevice = byDevice;
           _loading = false;
@@ -201,8 +254,8 @@ class _ProfitDashboardScreenState extends ConsumerState<ProfitDashboardScreen> {
         final wide = constraints.maxWidth > 500;
         final crossCount = wide ? 4 : 2;
         final items = [
-          {'label': "Chiffre d'affaires", 'value': '${_totalRevenue.toStringAsFixed(0)} DA', 'color': _neonCyan},
-          {'label': 'Coût total', 'value': '${(_totalPartsCost + _totalLaborCost).toStringAsFixed(0)} DA', 'color': Colors.orangeAccent},
+          {'label': "Chiffre d'affaires", 'value': '${_totalRevenue.toStringAsFixed(0)} DA', 'sub': _posRevenue > 0 ? 'Réparations: ${(_totalRevenue - _posRevenue).toStringAsFixed(0)} DA + Ventes: ${_posRevenue.toStringAsFixed(0)} DA' : null, 'color': _neonCyan},
+          {'label': 'Coût total', 'value': '${(_totalPartsCost + _totalLaborCost).toStringAsFixed(0)} DA', 'sub': _posCost > 0 ? 'Réparations: ${(_totalPartsCost - _posCost + _totalLaborCost).toStringAsFixed(0)} DA + POS: ${_posCost.toStringAsFixed(0)} DA' : null, 'color': Colors.orangeAccent},
           {'label': 'Bénéfice net', 'value': '${_totalNetProfit.toStringAsFixed(0)} DA', 'color': _totalNetProfit >= 0 ? _neonEmerald : Colors.redAccent},
           {'label': 'Marge moyenne', 'value': '${_avgProfitPerTicket.toStringAsFixed(0)} DA/ticket', 'color': Colors.purpleAccent},
         ];
@@ -223,6 +276,8 @@ class _ProfitDashboardScreenState extends ConsumerState<ProfitDashboardScreen> {
                   Text(item['label'] as String, style: const TextStyle(color: _textMuted, fontSize: 11)),
                   const SizedBox(height: 4),
                   Text(item['value'] as String, style: TextStyle(color: item['color'] as Color, fontSize: 18, fontWeight: FontWeight.bold)),
+                  if (item['sub'] != null)
+                    Padding(padding: const EdgeInsets.only(top: 2), child: Text(item['sub'] as String, style: const TextStyle(color: _textMuted, fontSize: 9))),
                 ],
               ),
             );
@@ -365,7 +420,7 @@ class _ProfitDashboardScreenState extends ConsumerState<ProfitDashboardScreen> {
                     const SizedBox(width: 12),
                     const Text('Rentabilité', style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
                     const Spacer(),
-                    Text('$_ticketCount tickets', style: const TextStyle(color: _textMuted, fontSize: 13)),
+                    Text('$_ticketCount réparations${_posCount > 0 ? " + $_posCount ventes" : ""}', style: const TextStyle(color: _textMuted, fontSize: 13)),
                   ],
                 ),
                 const SizedBox(height: 16),
