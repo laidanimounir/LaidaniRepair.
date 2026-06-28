@@ -14,6 +14,7 @@ class RepairStatus {
   static const String nonPaye = 'Non payé';
   static const String avance = 'Avance';
   static const String paye = 'Payé';
+  static const String rembourse = 'Remboursé';
 
   // --- Device types ---
   static const List<String> deviceTypes = [
@@ -57,6 +58,16 @@ class RepairStatus {
       case partDefectueux: return 0xFFEF5350;
       case partRetourne:   return 0xFF8A9BB4;
       default:             return 0xFF00E5FF;
+    }
+  }
+
+  static int paymentStatusColor(String? status) {
+    switch (status) {
+      case nonPaye: return 0xFFFFAB40;
+      case avance:  return 0xFF2196F3;
+      case paye:    return 0xFF10B981;
+      case rembourse: return 0xFFEF5350;
+      default:      return 0xFF00E5FF;
     }
   }
 }
