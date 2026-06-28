@@ -36,6 +36,8 @@ class TicketFinancialsWidget extends StatelessWidget {
     final finalCost = (ticket['final_cost'] as num?)?.toDouble() ?? 0;
     final remaining = (partsCost + (billingType == 'parts_only' ? 0 : labor) - discount) - totalPayments;
     final isCanceled = ticket['status'] == 'Annulé';
+    final paymentStatus = ticket['payment_status'] as String? ?? 'Non payé';
+    final isRefunded = paymentStatus == 'Remboursé';
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -43,6 +45,20 @@ class TicketFinancialsWidget extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (isRefunded)
+            Container(
+              width: double.infinity,
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(color: Colors.redAccent.withOpacity(0.12), borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.redAccent.withOpacity(0.3))),
+              child: const Row(
+                children: [
+                  Icon(Icons.undo, color: Colors.redAccent, size: 16),
+                  SizedBox(width: 8),
+                  Text('Remboursé', style: TextStyle(color: Colors.redAccent, fontSize: 13, fontWeight: FontWeight.bold)),
+                ],
+              ),
+            ),
           Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
             Text('RÉSUMÉ FINANCIER', style: TextStyle(color: accentColor, fontWeight: FontWeight.bold, fontSize: 13, letterSpacing: 1)),
             if (!isCanceled && onRecordPayment != null)

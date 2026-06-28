@@ -78,7 +78,8 @@ class _ProfitDashboardScreenState extends ConsumerState<ProfitDashboardScreen> {
           .select('id, final_cost, labor_cost, device_brand, device_name, created_at, profiles!repair_tickets_assigned_technician_id_fkey(full_name)')
           .gte('created_at', _startDate.toIso8601String())
           .lte('created_at', _endDate.toIso8601String())
-          .neq('status', 'Annulé');
+          .neq('status', 'Annulé')
+          .neq('payment_status', 'Remboursé');
 
       final ticketIds = (ticketsResp as List).map((t) => "'${(t as Map<String, dynamic>)['id']}'").toList();
       List<Map<String, dynamic>> allParts = [];
