@@ -37,15 +37,11 @@ function eventLabel(type: string): string {
   return EVENT_LABELS[type] ?? type;
 }
 
-function html(parts: TemplateStringsArray, ...vals: any[]): string {
-  return String.raw({ raw: parts }, ...vals.map(v => v == null ? "" : String(v)));
-}
-
 Deno.serve(async (req: Request) => {
   const url = new URL(req.url);
   const qr = url.searchParams.get("qr");
   if (!qr) {
-    return new Response(page("QR manquant", '<p style="color:#f85149;text-align:center">Paramètre QR requis dans l\'URL.</p>'), { headers: { "Content-Type": "text/html" } });
+    return new Response(buildPage("QR manquant", `<p style="color:#f85149;text-align:center">Paramètre QR requis dans l'URL.</p>`), { headers: { "Content-Type": "text/html" } });
   }
 
   try {
@@ -60,18 +56,17 @@ Deno.serve(async (req: Request) => {
     );
 
     if (!ticketResp.ok) {
-      return new Response(page("Erreur", `<p style="color:#f85149;text-align:center">Erreur serveur: ${ticketResp.status}</p>`), { headers: { "Content-Type": "text/html" } });
+      return new Response(buildPage("Erreur", `<p style="color:#f85149;text-align:center">Erreur serveur: ${ticketResp.status}</p>`), { headers: { "Content-Type": "text/html" } });
     }
 
     const tickets = await ticketResp.json();
     if (!tickets || tickets.length === 0) {
-      return new Response(page("Ticket introuvable", '<p style="color:#f85149;text-align:center">Aucun ticket trouvé avec ce code QR.</p>'), { headers: { "Content-Type": "text/html" } });
+      return new Response(buildPage("Ticket introuvable", '<p style="color:#f85149;text-align:center">Aucun ticket trouvé avec ce code QR.</p>'), { headers: { "Content-Type": "text/html" } });
     }
 
     const t = tickets[0];
     const enabled = t.is_public_page_enabled === true;
 
-    // Increment view counter
     if (enabled) {
       await fetch(
         `${SUPABASE_URL}/rest/v1/repair_tickets?id=eq.${t.id}`,
@@ -89,7 +84,7 @@ Deno.serve(async (req: Request) => {
     }
 
     if (!enabled) {
-      return new Response(page("Page non disponible", '<div style="text-align:center;padding:60px 20px"><div style="font-size:48px;margin-bottom:16px">🔒</div><p style="color:#8b949e">La page de suivi pour ce ticket n\'est pas encore activée.</p><p style="color:#8b949e;font-size:13px">Le magasin activera le suivi prochainement.</p></div>'), { headers: { "Content-Type": "text/html" } });
+      return new Response(buildPage("Page non disponible", '<div style="text-align:center;padding:60px 20px"><div style="font-size:48px;margin-bottom:16px">🔒</div><p style="color:#8b949e">La page de suivi pour ce ticket n\'est pas encore activée.</p><p style="color:#8b949e;font-size:13px">Le magasin activera le suivi prochainement.</p></div>'), { headers: { "Content-Type": "text/html" } });
     }
 
     const customer = t.customers;
@@ -106,42 +101,72 @@ Deno.serve(async (req: Request) => {
     const statusLabel = status === "Livré" ? "Livré ✓" : status === "Terminé" ? "Prêt à récupérer ✓" : status === "Annulé" ? "Annulé ✗" : "En attente";
     const deviceName = [t.device_brand, t.device_name].filter(Boolean).join(" ") || "Non spécifié";
 
-    const body = html`
+    const progressBar = status === "Annulé"
+      ? '<div class="banner danger"><span>⚠️ Cette réparation a été annulée</span></div>'
+      : ['Reçu','En réparation','Terminé','Livré'].map((label, i) => {
+          const step = i + 1;
+          const done = step <= statusStep;
+          const active = step === statusStep;
+          return `<div class="step ${done ? "done" : ""} ${active ? "active" : ""}"><div class="step-icon">${done ? "✓" : step}</div><div class="step-label">${label}</div></div>`;
+        }).join("");
+
+    const eventsHtml = events.length > 0 ? `
+      <div class="card">
+        <h2 class="card-title">📋 Historique</h2>
+        <div class="timeline">
+          ${(events as any[]).map((e: any) => `
+            <div class="timeline-item">
+              <div class="timeline-dot"></div>
+              <div class="timeline-content">
+                <div class="timeline-title">${eventLabel(e.event_type)}</div>
+                <div class="timeline-date">${frDate(e.created_at)}</div>
+                ${e.notes ? `<div class="timeline-notes">${e.notes}</div>` : ""}
+              </div>
+            </div>
+          `).join("")}
+        </div>
+      </div>` : "";
+
+    const usedParts = (parts as any[]).filter((p: any) => p.part_status === "Utilisé");
+    const partsHtml = usedParts.length > 0 ? `
+      <div class="card">
+        <h2 class="card-title">🔧 Pièces remplacées</h2>
+        ${usedParts.map((p: any) => `
+          <div class="info-row">
+            <span>${p.products?.product_name ?? "Pièce"} ×${p.quantity ?? 1}</span>
+            ${showPrices ? `<span style="color:#00bcd4">${(p.charged_price ?? 0)} DA</span>` : ""}
+          </div>
+        `).join("")}
+      </div>` : "";
+
+    const warrantyHtml = status === "Livré" && warrantyDays > 0 ? `
+      <div class="card" style="border-left:3px solid #3fb950">
+        <h2 class="card-title" style="color:#3fb950">🛡️ Garantie</h2>
+        <p style="color:#3fb950;font-weight:bold;font-size:18px">${warrantyDays} jours</p>
+        ${t.warranty_expires_at ? `<p style="color:#8b949e;font-size:13px">Expire le ${frDateShort(t.warranty_expires_at)}</p>` : ""}
+        <p style="color:#8b949e;font-size:12px;margin-top:8px">Couverture pièces et main d'œuvre. Exclut dommages physiques et oxydation.</p>
+      </div>` : "";
+
+    const ratingHtml = status === "Livré" ? `
+      <div class="card" id="rating-section">
+        <h2 class="card-title">⭐ Votre avis</h2>
+        <div id="stars" style="margin:12px 0">
+          ${[1,2,3,4,5].map(n => `<button class="star-btn" data-star="${n}" onclick="setRating(${n})">☆</button>`).join("")}
+        </div>
+        <textarea id="comment" placeholder="Votre commentaire (optionnel)..." rows="3" style="width:100%;background:#0d1117;color:#e6edf3;border:1px solid #30363d;border-radius:8px;padding:10px;font-family:inherit;resize:vertical"></textarea>
+        <button class="btn primary" onclick="submitFeedback()" style="margin-top:12px">Envoyer mon avis</button>
+        <div id="feedback-msg" style="margin-top:8px;font-size:13px"></div>
+      </div>` : "";
+
+    const body = `
       <div class="container">
-        <!-- Header -->
         <div class="header">
           <div class="header-logo">🛠️</div>
           <h1>${SHOP_NAME}</h1>
           <p class="header-sub">Suivi de réparation</p>
         </div>
-
-        ${status === "Annulé" ? html`
-          <div class="banner danger">
-            <span>⚠️ Cette réparation a été annulée</span>
-          </div>
-        ` : html`
-        <!-- Progress Bar -->
-        <div class="progress-bar">
-          ${["Reçu","En réparation","Terminé","Livré"].map((label, i) => {
-            const step = i + 1;
-            const done = step <= statusStep;
-            const active = step === statusStep;
-            return html`
-              <div class="step ${done ? "done" : ""} ${active ? "active" : ""}">
-                <div class="step-icon">${done ? "✓" : step}</div>
-                <div class="step-label">${label}</div>
-              </div>
-            `;
-          }).join("")}
-        </div>
-        `}
-
-        <!-- Status Badge -->
-        <div class="status-badge" style="background:${statusColor}20;border-color:${statusColor}40;color:${statusColor}">
-          ${statusLabel}
-        </div>
-
-        <!-- Customer + Device Card -->
+        <div class="progress-bar">${progressBar}</div>
+        <div class="status-badge" style="background:${statusColor}20;border-color:${statusColor}40;color:${statusColor}">${statusLabel}</div>
         <div class="card">
           <h2 class="card-title">👤 Client</h2>
           <div class="info-row"><span class="info-label">Nom</span><span>${customer?.full_name ?? t.client_name_temp ?? "Inconnu"}</span></div>
@@ -151,89 +176,33 @@ Deno.serve(async (req: Request) => {
           <div class="info-row"><span class="info-label">Problème</span><span>${t.issue_description ?? t.pre_diagnostic ?? "Non spécifié"}</span></div>
           <div class="info-row"><span class="info-label">Technicien</span><span>${tech?.full_name ?? "En cours d'assignation"}</span></div>
           <div class="info-row"><span class="info-label">Déposé le</span><span>${frDateShort(t.created_at)}</span></div>
-          ${t.estimated_completion_date ? html`<div class="info-row"><span class="info-label">Livraison prévue</span><span>${frDateShort(t.estimated_completion_date)}</span></div>` : ""}
+          ${t.estimated_completion_date ? `<div class="info-row"><span class="info-label">Livraison prévue</span><span>${frDateShort(t.estimated_completion_date)}</span></div>` : ""}
         </div>
-
-        <!-- Events Timeline -->
-        ${events.length > 0 ? html`
-        <div class="card">
-          <h2 class="card-title">📋 Historique</h2>
-          <div class="timeline">
-            ${events.map((e: any) => html`
-              <div class="timeline-item">
-                <div class="timeline-dot"></div>
-                <div class="timeline-content">
-                  <div class="timeline-title">${eventLabel(e.event_type)}</div>
-                  <div class="timeline-date">${frDate(e.created_at)}</div>
-                  ${e.notes ? html`<div class="timeline-notes">${e.notes}</div>` : ""}
-                </div>
-              </div>
-            `).join("")}
-          </div>
-        </div>
-        ` : ""}
-
-        <!-- Parts -->
-        ${parts.filter((p: any) => p.part_status === "Utilisé").length > 0 ? html`
-        <div class="card">
-          <h2 class="card-title">🔧 Pièces remplacées</h2>
-          ${parts.filter((p: any) => p.part_status === "Utilisé").map((p: any) => html`
-            <div class="info-row">
-              <span>${p.products?.product_name ?? "Pièce"} ×${p.quantity ?? 1}</span>
-              ${showPrices ? html`<span style="color:#00bcd4">${(p.charged_price ?? 0)} DA</span>` : ""}
-            </div>
-          `).join("")}
-        </div>
-        ` : ""}
-
-        <!-- Warranty Card -->
-        ${status === "Livré" && warrantyDays > 0 ? html`
-        <div class="card" style="border-left:3px solid #3fb950">
-          <h2 class="card-title" style="color:#3fb950">🛡️ Garantie</h2>
-          <p style="color:#3fb950;font-weight:bold;font-size:18px">${warrantyDays} jours</p>
-          ${t.warranty_expires_at ? html`<p style="color:#8b949e;font-size:13px">Expire le ${frDateShort(t.warranty_expires_at)}</p>` : ""}
-          <p style="color:#8b949e;font-size:12px;margin-top:8px">Couverture pièces et main d'œuvre. Exclut dommages physiques et oxydation.</p>
-        </div>
-        ` : ""}
-
-        <!-- Rating -->
-        ${status === "Livré" ? html`
-        <div class="card" id="rating-section">
-          <h2 class="card-title">⭐ Votre avis</h2>
-          <div id="stars" style="margin:12px 0">
-            ${[1,2,3,4,5].map(n => html`<button class="star-btn" data-star="${n}" onclick="setRating(${n})">☆</button>`).join("")}
-          </div>
-          <textarea id="comment" placeholder="Votre commentaire (optionnel)..." rows="3" style="width:100%;background:#0d1117;color:#e6edf3;border:1px solid #30363d;border-radius:8px;padding:10px;font-family:inherit;resize:vertical"></textarea>
-          <button class="btn primary" onclick="submitFeedback()" style="margin-top:12px">Envoyer mon avis</button>
-          <div id="feedback-msg" style="margin-top:8px;font-size:13px"></div>
-        </div>
-        ` : ""}
-
-        <!-- Action Buttons -->
+        ${eventsHtml}
+        ${partsHtml}
+        ${warrantyHtml}
+        ${ratingHtml}
         <div class="actions">
           <a href="tel:${SHOP_PHONE}" class="btn action">📞 Appeler</a>
           <a href="https://wa.me/${SHOP_PHONE}" target="_blank" class="btn action">💬 WhatsApp</a>
           <a href="${SHOP_MAPS}" target="_blank" class="btn action">📍 Carte</a>
           <button class="btn action" onclick="sharePage()">🔗 Partager</button>
         </div>
-
-        <!-- Footer -->
         <div class="footer">
           <p>${SHOP_NAME}</p>
           <p style="font-size:11px;color:#8b949e">Propulsé par Laidani Repair System</p>
           <p style="font-size:10px;color:#8b949e">Vues: ${views + 1}</p>
         </div>
-      </div>
-    `;
+      </div>`;
 
-    return new Response(page("Suivi - " + (customer?.full_name ?? deviceName), body, t.id), { headers: { "Content-Type": "text/html" } });
+    return new Response(buildPage("Suivi - " + (customer?.full_name ?? deviceName), body, t.id), { headers: { "Content-Type": "text/html" } });
   } catch (err) {
-    return new Response(page("Erreur", `<p style="color:#f85149;text-align:center">${err}</p>`), { headers: { "Content-Type": "text/html" } });
+    return new Response(buildPage("Erreur", `<p style="color:#f85149;text-align:center">${err}</p>`), { headers: { "Content-Type": "text/html" } });
   }
 });
 
-function page(title: string, body: string, ticketId?: string): string {
-  return html`<!DOCTYPE html>
+function buildPage(title: string, body: string, ticketId?: string): string {
+  return `<!DOCTYPE html>
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
@@ -293,17 +262,15 @@ import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 const supabase = createClient("${SUPABASE_URL}", "${SUPABASE_ANON_KEY}");
 const ticketId = "${ticketId ?? ""}";
 
-// Realtime subscription
 if (ticketId) {
   supabase
     .channel("ticket-updates")
-    .on("postgres_changes", { event: "UPDATE", schema: "public", table: "repair_tickets", filter: \`id=eq.\${ticketId}\` }, () => {
+    .on("postgres_changes", { event: "UPDATE", schema: "public", table: "repair_tickets", filter: "id=eq." + ticketId }, () => {
       location.reload();
     })
     .subscribe();
 }
 
-// Star rating
 window.setRating = function(n) {
   window._rating = n;
   document.querySelectorAll(".star-btn").forEach((b, i) => {
@@ -312,14 +279,12 @@ window.setRating = function(n) {
   });
 };
 
-// Submit feedback
 window.submitFeedback = async function() {
   const rating = window._rating;
   const comment = document.getElementById("comment")?.value ?? "";
   const msg = document.getElementById("feedback-msg");
-  if (!rating) { msg.innerHTML = '<span style="color:#f85149">Veuillez sélectionner une note</span>'; return; }
-  msg.innerHTML = '<span style="color:#8b949e">Envoi...</span>';
-  const ticketQr = new URLSearchParams(location.search).get("qr");
+  if (!rating) { msg.innerHTML = "<span style='color:#f85149'>Veuillez sélectionner une note</span>"; return; }
+  msg.innerHTML = "<span style='color:#8b949e'>Envoi...</span>";
   try {
     const resp = await fetch("${SUPABASE_URL}/rest/v1/customer_feedback", {
       method: "POST",
@@ -327,18 +292,16 @@ window.submitFeedback = async function() {
       body: JSON.stringify({ ticket_id: ticketId, rating, comment })
     });
     if (resp.ok) {
-      msg.innerHTML = '<span style="color:#3fb950">Merci pour votre avis ! ★'.repeat(rating) + '</span>';
-      document.getElementById("rating-section").innerHTML = '<div style="text-align:center;padding:20px"><span style="color:#3fb950;font-size:24px">✅</span><p style="color:#3fb950;margin-top:8px;font-weight:600">Avis envoyé, merci !</p></div>';
+      msg.innerHTML = "<span style='color:#3fb950'>Merci pour votre avis !</span>";
+      document.getElementById("rating-section").innerHTML = "<div style='text-align:center;padding:20px'><span style='color:#3fb950;font-size:24px'>✅</span><p style='color:#3fb950;margin-top:8px;font-weight:600'>Avis envoyé, merci !</p></div>";
     } else {
-      const err = await resp.text();
-      msg.innerHTML = '<span style="color:#f85149">Erreur: ${err}</span>';
+      msg.innerHTML = "<span style='color:#f85149'>Erreur lors de l'envoi</span>";
     }
   } catch(e) {
-    msg.innerHTML = '<span style="color:#f85149">Erreur réseau</span>';
+    msg.innerHTML = "<span style='color:#f85149'>Erreur réseau</span>";
   }
 };
 
-// Share
 window.sharePage = function() {
   if (navigator.share) {
     navigator.share({ title: "Suivi de réparation", url: location.href });
