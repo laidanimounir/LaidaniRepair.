@@ -1384,6 +1384,7 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
     final returnedNotifier = ValueNotifier<Set<String>>({});
     final notesCtrl = TextEditingController(text: _ticket?['handover_notes'] as String? ?? '');
     final notifiedCtrl = TextEditingController(text: _ticket?['last_notification_method'] as String? ?? '');
+    final warrantyCtrl = TextEditingController(text: (_ticket?['warranty_days'] as num?)?.toInt().toString() ?? '30');
     String? selectedCondition = _ticket?['device_condition_at_handover'] as String? ?? 'Bon';
 
     await showDialog(
@@ -1414,6 +1415,20 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
                         .map((c) => DropdownMenuItem(value: c, child: Text(c)))
                         .toList(),
                     onChanged: (v) => setDialogState(() => selectedCondition = v),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text('Garantie (jours)', style: TextStyle(color: _textMuted, fontSize: 12)),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: warrantyCtrl,
+                    keyboardType: TextInputType.number,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: const InputDecoration(
+                      hintText: '30',
+                      hintStyle: TextStyle(color: _textMuted),
+                      filled: true, fillColor: _bgCarbon,
+                      border: OutlineInputBorder(),
+                    ),
                   ),
                   const SizedBox(height: 16),
                   if (allAccessories.isNotEmpty) ...[
@@ -1473,6 +1488,8 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
       'last_notification_method': notifiedCtrl.text.trim().isNotEmpty ? notifiedCtrl.text.trim() : null,
       'last_notification_at': DateTime.now().toIso8601String(),
       'customer_notified': notifiedCtrl.text.trim().isNotEmpty,
+      'warranty_days': int.tryParse(warrantyCtrl.text.trim()) ?? 0,
+      'warranty_expires_at': DateTime.now().add(Duration(days: int.tryParse(warrantyCtrl.text.trim()) ?? 0)).toIso8601String(),
     }).eq('id', widget.ticketId);
     await client.from('repair_ticket_events').insert({
       'ticket_id': widget.ticketId,
