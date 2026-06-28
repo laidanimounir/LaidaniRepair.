@@ -25,6 +25,7 @@ class _NavItem {
   final IconData activeIcon;
   final String route;
   final bool ownerOnly;
+  final String? groupLabel;
 
   const _NavItem({
     required this.label,
@@ -32,17 +33,20 @@ class _NavItem {
     required this.activeIcon,
     required this.route,
     this.ownerOnly = false,
+    this.groupLabel,
   });
 }
 
 final _mobileScaffoldKey = GlobalKey<ScaffoldState>();
 
 const _navItems = <_NavItem>[
+  // ── OPÉRATIONS ──
   _NavItem(
     label: 'Tableau de Bord',
     icon: Icons.dashboard_customize_outlined,
     activeIcon: Icons.dashboard_customize,
     route: AppConstants.routeDashboard,
+    groupLabel: 'OPÉRATIONS',
   ),
   _NavItem(
     label: 'Point de Vente',
@@ -68,25 +72,35 @@ const _navItems = <_NavItem>[
     activeIcon: Icons.access_time_filled,
     route: AppConstants.routeAttendance,
   ),
-  _NavItem(
-    label: 'Employés',
-    icon: Icons.badge_outlined,
-    activeIcon: Icons.badge,
-    route: AppConstants.routeEmployees,
-    ownerOnly: true,
-  ),
+  // ── CLIENTS ──
   _NavItem(
     label: 'Clients & Dettes',
     icon: Icons.people_outline,
     activeIcon: Icons.people,
     route: AppConstants.routeClients,
+    groupLabel: 'CLIENTS',
   ),
+  _NavItem(
+    label: 'Garanties',
+    icon: Icons.verified_user_outlined,
+    activeIcon: Icons.verified_user,
+    route: AppConstants.routeWarranty,
+  ),
+  _NavItem(
+    label: 'Remboursements',
+    icon: Icons.undo,
+    activeIcon: Icons.undo,
+    route: AppConstants.routeRefunds,
+    ownerOnly: true,
+  ),
+  // ── INVENTAIRE ──
   _NavItem(
     label: 'Inventaire',
     icon: Icons.inventory_outlined,
     activeIcon: Icons.inventory,
     route: AppConstants.routeInventory,
     ownerOnly: true,
+    groupLabel: 'INVENTAIRE',
   ),
   _NavItem(
     label: 'Achats & Fournisseurs',
@@ -96,17 +110,26 @@ const _navItems = <_NavItem>[
     ownerOnly: true,
   ),
   _NavItem(
+    label: 'Promotions',
+    icon: Icons.local_offer_outlined,
+    activeIcon: Icons.local_offer,
+    route: AppConstants.routePromotions,
+    ownerOnly: true,
+  ),
+  // ── FINANCES ──
+  _NavItem(
     label: 'Dépenses',
     icon: Icons.account_balance_wallet_outlined,
     activeIcon: Icons.account_balance_wallet,
     route: AppConstants.routeExpenses,
     ownerOnly: true,
+    groupLabel: 'FINANCES',
   ),
   _NavItem(
-    label: "Journal d'audit",
-    icon: Icons.history_edu_outlined,
-    activeIcon: Icons.history_edu,
-    route: AppConstants.routeAudit,
+    label: 'Rentabilité',
+    icon: Icons.trending_up,
+    activeIcon: Icons.trending_up,
+    route: AppConstants.routeProfit,
     ownerOnly: true,
   ),
   _NavItem(
@@ -123,6 +146,15 @@ const _navItems = <_NavItem>[
     route: '/shell/repairs-report',
     ownerOnly: true,
   ),
+  // ── ÉQUIPE ──
+  _NavItem(
+    label: 'Employés',
+    icon: Icons.badge_outlined,
+    activeIcon: Icons.badge,
+    route: AppConstants.routeEmployees,
+    ownerOnly: true,
+    groupLabel: 'ÉQUIPE',
+  ),
   _NavItem(
     label: 'Performance Techniciens',
     icon: Icons.person_search_outlined,
@@ -130,12 +162,14 @@ const _navItems = <_NavItem>[
     route: '/shell/technician-report',
     ownerOnly: true,
   ),
+  // ── ADMINISTRATION ──
   _NavItem(
-    label: 'Promotions',
-    icon: Icons.local_offer_outlined,
-    activeIcon: Icons.local_offer,
-    route: AppConstants.routePromotions,
+    label: "Journal d'audit",
+    icon: Icons.history_edu_outlined,
+    activeIcon: Icons.history_edu,
+    route: AppConstants.routeAudit,
     ownerOnly: true,
+    groupLabel: 'ADMINISTRATION',
   ),
   _NavItem(
     label: 'Rappels Maintenance',
@@ -145,37 +179,17 @@ const _navItems = <_NavItem>[
     ownerOnly: true,
   ),
   _NavItem(
-    label: 'Sauvegarde',
-    icon: Icons.backup_outlined,
-    activeIcon: Icons.backup,
-    route: AppConstants.routeBackup,
-    ownerOnly: true,
-  ),
-  _NavItem(
-    label: 'Garanties',
-    icon: Icons.verified_user_outlined,
-    activeIcon: Icons.verified_user,
-    route: AppConstants.routeWarranty,
-  ),
-  _NavItem(
-    label: 'Rentabilité',
-    icon: Icons.trending_up,
-    activeIcon: Icons.trending_up,
-    route: AppConstants.routeProfit,
-    ownerOnly: true,
-  ),
-  _NavItem(
-    label: 'Remboursements',
-    icon: Icons.undo,
-    activeIcon: Icons.undo,
-    route: AppConstants.routeRefunds,
-    ownerOnly: true,
-  ),
-  _NavItem(
     label: 'Succursales',
     icon: Icons.business_outlined,
     activeIcon: Icons.business,
     route: AppConstants.routeBranches,
+    ownerOnly: true,
+  ),
+  _NavItem(
+    label: 'Sauvegarde',
+    icon: Icons.backup_outlined,
+    activeIcon: Icons.backup,
+    route: AppConstants.routeBackup,
     ownerOnly: true,
   ),
   _NavItem(
@@ -314,7 +328,17 @@ class _DesktopShellState extends ConsumerState<_DesktopShell> {
                       itemBuilder: (context, index) {
                         final item = widget.items[index];
                         final isSelected = index == widget.currentIndex;
-                        return _buildNavItem(item, isSelected, activeNeon);
+                        return Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (item.groupLabel != null)
+                              _isHovering
+                                  ? _buildGroupLabelExpanded(item.groupLabel!)
+                                  : _buildGroupDivider(),
+                            _buildNavItem(item, isSelected, activeNeon),
+                          ],
+                        );
                       },
                     ),
                   ),
@@ -433,6 +457,23 @@ class _DesktopShellState extends ConsumerState<_DesktopShell> {
           ]
         ],
       ),
+    );
+  }
+
+  Widget _buildGroupLabelExpanded(String label) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 16, top: 20, bottom: 4),
+      child: Text(
+        label,
+        style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.grey[500], letterSpacing: 1.2),
+      ),
+    );
+  }
+
+  Widget _buildGroupDivider() {
+    return const Padding(
+      padding: EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+      child: Divider(color: Color(0xFF424242), thickness: 1),
     );
   }
 
@@ -1263,7 +1304,15 @@ class _MobileShell extends ConsumerWidget {
               child: ListView(
                 padding: const EdgeInsets.symmetric(vertical: 8),
                 children: [
-                  for (int i = 0; i < items.length; i++)
+                  for (int i = 0; i < items.length; i++) ...[
+                    if (items[i].groupLabel != null)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 20, 16, 4),
+                        child: Text(
+                          items[i].groupLabel!,
+                          style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.grey[500], letterSpacing: 1.2),
+                        ),
+                      ),
                     ListTile(
                       leading: Icon(
                         i == currentIndex ? items[i].activeIcon : items[i].icon,
@@ -1285,6 +1334,7 @@ class _MobileShell extends ConsumerWidget {
                         context.go(items[i].route);
                       },
                     ),
+                  ],
                 ],
               ),
             ),
