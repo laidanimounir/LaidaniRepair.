@@ -165,6 +165,13 @@ const _navItems = <_NavItem>[
     ownerOnly: true,
   ),
   _NavItem(
+    label: 'Remboursements',
+    icon: Icons.undo,
+    activeIcon: Icons.undo,
+    route: AppConstants.routeRefunds,
+    ownerOnly: true,
+  ),
+  _NavItem(
     label: 'Succursales',
     icon: Icons.business_outlined,
     activeIcon: Icons.business,
