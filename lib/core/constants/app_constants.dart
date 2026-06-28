@@ -54,6 +54,7 @@ class AppConstants {
   static const String routeBranches = '/shell/branches';
   static const String routeSettings = '/shell/settings';
   static const String routeImport = '/shell/import';
+  static const String routeWarranty = '/shell/warranty';
 
   /// Routes accessible only by 'owner' role
   static const List<String> ownerOnlyRoutes = [

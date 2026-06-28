@@ -152,6 +152,12 @@ const _navItems = <_NavItem>[
     ownerOnly: true,
   ),
   _NavItem(
+    label: 'Garanties',
+    icon: Icons.verified_user_outlined,
+    activeIcon: Icons.verified_user,
+    route: AppConstants.routeWarranty,
+  ),
+  _NavItem(
     label: 'Succursales',
     icon: Icons.business_outlined,
     activeIcon: Icons.business,
