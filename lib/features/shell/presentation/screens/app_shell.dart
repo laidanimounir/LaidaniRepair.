@@ -158,6 +158,13 @@ const _navItems = <_NavItem>[
     route: AppConstants.routeWarranty,
   ),
   _NavItem(
+    label: 'Rentabilité',
+    icon: Icons.trending_up,
+    activeIcon: Icons.trending_up,
+    route: AppConstants.routeProfit,
+    ownerOnly: true,
+  ),
+  _NavItem(
     label: 'Succursales',
     icon: Icons.business_outlined,
     activeIcon: Icons.business,
