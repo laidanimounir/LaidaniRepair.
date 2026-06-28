@@ -50,6 +50,9 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
   Map<String, dynamic>? _feedbackData;
   RealtimeChannel? _channel;
   DateTime _lastFetch = DateTime.fromMillisecondsSinceEpoch(0);
+  bool _isPublicPageEnabled = false;
+  bool _showPricesOnPublic = false;
+  int _publicPageViews = 0;
 
   @override
   void initState() {
@@ -136,6 +139,9 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
         _photos = photos;
         _notifications = List<Map<String, dynamic>>.from(notifData);
         _feedbackData = feedbackRow;
+        _isPublicPageEnabled = ticketData?['is_public_page_enabled'] as bool? ?? false;
+        _showPricesOnPublic = ticketData?['show_prices_on_public'] as bool? ?? false;
+        _publicPageViews = (ticketData?['public_page_views'] as num?)?.toInt() ?? 0;
         _isLoading = false;
       });
       _syncPaymentStatus();
@@ -2260,6 +2266,8 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
         const SizedBox(height: 16),
         _buildWarrantySection(color),
         const SizedBox(height: 16),
+        _buildPublicPageSection(color),
+        const SizedBox(height: 16),
         _buildHandoverSection(color),
         const SizedBox(height: 16),
         _buildFeedbackSection(color),
@@ -2470,6 +2478,81 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
         ],
       ),
     );
+  }
+
+  Widget _buildPublicPageSection(Color color) {
+    final isOwner = ref.watch(isOwnerProvider);
+    if (!isOwner) return const SizedBox.shrink();
+    final qrHash = _ticket?['qr_code_hash'] as String?;
+
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(color: const Color(0xFF161b22), borderRadius: BorderRadius.circular(12), border: Border.all(color: _neonCyan.withOpacity(0.3))),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(children: [
+            Icon(Icons.public, color: _neonCyan, size: 18),
+            SizedBox(width: 8),
+            Text('Page publique client', style: TextStyle(color: _neonCyan, fontWeight: FontWeight.bold)),
+          ]),
+          const SizedBox(height: 12),
+          SwitchListTile(
+            title: const Text('Activer la page de suivi', style: TextStyle(color: Colors.white, fontSize: 13)),
+            value: _isPublicPageEnabled,
+            activeColor: _neonCyan,
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            onChanged: (v) => _updatePublicPageSettings(isEnabled: v),
+          ),
+          SwitchListTile(
+            title: const Text('Afficher les prix', style: TextStyle(color: Colors.white, fontSize: 13)),
+            value: _showPricesOnPublic,
+            activeColor: _neonCyan,
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            onChanged: (v) => _updatePublicPageSettings(showPrices: v),
+          ),
+          const SizedBox(height: 8),
+          Row(children: [
+            Icon(Icons.visibility, color: Colors.grey[500], size: 16),
+            const SizedBox(width: 6),
+            Text('Vues: $_publicPageViews', style: TextStyle(color: Colors.grey[500], fontSize: 13)),
+          ]),
+          if (_isPublicPageEnabled && qrHash != null) ...[
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                icon: const Icon(Icons.link, size: 16),
+                label: const Text('Copier le lien public', style: TextStyle(fontWeight: FontWeight.bold)),
+                style: ElevatedButton.styleFrom(backgroundColor: _neonCyan, foregroundColor: Colors.black, padding: const EdgeInsets.symmetric(vertical: 12)),
+                onPressed: () {
+                  final url = 'https://igxpwxfruasfpvfagbaw.supabase.co/functions/v1/track?qr=$qrHash';
+                  Clipboard.setData(ClipboardData(text: url));
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Lien copié ✓')));
+                },
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Future<void> _updatePublicPageSettings({bool? isEnabled, bool? showPrices}) async {
+    final updates = <String, dynamic>{};
+    if (isEnabled != null) updates['is_public_page_enabled'] = isEnabled;
+    if (showPrices != null) updates['show_prices_on_public'] = showPrices;
+    if (updates.isEmpty) return;
+    try {
+      await Supabase.instance.client.from('repair_tickets').update(updates).eq('id', widget.ticketId);
+      setState(() {
+        if (isEnabled != null) _isPublicPageEnabled = isEnabled;
+        if (showPrices != null) _showPricesOnPublic = showPrices;
+      });
+    } catch (_) {}
   }
 
   Widget _buildWarrantySection(Color color) {
