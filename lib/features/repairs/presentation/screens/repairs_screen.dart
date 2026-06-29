@@ -2329,6 +2329,7 @@ class _NewTicketFormState extends State<_NewTicketForm> {
         'advance_payment': advance,
         'labor_cost': labor,
         'qr_code_hash': qrHash,
+        'is_public_page_enabled': true,
         'status': 'En attente',
         'payment_status': 'Non payé',
         'paid_amount': 0,
@@ -2442,7 +2443,7 @@ class _NewTicketFormState extends State<_NewTicketForm> {
                   child: QrImageView(
                     data: qrData,
                     version: QrVersions.auto,
-                    size: 120,
+                    size: 200,
                     backgroundColor: Colors.white,
                     eyeStyle: const QrEyeStyle(color: _bgCarbon),
                     dataModuleStyle: const QrDataModuleStyle(color: _bgCarbon),
