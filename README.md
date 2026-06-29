@@ -9,6 +9,25 @@
 
 ---
 
+## À propos
+
+Système de gestion de réparation professionnel développé avec **Flutter** et **Supabase**, destiné aux ateliers de réparation de téléphones et de vente d'accessoires. L'application offre une interface dark theme en français, avec un accent cyan/teal. Elle est conçue pour fonctionner sur **Windows Desktop** (≥850px de largeur) et **Android**, avec une seule base de code partagée.
+
+Le système couvre l'ensemble du cycle de vie d'un ticket de réparation : de la création avec diagnostic et sélection de pièces, jusqu'à la livraison avec garantie et facturation. Il inclut également un point de vente (POS), une gestion de stock, un suivi des employés, et une page publique de suivi client accessible via QR code.
+
+---
+
+## 🔢 Comptes de test
+
+| Rôle | Email | Accès |
+|------|-------|-------|
+| **Owner** (propriétaire) | `admin@gmail.com` | Toutes les fonctionnalités, 22 items de navigation |
+| **Worker** (employé) | `emp@gmail.com` | Fonctionnalités de base, 11 items de navigation |
+
+**Supabase Project:** `igxpwxfruasfpvfagbaw`
+
+---
+
 ## ✨ Features
 
 ### 🛒 Point de Vente (POS)
@@ -16,6 +35,76 @@ Caisse enregistreuse complète avec catalogue produits, catégories et recherche
 
 ### 🛠️ Gestion des Réparations
 Cycle de vie complet : création avec diagnostic, photos, IMEI, mot de passe, accessoires. Attribution aux techniciens avec date de fin estimée (SLA). Workflow devis (envoi WhatsApp/SMS/Email, approbation client). Contrôle qualité avant livraison avec notes et test de l'appareil. Génération de **devis PDF** et **certificat de garantie PDF**. QR code unique par ticket pour suivi public. **Duplication de ticket** en un clic. **Opérations groupées** : sélection multi-tickets avec changement de statut, assignation technicien, export CSV. **Marge bénéficiaire réelle** calculée automatiquement (coût pièces + main-d'œuvre vs prix facturé). **Rappels de maintenance automatiques** (6 mois après remise). **Chronologie visuelle** en 7 étapes (Reçu → Diagnostic → Devis → En réparation → QC → Prêt → Livré).
+
+- **4 statuts** : En attente → Terminé → Livré / Annulé
+- **3 types de facturation** : Pièces + M.O / Pièces uniquement / M.O uniquement
+- Sélection de pièces pré-configurées à la création
+- Calcul automatique du total (pièces + main d'œuvre)
+- Paiement d'avance séparé des paiements réels
+- Marge bénéficiaire par ticket (owner uniquement)
+- Impression : reçu, facture, devis, bon de garantie
+
+### 📲 Page de suivi public client *(NOUVEAU)*
+Chaque ticket de réparation génère un QR code qui encode une URL complète (`https://.../track?qr={hash}`). En scannant ce code, le client accède à une page web publique (sans application, sans authentification) qui affiche :
+
+- **Barre de progression visuelle** : Reçu → En réparation → Terminé → Livré
+- **Historique des événements** avec dates formatées en français
+- **Liste des pièces remplacées** (avec prix si activé par l'owner)
+- **Carte de garantie digitale** après livraison (durée, expiration, conditions)
+- **Formulaire de notation** (1-5 étoiles) + commentaire → sauvegardé dans `customer_feedback`
+- **Boutons d'action** : 📞 Appeler, 💬 WhatsApp, 📍 Google Maps, 🔗 Partager
+- **Mise à jour automatique** via Supabase Realtime (recharge la page si le statut change)
+- **Contrôles owner** (dans l'app Flutter) :
+  - Activer/désactiver la page par ticket
+  - Afficher/masquer les prix des pièces
+  - Compteur de vues en temps réel avec notification in-app (SnackBar)
+- **Edge Function Deno** déployée sur Supabase : `supabase/functions/track/index.ts`
+
+### 🛡️ Garanties *(NOUVEAU)*
+Écran dédié accessible depuis la navigation principale (visible par tous les utilisateurs) :
+
+- Recherche par **QR code** ou **numéro de téléphone**
+- Affichage du statut de garantie : **Valide** (vert) / **Expiré** (rouge) / **Non défini** (gris)
+- Jours restants calculés dynamiquement
+- Historique des réclamations sous garantie (`warranty_claims`)
+- Gestion des statuts de réclamation : Ouvert → En cours → Résolu / Refusé
+- Impression de la carte de garantie (`warranty_pdf.dart`)
+- Configuration du délai de garantie à la remise de l'appareil (dialog de livraison)
+
+### 💰 Remboursements *(NOUVEAU)*
+Écran dédié accessible depuis la navigation principale (owner uniquement) :
+
+- Recherche de ticket par **UUID complet** ou **numéro de téléphone**
+- **Remboursement total** : rembourse l'intégralité du paiement, passe le statut à "Remboursé"
+- **Remboursement partiel** : sélection du type (Pièces / M.O / Les deux / Tout) avec montant personnalisé
+- **Retour automatique en stock** via le trigger DB `deduct_repair_part_stock` (pièces marquées "Retourné")
+- Historique complet des remboursements (`repair_payments.is_refunded = true`)
+- Audit trail : `repair_ticket_events` enregistre chaque remboursement
+- Statut "Remboursé" ajouté à la CHECK constraint `payment_status`
+
+### 📈 Rentabilité *(NOUVEAU, owner uniquement)*
+Tableau de bord de profit accessible depuis la navigation principale (owner uniquement) :
+
+- **Filtres** : Aujourd'hui / Cette semaine / Ce mois
+- **KPIs** : Chiffre d'affaires total, Coût total, Bénéfice net, Marge moyenne par ticket
+- **Réparations + Ventes POS** fusionnées dans les mêmes indicateurs
+- Sous-titres détaillant la répartition Réparations vs Ventes POS
+- **Tableau par technicien** : CA, coût, bénéfice, marge % (via `worker_id`)
+- **Tableau par appareil** : tickets, CA moyen, bénéfice moyen
+
+### 🧭 Navigation *(réorganisée)*
+Sidebar organisée en **6 groupes** avec labels UPPERCASE en mode étendu et séparateurs discrets en mode réduit (85px) :
+
+| Groupe | Items visibles (owner) | Items visibles (worker) |
+|--------|----------------------|------------------------|
+| **OPÉRATIONS** | Tableau de Bord, POS, Réparations, Mon Atelier, Pointage | Tous |
+| **CLIENTS** | Clients & Dettes, Garanties, Remboursements | Clients & Dettes, Garanties |
+| **INVENTAIRE** | Inventaire, Achats, Promotions | Aucun (owner-only) |
+| **FINANCES** | Dépenses, Rentabilité, Rapports, Rapport Réparations | Aucun (owner-only) |
+| **ÉQUIPE** | Employés, Performance Techniciens | Aucun (owner-only) |
+| **ADMINISTRATION** | Journal d'audit, Rappels, Succursales, Sauvegarde, Paramètres | Aucun (owner-only) |
+
+**Total :** 22 items pour l'owner, 11 items pour le worker. Mobile : bottom bar avec les 4 premiers items.
 
 ### 📊 Tableau de Bord
 Vue d'ensemble de l'activité quotidienne : réparations actives, livraisons du jour, chiffre d'affaires, dépenses, revenu net. **Graphique des pannes les plus fréquentes** (top 10, fl_chart). **Prévisions de ventes sur 7 jours** basées sur la moyenne des 30 derniers jours. **Widgets personnalisables** : afficher/masquer chaque carte selon les préférences (sauvegardé). Alertes visuelles SLA : réparations en retard surlignées en rouge, stocks bas en bannière, réclamations garantie en attente.
@@ -174,6 +263,19 @@ assets/screenshots/
 
 ## 🧰 Stack Technique
 
+### Architecture
+
+| Couche | Technologie | Détails |
+|--------|-------------|---------|
+| **Frontend** | Flutter 3.x | Windows Desktop (≥850px) + Android, dark theme cyan/teal |
+| **Backend** | Supabase | PostgreSQL + Realtime + Storage + Edge Functions |
+| **Auth** | Supabase Auth | 2 rôles : owner / worker, 2FA TOTP |
+| **State Mgmt** | Riverpod | `^2.5.1` |
+| **Routing** | go_router | `^13.2.4` |
+| **Edge Function** | Deno (Supabase) | `supabase/functions/track/index.ts` — page publique de suivi client |
+
+### Packages principaux
+
 | Couche | Technologie | Version |
 |---|---|---|
 | Langage | Dart | `>=3.3.0 <4.0.0` |
@@ -317,11 +419,18 @@ lib/
 ### ✅ Terminé
 - ✅ POS avec caisse, panier, remises, crédit client, codes promo
 - ✅ Gestion des réparations (création, diagnostic, photos, devis, duplication)
-- ✅ Workflow complet : En attente → En cours → QC → Terminé → Livré
+- ✅ Workflow complet : En attente → Terminé → Livré / Annulé
+- ✅ 3 types de facturation : Pièces + M.O / Pièces uniquement / M.O uniquement
+- ✅ Paiement d'avance séparé des paiements réels
 - ✅ Attribution aux techniciens avec SLA (date estimée, escalade vert/jaune/rouge)
-- ✅ QR code unique par ticket + page publique de suivi (`/track/:hash`)
+- ✅ QR code unique par ticket + **page publique de suivi** (Edge Function Deno)
+- ✅ Page publique : barre de progression, historique, pièces, garantie, notation, Realtime
 - ✅ Contrôle qualité avant livraison
 - ✅ Gestion des garanties (pièces, main-d'œuvre) + certificat PDF
+- ✅ **Écran Garanties** : recherche QR/téléphone, statut, réclamations, jours restants
+- ✅ **Écran Remboursements** : total + partiel, retour stock, historique, audit trail
+- ✅ **Écran Rentabilité** : KPIs, par technicien, par appareil, réparations + ventes POS
+- ✅ **Sidebar réorganisée** : 6 groupes (Opérations, Clients, Inventaire, Finances, Équipe, Administration)
 - ✅ Notifications client (WhatsApp template par statut)
 - ✅ Validation de devis par le client + génération devis PDF
 - ✅ Facture PDF après remise
@@ -469,3 +578,68 @@ Les contributions sont les bienvenues ! Veuillez suivre le processus standard :
 Projet privé — Tous droits réservés © LaidaniRepair 2026.
 
 Ce logiciel est la propriété exclusive de LaidaniRepair. Toute reproduction, distribution ou modification sans autorisation écrite préalable est interdite.
+
+---
+
+## 🧪 Guide de test — Page de suivi public client
+
+### Prérequis
+- Application Flutter lancée (`flutter run -d windows` ou sur Android)
+- Connexion en tant que **owner** (`admin@gmail.com`)
+- Un ticket de réparation existant avec statut "En attente" ou "Terminé"
+
+### Étapes de test
+
+#### Étape 1 — Activer la page publique
+1. Ouvrir un ticket de réparation existant
+2. Faire défiler jusqu'à la section **"Page publique client"** (icône 🌐)
+3. Activer le toggle **"Activer la page de suivi"**
+4. (Optionnel) Activer **"Afficher les prix"**
+5. Appuyer sur **"Copier le lien public"**
+
+#### Étape 2 — Tester la page client
+1. Ouvrir un navigateur web (Chrome, Safari, ou navigateur mobile)
+2. Coller le lien copié dans la barre d'adresse
+3. Vérifier que la page affiche :
+   - ✅ Nom et téléphone du client
+   - ✅ Appareil et problème
+   - ✅ Barre de progression avec le statut correct (étape active en cyan)
+   - ✅ Historique des événements (timeline avec dates)
+   - ✅ Pièces remplacées (si `part_status = 'Utilisé'`)
+   - ✅ Boutons Appeler / WhatsApp / Google Maps / Partager
+
+#### Étape 3 — Tester le compteur de vues
+1. Garder le ticket ouvert dans Flutter
+2. Actualiser la page web dans le navigateur
+3. Vérifier que le compteur **"Vues"** s'incrémente dans Flutter
+4. Vérifier la notification **SnackBar** "Le client a consulté la page de suivi"
+
+#### Étape 4 — Tester le QR code
+1. Imprimer ou afficher un reçu/facture depuis Flutter
+2. Scanner le QR code avec un smartphone
+3. Vérifier que le navigateur ouvre directement la page de suivi
+
+#### Étape 5 — Tester la notation
+1. Changer le statut du ticket en **"Livré"**
+2. Recharger la page publique
+3. Vérifier l'apparition du formulaire de notation (étoiles ⭐)
+4. Sélectionner une note et ajouter un commentaire
+5. Appuyer sur **"Envoyer mon avis"**
+6. Vérifier dans Supabase : `SELECT * FROM customer_feedback;`
+
+#### Étape 6 — Tester la carte de garantie
+1. Depuis le ticket "Livré", configurer `warranty_days = 30` dans le dialog de livraison
+2. Recharger la page publique
+3. Vérifier l'apparition de la **carte de garantie verte** avec durée et date d'expiration
+
+#### Étape 7 — Tester la mise à jour en temps réel
+1. Garder la page publique ouverte dans le navigateur
+2. Changer le statut du ticket dans Flutter (ex: En attente → Terminé)
+3. Vérifier que la page web se recharge automatiquement (Realtime)
+
+### URL directe de test
+```
+https://igxpwxfruasfpvfagbaw.supabase.co/functions/v1/track?qr={qr_code_hash}
+```
+
+Remplacer `{qr_code_hash}` par la valeur réelle du ticket (ex: `LR-1773186046869-7023`).
