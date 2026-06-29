@@ -53,6 +53,10 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
   bool _isPublicPageEnabled = false;
   bool _showPricesOnPublic = false;
   int _publicPageViews = 0;
+  bool _hidePhoneOnPublic = false;
+  bool _hideTechnicianOnPublic = false;
+  bool _hideHistoryOnPublic = false;
+  String _publicPageMessage = '';
 
   @override
   void initState() {
@@ -165,6 +169,10 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
         _isPublicPageEnabled = ticketData?['is_public_page_enabled'] as bool? ?? false;
         _showPricesOnPublic = ticketData?['show_prices_on_public'] as bool? ?? false;
         _publicPageViews = (ticketData?['public_page_views'] as num?)?.toInt() ?? 0;
+        _hidePhoneOnPublic = ticketData?['hide_phone_on_public'] as bool? ?? false;
+        _hideTechnicianOnPublic = ticketData?['hide_technician_on_public'] as bool? ?? false;
+        _hideHistoryOnPublic = ticketData?['hide_history_on_public'] as bool? ?? false;
+        _publicPageMessage = ticketData?['public_page_message'] as String? ?? '';
         _isLoading = false;
       });
       _syncPaymentStatus();
@@ -2767,21 +2775,26 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
             Text('Page publique client', style: TextStyle(color: _neonCyan, fontWeight: FontWeight.bold)),
           ]),
           const SizedBox(height: 12),
-          SwitchListTile(
-            title: const Text('Activer la page de suivi', style: TextStyle(color: Colors.white, fontSize: 13)),
-            value: _isPublicPageEnabled,
-            activeColor: _neonCyan,
-            dense: true,
-            contentPadding: EdgeInsets.zero,
-            onChanged: (v) => _updatePublicPageSettings(isEnabled: v),
-          ),
-          SwitchListTile(
-            title: const Text('Afficher les prix', style: TextStyle(color: Colors.white, fontSize: 13)),
-            value: _showPricesOnPublic,
-            activeColor: _neonCyan,
-            dense: true,
-            contentPadding: EdgeInsets.zero,
-            onChanged: (v) => _updatePublicPageSettings(showPrices: v),
+          SwitchListTile(title: const Text('Activer la page de suivi', style: TextStyle(color: Colors.white, fontSize: 13)), value: _isPublicPageEnabled, activeColor: _neonCyan, dense: true, contentPadding: EdgeInsets.zero, onChanged: (v) => _updatePublicPageSettings(isEnabled: v)),
+          SwitchListTile(title: const Text('Afficher les prix', style: TextStyle(color: Colors.white, fontSize: 13)), value: _showPricesOnPublic, activeColor: _neonCyan, dense: true, contentPadding: EdgeInsets.zero, onChanged: (v) => _updatePublicPageSettings(showPrices: v)),
+          SwitchListTile(title: const Text('Masquer le téléphone', style: TextStyle(color: Colors.white, fontSize: 13)), value: _hidePhoneOnPublic, activeColor: Colors.orangeAccent, dense: true, contentPadding: EdgeInsets.zero, onChanged: (v) => _updatePublicPageSettings(hidePhone: v)),
+          SwitchListTile(title: const Text('Masquer le technicien', style: TextStyle(color: Colors.white, fontSize: 13)), value: _hideTechnicianOnPublic, activeColor: Colors.orangeAccent, dense: true, contentPadding: EdgeInsets.zero, onChanged: (v) => _updatePublicPageSettings(hideTechnician: v)),
+          SwitchListTile(title: const Text('Masquer l\'historique', style: TextStyle(color: Colors.white, fontSize: 13)), value: _hideHistoryOnPublic, activeColor: Colors.orangeAccent, dense: true, contentPadding: EdgeInsets.zero, onChanged: (v) => _updatePublicPageSettings(hideHistory: v)),
+          const SizedBox(height: 8),
+          TextField(
+            controller: TextEditingController(text: _publicPageMessage),
+            style: const TextStyle(color: Colors.white, fontSize: 13),
+            decoration: const InputDecoration(
+              labelText: 'Message personnalisé (visible par le client)',
+              labelStyle: TextStyle(color: _textMuted, fontSize: 13),
+              hintText: 'Ex: Votre appareil est prêt, merci de venir le récupérer.',
+              hintStyle: TextStyle(color: _textMuted, fontSize: 11),
+              enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: _glassBorder)),
+              focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: _neonCyan)),
+            ),
+            maxLines: 2,
+            onSubmitted: (v) => _updatePublicPageSettings(message: v),
+            onChanged: (v) => _publicPageMessage = v,
           ),
           const SizedBox(height: 8),
           Row(children: [
@@ -2810,16 +2823,24 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
     );
   }
 
-  Future<void> _updatePublicPageSettings({bool? isEnabled, bool? showPrices}) async {
+  Future<void> _updatePublicPageSettings({bool? isEnabled, bool? showPrices, bool? hidePhone, bool? hideTechnician, bool? hideHistory, String? message}) async {
     final updates = <String, dynamic>{};
     if (isEnabled != null) updates['is_public_page_enabled'] = isEnabled;
     if (showPrices != null) updates['show_prices_on_public'] = showPrices;
+    if (hidePhone != null) updates['hide_phone_on_public'] = hidePhone;
+    if (hideTechnician != null) updates['hide_technician_on_public'] = hideTechnician;
+    if (hideHistory != null) updates['hide_history_on_public'] = hideHistory;
+    if (message != null) updates['public_page_message'] = message;
     if (updates.isEmpty) return;
     try {
       await Supabase.instance.client.from('repair_tickets').update(updates).eq('id', widget.ticketId);
-      setState(() {
+      if (mounted) setState(() {
         if (isEnabled != null) _isPublicPageEnabled = isEnabled;
         if (showPrices != null) _showPricesOnPublic = showPrices;
+        if (hidePhone != null) _hidePhoneOnPublic = hidePhone;
+        if (hideTechnician != null) _hideTechnicianOnPublic = hideTechnician;
+        if (hideHistory != null) _hideHistoryOnPublic = hideHistory;
+        if (message != null) _publicPageMessage = message;
       });
     } catch (_) {}
   }
