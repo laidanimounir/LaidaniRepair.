@@ -132,9 +132,10 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
     setState(() => _isLoading = true);
     try {
       final client = ref.read(supabaseClientProvider);
-      final ticketData = await client.from('repair_tickets').select('*, customers(full_name, phone_number)').eq('id', widget.ticketId).maybeSingle();
+      final ticketData = await client.from('repair_tickets').select('*, customers(full_name, phone_number), profiles!repair_tickets_worker_id_fkey(full_name)').eq('id', widget.ticketId).maybeSingle();
       final partsData = await client.from('repair_parts').select('*, products(product_name, reference_price)').eq('ticket_id', widget.ticketId);
       final paymentsData = await client.from('repair_payments').select('*').eq('ticket_id', widget.ticketId).order('paid_at', ascending: false);
+      final eventsData = await client.from('repair_ticket_events').select('*').eq('ticket_id', widget.ticketId).order('created_at', ascending: true);
       final warrantyData = await client.from('warranty_claims').select('*').or('original_ticket_id.eq.${widget.ticketId},claim_ticket_id.eq.${widget.ticketId}').order('claimed_at', ascending: false);
       final photosData = await client.from('repair_photos').select('*').eq('ticket_id', widget.ticketId).order('created_at', ascending: false);
       final photos = List<Map<String, dynamic>>.from(photosData);
@@ -154,6 +155,7 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
       if (!mounted) return;
       setState(() {
         _ticket = ticketData;
+        if (_ticket != null) _ticket!['repair_ticket_events'] = List<Map<String, dynamic>>.from(eventsData);
         _parts = List<Map<String, dynamic>>.from(partsData);
         _payments = List<Map<String, dynamic>>.from(paymentsData);
         _warrantyClaims = List<Map<String, dynamic>>.from(warrantyData);
@@ -1235,6 +1237,13 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
     _showToast('WhatsApp envoyé: $status', _neonEmerald);
   }
 
+  Future<void> _sendWhatsApp(String phone) async {
+    if (phone.isEmpty || phone == 'N/A') return;
+    final cleanPhone = phone.replaceAll(RegExp(r'[\s\-\(\)]+'), '');
+    final url = Uri.parse('https://wa.me/$cleanPhone');
+    try { await launchUrl(url, mode: LaunchMode.externalApplication); } catch (_) {}
+  }
+
   void _showWhatsAppStatusDialog() {
     final status = _ticket?['status'] as String? ?? 'En attente';
     final phone = _ticket?['customers']?['phone_number']?.toString() ?? _ticket?['client_phone_temp']?.toString();
@@ -2071,51 +2080,101 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
     final String clientName = isAnon ? (_ticket?['client_name_temp'] ?? 'Anonyme') : (_ticket?['customers']?['full_name'] ?? 'Client');
     final String clientPhone = isAnon ? (_ticket?['client_phone_temp'] ?? 'N/A') : (_ticket?['customers']?['phone_number'] ?? 'N/A');
     final estimatedCost = (_ticket?['estimated_cost'] as num?)?.toDouble() ?? 0;
+    final finalCost = (_ticket?['final_cost'] as num?)?.toDouble() ?? estimatedCost;
     final advance = (_ticket?['advance_payment'] as num?)?.toDouble() ?? 0;
     final paid = _totalPayments;
     final remaining = _remainingBalance;
+    final deviceBrand = _ticket?['device_brand'] as String?;
+    final deviceType = _ticket?['device_type'] as String?;
+    final device = [if (deviceBrand?.isNotEmpty == true) deviceBrand, _ticket?['device_name']].where((s) => s?.isNotEmpty == true).join(' ');
+    final paymentStatus = _ticket?['payment_status'] as String? ?? 'Non payé';
+    final billingType = _ticket?['billing_type'] as String? ?? 'parts_and_labor';
+    final issue = _ticket?['issue_description'] as String? ?? '';
+    final techName = _ticket?['profiles']?['full_name'] as String?;
 
     return Column(
       children: [
         _buildCompactCard(Icons.person, 'Client', '$clientName — $clientPhone', color),
         const SizedBox(height: 6),
-        _buildCompactCard(Icons.phone_android, 'Appareil', _ticket?['device_name'] ?? 'N/A', color),
+        _buildCompactCard(Icons.phone_android, 'Appareil', device.isNotEmpty ? device : (_ticket?['device_name'] ?? 'N/A'), color),
+        if (deviceType != null && deviceType.isNotEmpty)
+          _buildCompactCard(Icons.category, 'Type', deviceType, color, compact: true),
+        if (issue.isNotEmpty) ...[
+          const SizedBox(height: 6),
+          _buildCompactCard(Icons.report_problem, 'Problème', issue, color),
+        ],
+        if (techName != null && techName.isNotEmpty) ...[
+          const SizedBox(height: 6),
+          _buildCompactCard(Icons.engineering, 'Technicien', techName, color),
+        ],
         const SizedBox(height: 6),
         Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(color: _panelDark, borderRadius: BorderRadius.circular(10), border: Border.all(color: _glassBorder)),
-          child: Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(Icons.attach_money, color: color, size: 18),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('FINANCES', style: TextStyle(color: _textMuted, fontSize: 10, fontWeight: FontWeight.bold)),
-                    Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                      Text('Total: ${(estimatedCost).toStringAsFixed(0)} DA', style: const TextStyle(color: Colors.white, fontSize: 12)),
-                      Text('Payé: ${paid.toStringAsFixed(0)} DA', style: const TextStyle(color: _neonEmerald, fontSize: 12)),
-                    ]),
-                    if (remaining > 0)
-                      Padding(padding: const EdgeInsets.only(top: 2), child: Text('Reste: ${remaining.toStringAsFixed(0)} DA', style: const TextStyle(color: Colors.orangeAccent, fontSize: 12, fontWeight: FontWeight.bold))),
-                  ],
-                ),
+              Row(
+                children: [
+                  Expanded(child: const Text('FINANCES', style: TextStyle(color: _textMuted, fontSize: 10, fontWeight: FontWeight.bold))),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(color: Color(RepairStatus.paymentStatusColor(paymentStatus)).withOpacity(0.15), borderRadius: BorderRadius.circular(8)),
+                    child: Text(paymentStatus, style: TextStyle(color: Color(RepairStatus.paymentStatusColor(paymentStatus)), fontSize: 10, fontWeight: FontWeight.bold)),
+                  ),
+                ],
               ),
+              const SizedBox(height: 4),
+              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                Text('Total: ${(finalCost).toStringAsFixed(0)} DA', style: const TextStyle(color: Colors.white, fontSize: 12)),
+                Text('Payé: ${paid.toStringAsFixed(0)} DA', style: const TextStyle(color: _neonEmerald, fontSize: 12)),
+              ]),
+              if (remaining > 0)
+                Padding(padding: const EdgeInsets.only(top: 2), child: Text('Reste: ${remaining.toStringAsFixed(0)} DA', style: const TextStyle(color: Colors.orangeAccent, fontSize: 12, fontWeight: FontWeight.bold))),
             ],
           ),
         ),
-        const SizedBox(height: 6),
-        _buildCompactCard(Icons.visibility, 'Diagnostic', _ticket?['pre_diagnostic'] ?? 'Aucun', color),
         if (_ticket?['imei']?.toString().isNotEmpty == true) ...[
           const SizedBox(height: 6),
           _buildCompactCard(Icons.qr_code_scanner, 'IMEI', _ticket!['imei'].toString(), color),
         ],
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF25D366), foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 10)),
+                onPressed: () => _sendWhatsApp(clientPhone),
+                icon: const Icon(Icons.chat, size: 16),
+                label: const Text('WhatsApp', style: TextStyle(fontSize: 12)),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.blueAccent, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 10)),
+                onPressed: () => launchUrl(Uri.parse('tel:$clientPhone')),
+                icon: const Icon(Icons.call, size: 16),
+                label: const Text('Appeler', style: TextStyle(fontSize: 12)),
+              ),
+            ),
+          ],
+        ),
       ],
     );
   }
 
-  Widget _buildCompactCard(IconData icon, String label, String value, Color color) {
+  Widget _buildCompactCard(IconData icon, String label, String value, Color color, {bool compact = false}) {
+    if (compact) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 6),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(color: _panelDark, borderRadius: BorderRadius.circular(10), border: Border.all(color: _glassBorder)),
+          child: Row(children: [Icon(icon, color: color, size: 14), const SizedBox(width: 8), Text('$label: ', style: const TextStyle(color: _textMuted, fontSize: 11)), Expanded(child: Text(value, style: const TextStyle(color: Colors.white, fontSize: 12)))],),
+        ),
+      );
+    }
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(color: _panelDark, borderRadius: BorderRadius.circular(10), border: Border.all(color: _glassBorder)),
@@ -2289,6 +2348,8 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
       children: [
         _buildStatusProgressBar(color),
         const SizedBox(height: 16),
+        _buildTimelineSection(color),
+        const SizedBox(height: 16),
         _buildFinancialWidget(color),
         const SizedBox(height: 16),
         _buildPartsWidget(color, isOwner),
@@ -2332,7 +2393,10 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
 
   Widget _buildStatusProgressBar(Color color) {
     final status = _ticket?['status'] as String? ?? 'En attente';
-    final steps = ['Reçu', 'En réparation', 'Terminé', 'Livré'];
+    final paymentStatus = _ticket?['payment_status'] as String? ?? 'Non payé';
+    final billingType = _ticket?['billing_type'] as String? ?? 'parts_and_labor';
+    final billingLabel = {'labor_only': 'M.O uniquement', 'parts_only': 'Pièces uniquement', 'parts_and_labor': 'Pièces + M.O'}[billingType] ?? '';
+    final steps = ['Reçu', 'En attente', 'Terminé', 'Livré'];
     final stepIndex = status == 'Livré' ? 4 : status == 'Terminé' ? 3 : status == 'Annulé' ? -1 : 1;
     final isCanceled = status == 'Annulé';
 
@@ -2374,6 +2438,93 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
                 );
               }),
             ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(color: Color(RepairStatus.paymentStatusColor(paymentStatus)).withOpacity(0.15), borderRadius: BorderRadius.circular(10), border: Border.all(color: Color(RepairStatus.paymentStatusColor(paymentStatus)).withOpacity(0.3))),
+                child: Text(paymentStatus, style: TextStyle(color: Color(RepairStatus.paymentStatusColor(paymentStatus)), fontSize: 11, fontWeight: FontWeight.bold)),
+              ),
+              const SizedBox(width: 8),
+              if (billingLabel.isNotEmpty)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(10), border: Border.all(color: color.withOpacity(0.2))),
+                  child: Text(billingLabel, style: TextStyle(color: color, fontSize: 11)),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTimelineSection(Color color) {
+    final events = _ticket?['repair_ticket_events'] as List<dynamic>?;
+    if (events == null || events.isEmpty) return const SizedBox.shrink();
+
+    final eventLabels = {
+      'status_change': 'Changement de statut',
+      'quote_generated': 'Devis généré',
+      'quote_sent': 'Devis envoyé',
+      'qc_result': 'Contrôle qualité',
+      'part_added': 'Pièce ajoutée',
+      'handover_confirmed': 'Remise confirmée',
+      'warranty_claim_opened': 'Réclamation garantie',
+      'warranty_claim_status': 'Statut réclamation',
+      'refund_processed': 'Remboursement',
+      'refund_partial': 'Remboursement partiel',
+    };
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(color: _panelDark, borderRadius: BorderRadius.circular(16), border: Border.all(color: _glassBorder)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(children: [
+            Icon(Icons.timeline, color: _neonCyan, size: 16),
+            SizedBox(width: 8),
+            Text('Historique', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+            Spacer(),
+          ]),
+          const SizedBox(height: 12),
+          ...events.take(10).map((e) {
+            final m = e as Map<String, dynamic>;
+            final type = m['event_type'] as String? ?? '';
+            final notes = m['notes'] as String?;
+            final date = m['created_at'] as String?;
+            final frenchDate = date != null ? DateTime.tryParse(date) : null;
+            final timeStr = frenchDate != null ? '${frenchDate.day.toString().padLeft(2, '0')}/${frenchDate.month.toString().padLeft(2, '0')} ${frenchDate.hour.toString().padLeft(2, '0')}:${frenchDate.minute.toString().padLeft(2, '0')}' : '';
+
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Column(children: [
+                    Container(width: 8, height: 8, decoration: BoxDecoration(shape: BoxShape.circle, color: color)),
+                    Container(width: 1, height: 30, color: _glassBorder),
+                  ]),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(children: [
+                          Expanded(child: Text(eventLabels[type] ?? type, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600))),
+                          Text(timeStr, style: const TextStyle(color: _textMuted, fontSize: 10)),
+                        ]),
+                        if (notes != null && notes.isNotEmpty)
+                          Padding(padding: const EdgeInsets.only(top: 2), child: Text(notes, style: const TextStyle(color: _textMuted, fontSize: 11))),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
         ],
       ),
     );
