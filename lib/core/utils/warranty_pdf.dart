@@ -89,7 +89,7 @@ Future<Uint8List> generateWarrantyPdf(Map<String, dynamic> ticket, List<Map<Stri
                 crossAxisAlignment: pw.CrossAxisAlignment.start,
                 children: [
                 pw.BarcodeWidget(
-                  data: 'LAIDANI:TICKET:${ticket['id']}:$qrHash',
+                  data: 'https://igxpwxfruasfpvfagbaw.supabase.co/functions/v1/track?qr=$qrHash',
                     barcode: pw.Barcode.qrCode(),
                     width: 90,
                     height: 90,
