@@ -1788,22 +1788,31 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
     return total;
   }
 
+  double get _effectiveLabor {
+    final billingType = _ticket?['billing_type'] as String? ?? 'parts_and_labor';
+    if (billingType == 'parts_only') return 0;
+    return (_ticket?['labor_cost'] as num?)?.toDouble() ?? 0;
+  }
+
+  double get _effectivePartsCost {
+    final billingType = _ticket?['billing_type'] as String? ?? 'parts_and_labor';
+    if (billingType == 'labor_only') return 0;
+    return _totalPartsCost;
+  }
+
   double get _remainingBalance {
-    final labor = (_ticket?['labor_cost'] as num?)?.toDouble() ?? 0;
     final discount = (_ticket?['discount'] as num?)?.toDouble() ?? 0;
     final advance = (_ticket?['advance_payment'] as num?)?.toDouble() ?? 0;
-    return (_totalPartsCost + labor - discount) - advance - _totalPayments;
+    return (_effectivePartsCost + _effectiveLabor - discount) - advance - _totalPayments;
   }
 
   double get _totalCost {
-    final labor = (_ticket?['labor_cost'] as num?)?.toDouble() ?? 0;
-    return _totalPartsCost + labor;
+    return _effectivePartsCost + _effectiveLabor;
   }
 
   double get _netProfit {
     final finalCost = (_ticket?['final_cost'] as num?)?.toDouble() ?? 0;
-    final labor = (_ticket?['labor_cost'] as num?)?.toDouble() ?? 0;
-    return finalCost - _totalPartsCostForProfit - labor;
+    return finalCost - _totalPartsCostForProfit - _effectiveLabor;
   }
 
   double get _profitMarginPercent {
@@ -1817,18 +1826,21 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
     try {
       final parts = await client
           .from('repair_parts')
-          .select('charged_price, quantity')
+          .select('charged_price, quantity, part_status')
           .eq('ticket_id', widget.ticketId);
 
+      final billingType = _ticket?['billing_type'] as String? ?? 'parts_and_labor';
       final partsTotal = parts.fold<double>(0, (sum, p) {
+        final status = p['part_status'] as String?;
+        if (status != 'Utilisé') return sum;
         final price = (p['charged_price'] as num?)?.toDouble() ?? 0;
         final qty = (p['quantity'] as num?)?.toDouble() ?? 1;
         return sum + (price * qty);
       });
 
-      final labor = (_ticket?['labor_cost'] as num?)?.toDouble() ?? 0;
+      final labor = billingType == 'parts_only' ? 0 : ((_ticket?['labor_cost'] as num?)?.toDouble() ?? 0);
       final discount = (_ticket?['discount'] as num?)?.toDouble() ?? 0;
-      final computed = partsTotal + labor - discount;
+      final computed = billingType == 'labor_only' ? 0 : partsTotal + labor - discount;
       final currentFinalCost = (_ticket?['final_cost'] as num?)?.toDouble() ?? 0;
 
       if ((computed - currentFinalCost).abs() < 0.01) return;
@@ -1839,7 +1851,9 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
           .eq('id', widget.ticketId);
 
       setState(() => _ticket!['final_cost'] = computed);
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('_syncFinalCost error: $e');
+    }
   }
 
   Future<void> _syncPaymentStatus() async {
@@ -2223,7 +2237,7 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
       decoration: BoxDecoration(color: _panelDark, borderRadius: BorderRadius.circular(16), border: Border.all(color: color.withOpacity(0.3))),
       child: Row(
         children: [
-          QrImageView(data: qrHash, version: QrVersions.auto, size: 100, backgroundColor: Colors.white, padding: EdgeInsets.zero),
+          QrImageView(data: 'https://laidaniphone.vercel.app?qr=$qrHash', version: QrVersions.auto, size: 100, backgroundColor: Colors.white, padding: EdgeInsets.zero),
           const SizedBox(width: 16),
           Expanded(
             child: Column(
@@ -2240,7 +2254,7 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
           IconButton(
             icon: Icon(Icons.print, color: color),
             tooltip: 'Imprimer',
-            onPressed: () => _printQR(context, qrHash),
+            onPressed: () => _printQR(context, 'https://laidaniphone.vercel.app?qr=$qrHash'),
           ),
         ],
       ),
@@ -2260,7 +2274,7 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
             const SizedBox(height: 16),
             QrImageView(data: data, version: QrVersions.auto, size: 250, backgroundColor: Colors.white),
             const SizedBox(height: 16),
-            Text('Hash: $data', style: const TextStyle(color: _textMuted, fontSize: 12)),
+            Text('URL: $data', style: const TextStyle(color: _textMuted, fontSize: 10)),
           ],
         ),
         actions: [
@@ -2273,6 +2287,8 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
   Widget _buildMainOperations(Color color, bool isOwner) {
     return Column(
       children: [
+        _buildStatusProgressBar(color),
+        const SizedBox(height: 16),
         _buildFinancialWidget(color),
         const SizedBox(height: 16),
         _buildPartsWidget(color, isOwner),
@@ -2311,6 +2327,55 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
       onChangeStatus: _showPartStatusMenu,
       onRemovePart: _removePart,
       onSuggestAI: () => _suggestPartsAI(color),
+    );
+  }
+
+  Widget _buildStatusProgressBar(Color color) {
+    final status = _ticket?['status'] as String? ?? 'En attente';
+    final steps = ['Reçu', 'En réparation', 'Terminé', 'Livré'];
+    final stepIndex = status == 'Livré' ? 4 : status == 'Terminé' ? 3 : status == 'Annulé' ? -1 : 1;
+    final isCanceled = status == 'Annulé';
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(color: _panelDark, borderRadius: BorderRadius.circular(16), border: Border.all(color: _glassBorder)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (isCanceled)
+            Container(
+              width: double.infinity, padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(color: Colors.redAccent.withOpacity(0.1), borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.redAccent.withOpacity(0.3))),
+              child: const Text('⚠ Cette réparation a été annulée', style: TextStyle(color: Colors.redAccent, fontSize: 13, fontWeight: FontWeight.w600), textAlign: TextAlign.center),
+            )
+          else
+            Row(
+              children: List.generate(steps.length, (i) {
+                final step = i + 1;
+                final done = step <= stepIndex;
+                final active = step == stepIndex;
+                return Expanded(
+                  child: Column(
+                    children: [
+                      Container(
+                        width: 30, height: 30,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: done ? _neonEmerald : (active ? color : Colors.grey[800]),
+                          border: Border.all(color: done ? _neonEmerald : (active ? color : _glassBorder), width: 2),
+                          boxShadow: active ? [BoxShadow(color: color.withOpacity(0.4), blurRadius: 8)] : null,
+                        ),
+                        child: Center(child: Text(done ? '✓' : '$step', style: TextStyle(color: done || active ? _bgCarbon : _textMuted, fontSize: 12, fontWeight: FontWeight.bold))),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(steps[i], style: TextStyle(color: done ? _neonEmerald : (active ? color : _textMuted), fontSize: 10, fontWeight: active ? FontWeight.w600 : FontWeight.normal), textAlign: TextAlign.center),
+                    ],
+                  ),
+                );
+              }),
+            ),
+        ],
+      ),
     );
   }
 
@@ -2581,7 +2646,7 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
     final warrantyDays = (_ticket?['warranty_days'] as num?)?.toInt() ?? 0;
     final expiresAt = _ticket?['warranty_expires_at'] as String?;
     final isExpired = expiresAt != null && DateTime.tryParse(expiresAt)?.isBefore(DateTime.now()) == true;
-    final hasWarranty = warrantyDays > 0;
+    final hasWarranty = warrantyDays > 0 || (expiresAt != null && !isExpired);
 
     Color warrantyColor = isExpired ? Colors.redAccent : (hasWarranty ? Colors.orangeAccent : _textMuted);
     final activeClaims = _warrantyClaims.where((c) => c['claim_status'] != 'Résolu' && c['claim_status'] != 'Refusé').toList();
