@@ -148,7 +148,12 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
     setState(() => _isLoading = true);
     try {
       final client = ref.read(supabaseClientProvider);
-      final ticketData = await client.from('repair_tickets').select('*, customers(full_name, phone_number), profiles!repair_tickets_worker_id_fkey(full_name)').eq('id', widget.ticketId).maybeSingle();
+      final ticketData = await client.from('repair_tickets').select('*, customers(full_name, phone_number)').eq('id', widget.ticketId).maybeSingle();
+      // Fetch technician name separately
+      if (ticketData != null && ticketData['worker_id'] != null) {
+        final tech = await client.from('profiles').select('full_name').eq('id', ticketData['worker_id']).maybeSingle();
+        if (tech != null) ticketData['profiles'] = tech;
+      }
       final partsData = await client.from('repair_parts').select('*, products(product_name, reference_price)').eq('ticket_id', widget.ticketId);
       final paymentsData = await client.from('repair_payments').select('*').eq('ticket_id', widget.ticketId).order('paid_at', ascending: false);
       final eventsData = await client.from('repair_ticket_events').select('*').eq('ticket_id', widget.ticketId).order('created_at', ascending: true);
