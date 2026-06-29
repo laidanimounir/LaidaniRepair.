@@ -125,6 +125,8 @@ async function load() {
     if (error || !data) { app.innerHTML = '<p style="color:#f85149;text-align:center;padding:40px">Ticket introuvable</p>'; return; }
     if (!data.is_public_page_enabled) { app.innerHTML = '<div style="text-align:center;padding:60px 20px"><div style="font-size:48px">&#128274;</div><p style="color:#8b949e">Page non activee</p></div>'; return; }
 
+    window.TICKET_ID = data.id;
+
     // Increment view counter
     fetch(`${SUPABASE_URL}/rest/v1/repair_tickets?id=eq.${data.id}`, {
       method:"PATCH",
@@ -236,7 +238,7 @@ window.submitFeedback = async function() {
     var r = await fetch(SUPABASE_URL + "/rest/v1/customer_feedback", {
       method:"POST",
       headers:{apikey:ANON_KEY,Authorization:"Bearer "+ANON_KEY,"Content-Type":"application/json",Prefer:"return=minimal"},
-      body:JSON.stringify({ticket_id:data.id,rating:_rating,comment:comment})
+      body:JSON.stringify({ticket_id:window.TICKET_ID,rating:_rating,comment:comment})
     });
     if (r.ok) {
       var s = document.getElementById("rating-section");
