@@ -60,7 +60,7 @@ class PrintService {
     final remaining = finalCost - advance;
     final billingType = ticket['billing_type'] as String? ?? 'parts_and_labor';
     final estimatedDate = ticket['estimated_completion_date']?.toString() ?? '';
-    final qrData = 'https://igxpwxfruasfpvfagbaw.supabase.co/functions/v1/track?qr=${ticket['qr_code_hash'] ?? ''}';
+    final qrData = 'https://laidaniphone.vercel.app?qr=${ticket['qr_code_hash'] ?? ''}';
     final billingLabel = {
       'labor_only':      'Type: Main d\'œuvre uniquement',
       'parts_only':      'Type: Pièces uniquement',
@@ -118,7 +118,7 @@ class PrintService {
     final phone = _clientPhone(ticket);
     final ticketId = (ticket['qr_code_hash']?.toString() ?? '').substring(0, 8);
     final createdAt = (ticket['created_at']?.toString() ?? '').substring(0, 10);
-    final qrData = 'https://igxpwxfruasfpvfagbaw.supabase.co/functions/v1/track?qr=${ticket['qr_code_hash'] ?? ''}';
+    final qrData = 'https://laidaniphone.vercel.app?qr=${ticket['qr_code_hash'] ?? ''}';
 
     return pw.Page(
       pageFormat: PdfPageFormat(141.7, 85.0),

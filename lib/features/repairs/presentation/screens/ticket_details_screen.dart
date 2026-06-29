@@ -2550,7 +2550,7 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
                 label: const Text('Copier le lien public', style: TextStyle(fontWeight: FontWeight.bold)),
                 style: ElevatedButton.styleFrom(backgroundColor: _neonCyan, foregroundColor: Colors.black, padding: const EdgeInsets.symmetric(vertical: 12)),
                 onPressed: () {
-                  final url = 'https://igxpwxfruasfpvfagbaw.supabase.co/functions/v1/track?qr=$qrHash';
+                  final url = 'https://laidaniphone.vercel.app?qr=$qrHash';
                   Clipboard.setData(ClipboardData(text: url));
                   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Lien copié ✓')));
                 },

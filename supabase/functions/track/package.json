@@ -1,0 +1,8 @@
+{
+  "name": "laidani-track",
+  "private": true,
+  "scripts": {
+    "dev": "npx serve .",
+    "deploy": "npx vercel --prod"
+  }
+}

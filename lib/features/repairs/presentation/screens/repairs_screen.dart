@@ -103,7 +103,7 @@ class _RepairsScreenState extends ConsumerState<RepairsScreen> {
 
     // Check if it's LAIDANI:TICKET:... or tracking URL format
     final ticketMatch = RegExp(r'LAIDANI:TICKET:([a-f0-9\-]+):').firstMatch(trimmed);
-    final urlMatch = RegExp(r'track\?qr=([A-Za-z0-9\-]+)').firstMatch(trimmed);
+    final urlMatch = RegExp(r'vercel\.app\?qr=([A-Za-z0-9\-]+)').firstMatch(trimmed);
 
     if (ticketMatch != null) {
       final uuid = ticketMatch.group(1)!;
@@ -2367,7 +2367,7 @@ class _NewTicketFormState extends State<_NewTicketForm> {
   void _showReceiptDialog(Map<String, dynamic> ticket, String? anonName, String? anonPhone) {
     final isAnon = ticket['customer_id'] == null;
     final clientName = isAnon ? (anonName?.isNotEmpty == true ? anonName! : 'Client Anonyme') : 'Client';
-    final qrData = 'https://igxpwxfruasfpvfagbaw.supabase.co/functions/v1/track?qr=${ticket['qr_code_hash'] ?? ''}';
+    final qrData = 'https://laidaniphone.vercel.app?qr=${ticket['qr_code_hash'] ?? ''}';
     final estimatedCost = (ticket['estimated_cost'] as num?)?.toDouble() ?? 0;
     final advance = (ticket['advance_payment'] as num?)?.toDouble() ?? 0;
     final remaining = estimatedCost - advance - ((ticket['discount'] as num?)?.toDouble() ?? 0);
@@ -2580,7 +2580,7 @@ class _NewTicketFormState extends State<_NewTicketForm> {
     final remaining = finalCost - advance;
     final billingType = ticket['billing_type'] as String? ?? 'parts_and_labor';
     final estimatedDate = ticket['estimated_completion_date']?.toString() ?? '';
-    final qrData = 'https://igxpwxfruasfpvfagbaw.supabase.co/functions/v1/track?qr=${ticket['qr_code_hash'] ?? ''}';
+    final qrData = 'https://laidaniphone.vercel.app?qr=${ticket['qr_code_hash'] ?? ''}';
     final phone = isAnon ? (anonPhone ?? '') : '';
 
     if (!stickerOnly) {
