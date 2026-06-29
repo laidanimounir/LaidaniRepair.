@@ -45,7 +45,7 @@ Cycle de vie complet : création avec diagnostic, photos, IMEI, mot de passe, ac
 - Impression : reçu, facture, devis, bon de garantie
 
 ### 📲 Page de suivi public client *(NOUVEAU)*
-Chaque ticket de réparation génère un QR code qui encode une URL complète (`https://.../track?qr={hash}`). En scannant ce code, le client accède à une page web publique (sans application, sans authentification) qui affiche :
+Chaque ticket de réparation génère un QR code qui encode une URL complète (`https://laidaniphone.vercel.app?qr={hash}`). En scannant ce code, le client accède à une page web publique (sans application, sans authentification) qui affiche :
 
 - **Barre de progression visuelle** : Reçu → En réparation → Terminé → Livré
 - **Historique des événements** avec dates formatées en français
@@ -58,7 +58,7 @@ Chaque ticket de réparation génère un QR code qui encode une URL complète (`
   - Activer/désactiver la page par ticket
   - Afficher/masquer les prix des pièces
   - Compteur de vues en temps réel avec notification in-app (SnackBar)
-- **Edge Function Deno** déployée sur Supabase : `supabase/functions/track/index.ts`
+- **Page HTML statique** hébergée sur Vercel : `supabase/functions/track/index.html`
 
 ### 🛡️ Garanties *(NOUVEAU)*
 Écran dédié accessible depuis la navigation principale (visible par tous les utilisateurs) :
@@ -268,11 +268,11 @@ assets/screenshots/
 | Couche | Technologie | Détails |
 |--------|-------------|---------|
 | **Frontend** | Flutter 3.x | Windows Desktop (≥850px) + Android, dark theme cyan/teal |
-| **Backend** | Supabase | PostgreSQL + Realtime + Storage + Edge Functions |
+| **Backend** | Supabase | PostgreSQL + Realtime + Storage |
 | **Auth** | Supabase Auth | 2 rôles : owner / worker, 2FA TOTP |
 | **State Mgmt** | Riverpod | `^2.5.1` |
 | **Routing** | go_router | `^13.2.4` |
-| **Edge Function** | Deno (Supabase) | `supabase/functions/track/index.ts` — page publique de suivi client |
+| **Hébergement** | Vercel | Page de suivi client (`https://laidaniphone.vercel.app`) |
 
 ### Packages principaux
 
@@ -423,7 +423,7 @@ lib/
 - ✅ 3 types de facturation : Pièces + M.O / Pièces uniquement / M.O uniquement
 - ✅ Paiement d'avance séparé des paiements réels
 - ✅ Attribution aux techniciens avec SLA (date estimée, escalade vert/jaune/rouge)
-- ✅ QR code unique par ticket + **page publique de suivi** (Edge Function Deno)
+- ✅ QR code unique par ticket + **page publique de suivi** (Vercel)
 - ✅ Page publique : barre de progression, historique, pièces, garantie, notation, Realtime
 - ✅ Contrôle qualité avant livraison
 - ✅ Gestion des garanties (pièces, main-d'œuvre) + certificat PDF
@@ -639,7 +639,7 @@ Ce logiciel est la propriété exclusive de LaidaniRepair. Toute reproduction, d
 
 ### URL directe de test
 ```
-https://igxpwxfruasfpvfagbaw.supabase.co/functions/v1/track?qr={qr_code_hash}
+https://laidaniphone.vercel.app?qr={qr_code_hash}
 ```
 
 Remplacer `{qr_code_hash}` par la valeur réelle du ticket (ex: `LR-1773186046869-7023`).
