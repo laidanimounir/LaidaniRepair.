@@ -57,6 +57,7 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
   bool _hideTechnicianOnPublic = false;
   bool _hideHistoryOnPublic = false;
   String _publicPageMessage = '';
+  final TextEditingController _messageCtrl = TextEditingController();
 
   @override
   void initState() {
@@ -173,6 +174,7 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
         _hideTechnicianOnPublic = ticketData?['hide_technician_on_public'] as bool? ?? false;
         _hideHistoryOnPublic = ticketData?['hide_history_on_public'] as bool? ?? false;
         _publicPageMessage = ticketData?['public_page_message'] as String? ?? '';
+        _messageCtrl.text = _publicPageMessage;
         _isLoading = false;
       });
       _syncPaymentStatus();
@@ -2782,7 +2784,7 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
           SwitchListTile(title: const Text('Masquer l\'historique', style: TextStyle(color: Colors.white, fontSize: 13)), value: _hideHistoryOnPublic, activeColor: Colors.orangeAccent, dense: true, contentPadding: EdgeInsets.zero, onChanged: (v) => _updatePublicPageSettings(hideHistory: v)),
           const SizedBox(height: 8),
           TextField(
-            controller: TextEditingController(text: _publicPageMessage),
+            controller: _messageCtrl,
             style: const TextStyle(color: Colors.white, fontSize: 13),
             decoration: const InputDecoration(
               labelText: 'Message personnalisé (visible par le client)',
@@ -2793,8 +2795,20 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
               focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: _neonCyan)),
             ),
             maxLines: 2,
-            onSubmitted: (v) => _updatePublicPageSettings(message: v),
             onChanged: (v) => _publicPageMessage = v,
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              icon: const Icon(Icons.save, size: 16),
+              label: const Text('Enregistrer le message', style: TextStyle(fontSize: 13)),
+              style: ElevatedButton.styleFrom(backgroundColor: _neonCyan.withOpacity(0.2), foregroundColor: _neonCyan),
+              onPressed: () {
+                _updatePublicPageSettings(message: _publicPageMessage);
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Message enregistré ✓'), duration: Duration(seconds: 1)));
+              },
+            ),
           ),
           const SizedBox(height: 8),
           Row(children: [
@@ -2840,7 +2854,7 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
         if (hidePhone != null) _hidePhoneOnPublic = hidePhone;
         if (hideTechnician != null) _hideTechnicianOnPublic = hideTechnician;
         if (hideHistory != null) _hideHistoryOnPublic = hideHistory;
-        if (message != null) _publicPageMessage = message;
+        if (message != null) { _publicPageMessage = message; _messageCtrl.text = message; }
       });
     } catch (_) {}
   }
