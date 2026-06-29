@@ -43,6 +43,15 @@ Cycle de vie complet : création avec diagnostic, photos, IMEI, mot de passe, ac
 - Paiement d'avance séparé des paiements réels
 - Marge bénéficiaire par ticket (owner uniquement)
 - Impression : reçu, facture, devis, bon de garantie
+- **Barre de progression** visuelle dans l'écran ticket : Reçu → En attente → Terminé → Livré
+- **Badge état de paiement** : Non payé (orange), Avance (bleu), Payé (vert), Remboursé (rouge)
+- **Badge type de facturation** : Pièces + M.O / Pièces uniquement / M.O uniquement
+- **Chronologie des événements** (timeline) dans l'écran ticket
+- **Bouton "Terminer"** pour changer le statut directement
+- **Dates visibles** : créé le, livraison prévue
+- **Affichage remboursement** : montant, motif, type (partiel/total)
+- Mobile : boutons WhatsApp + Appel, nom du technicien, problème, type d'appareil
+- Technicien affiché via worker_id (fetch séparé)
 
 ### 📲 Page de suivi public client *(NOUVEAU)*
 Chaque ticket de réparation génère un QR code qui encode une URL complète (`https://laidaniphone.vercel.app?qr={hash}`). En scannant ce code, le client accède à une page web publique (sans application, sans authentification) qui affiche :
@@ -54,11 +63,16 @@ Chaque ticket de réparation génère un QR code qui encode une URL complète (`
 - **Formulaire de notation** (1-5 étoiles) + commentaire → sauvegardé dans `customer_feedback`
 - **Boutons d'action** : 📞 Appeler, 💬 WhatsApp, 📍 Google Maps, 🔗 Partager
 - **Mise à jour automatique** via Supabase Realtime (recharge la page si le statut change)
+- **Formulaire de notation** (1-5 étoiles) avec commentaire → Realtime envoie la notification au propriétaire
 - **Contrôles owner** (dans l'app Flutter) :
   - Activer/désactiver la page par ticket
   - Afficher/masquer les prix des pièces
+  - Masquer le téléphone du client
+  - Masquer le nom du technicien
+  - Masquer l'historique des événements
+  - Message personnalisé (bannière en haut de la page)
   - Compteur de vues en temps réel avec notification in-app (SnackBar)
-- **Page HTML statique** hébergée sur Vercel : `supabase/functions/track/index.html`
+- **Hébergement** : Vercel — `https://laidaniphone.vercel.app`
 
 ### 🛡️ Garanties *(NOUVEAU)*
 Écran dédié accessible depuis la navigation principale (visible par tous les utilisateurs) :
