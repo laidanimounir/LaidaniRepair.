@@ -2455,6 +2455,38 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
                 ),
             ],
           ),
+          const SizedBox(height: 10),
+          Row(children: [
+            _buildInfoChip('Créé', _ticket?['created_at']?.toString().substring(0, 10) ?? '', Icons.calendar_today),
+            const SizedBox(width: 12),
+            _buildInfoChip('Prévu', _ticket?['estimated_completion_date']?.toString() ?? '', Icons.schedule),
+            const Spacer(),
+            if (_isNotCanceled && (_ticket?['status'] as String?) != 'Terminé')
+              TextButton.icon(
+                style: TextButton.styleFrom(foregroundColor: _neonEmerald, padding: const EdgeInsets.symmetric(horizontal: 8)),
+                onPressed: () => _updateStatus('Terminé'),
+                icon: const Icon(Icons.check_circle, size: 16),
+                label: const Text('Terminer', style: TextStyle(fontSize: 12)),
+              ),
+          ]),
+          if (_payments.any((p) => (p['is_refunded'] as bool?) == true))
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(color: Colors.redAccent.withOpacity(0.1), borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.redAccent.withOpacity(0.3))),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Row(children: [Icon(Icons.undo, color: Colors.redAccent, size: 14), SizedBox(width: 6), Text('Remboursé', style: TextStyle(color: Colors.redAccent, fontSize: 12, fontWeight: FontWeight.bold))]),
+                    ..._payments.where((p) => (p['is_refunded'] as bool?) == true).map((p) => Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text('${(p['refund_amount'] as num?)?.toDouble() ?? 0} DA — ${p['refund_reason'] ?? ''}', style: const TextStyle(color: _textMuted, fontSize: 11)),
+                    )),
+                  ],
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -2790,6 +2822,41 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
         if (showPrices != null) _showPricesOnPublic = showPrices;
       });
     } catch (_) {}
+  }
+
+  Widget _buildInfoChip(String label, String value, IconData icon) {
+    if (value.isEmpty) return const SizedBox.shrink();
+    return Row(mainAxisSize: MainAxisSize.min, children: [
+      Icon(icon, color: _textMuted, size: 12),
+      const SizedBox(width: 4),
+      Text('$label: $value', style: const TextStyle(color: _textMuted, fontSize: 11)),
+    ]);
+  }
+
+  Future<void> _updateStatus(String newStatus) async {
+    final oldStatus = _ticket?['status'] as String? ?? '';
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: _panelDark, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Changer le statut ?', style: TextStyle(color: Colors.white)),
+        content: Text('Passer de « $oldStatus » à « $newStatus » ?', style: const TextStyle(color: _textMuted)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Annuler')),
+          ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Confirmer')),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+    try {
+      final client = ref.read(supabaseClientProvider);
+      final user = Supabase.instance.client.auth.currentUser;
+      await client.from('repair_tickets').update({'status': newStatus, if (newStatus == 'Livré') 'delivered_at': DateTime.now().toIso8601String(), if (newStatus == 'Terminé') 'completed_at': DateTime.now().toIso8601String()}).eq('id', widget.ticketId);
+      await client.from('repair_ticket_events').insert({'ticket_id': widget.ticketId, 'event_type': 'status_change', 'old_value': oldStatus, 'new_value': newStatus, 'created_by': user?.id, 'notes': 'Changement de statut: $oldStatus → $newStatus'});
+      _fetchFullData();
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur: $e'), backgroundColor: Colors.redAccent));
+    }
   }
 
   Widget _buildWarrantySection(Color color) {
