@@ -119,6 +119,17 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
           ),
           callback: (_) => _fetchFullData(),
         )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'customer_feedback',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'ticket_id',
+            value: widget.ticketId,
+          ),
+          callback: (_) => _fetchFullData(),
+        )
         .subscribe();
   }
 
