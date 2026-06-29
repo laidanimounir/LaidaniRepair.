@@ -202,11 +202,10 @@ Deno.serve(async (req: Request) => {
 });
 
 function makeResponse(body: string): Response {
-  const headers = new Headers();
-  headers.set("Content-Type", "text/html; charset=utf-8");
-  headers.set("Cache-Control", "no-cache");
-  headers.set("X-Content-Type-Options", "nosniff");
-  return new Response(body, { headers, status: 200 });
+  const encoder = new TextEncoder();
+  const bytes = encoder.encode(body);
+  const headers = new Headers({ "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-cache" });
+  return new Response(bytes, { status: 200, headers });
 }
 
 function buildPage(title: string, body: string, ticketId?: string): string {
