@@ -69,7 +69,28 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
             column: 'id',
             value: widget.ticketId,
           ),
-          callback: (_) => _fetchFullData(),
+          callback: (payload) {
+            final newRecord = payload.newRecord;
+            if (newRecord != null && _isPublicPageEnabled) {
+              final newViews = (newRecord['public_page_views'] as num?)?.toInt() ?? 0;
+              if (newViews > _publicPageViews && mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: const Row(children: [
+                      Icon(Icons.visibility, color: _neonCyan),
+                      SizedBox(width: 8),
+                      Text('Le client a consulté la page de suivi'),
+                    ]),
+                    backgroundColor: const Color(0xFF161b22),
+                    duration: const Duration(seconds: 4),
+                  ),
+                );
+                setState(() => _publicPageViews = newViews);
+                return;
+              }
+            }
+            _fetchFullData();
+          },
         )
         .onPostgresChanges(
           event: PostgresChangeEvent.all,
