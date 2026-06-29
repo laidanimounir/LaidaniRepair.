@@ -84,7 +84,7 @@ Deno.serve(async (req: Request) => {
     }
 
     if (!enabled) {
-      return new Response(buildPage("Page non disponible", '<div style="text-align:center;padding:60px 20px"><div style="font-size:48px;margin-bottom:16px">🔒</div><p style="color:#8b949e">La page de suivi pour ce ticket n\'est pas encore activée.</p><p style="color:#8b949e;font-size:13px">Le magasin activera le suivi prochainement.</p></div>'), { headers: { "Content-Type": "text/html" } });
+      return new Response(buildPage("Page non disponible", '<div style="text-align:center;padding:60px 20px"><div style="font-size:48px;margin-bottom:16px">🔒</div><p style="color:#8b949e">La page de suivi pour ce ticket n\'est pas encore activée.</p><p style="color:#8b949e;font-size:13px">Le magasin activera le suivi prochainement.</p></div>', t.id), { headers: { "Content-Type": "text/html" } });
     }
 
     const customer = t.customers;
