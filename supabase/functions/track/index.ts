@@ -41,7 +41,7 @@ Deno.serve(async (req: Request) => {
   const url = new URL(req.url);
   const qr = url.searchParams.get("qr");
   if (!qr) {
-    return new Response(buildPage("QR manquant", `<p style="color:#f85149;text-align:center">Paramètre QR requis dans l'URL.</p>`), { headers: { "Content-Type": "text/html" } });
+    return new Response(buildPage("QR manquant", `<p style="color:#f85149;text-align:center">Paramètre QR requis dans l'URL.</p>`), { headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-cache" } });
   }
 
   try {
@@ -56,12 +56,12 @@ Deno.serve(async (req: Request) => {
     );
 
     if (!ticketResp.ok) {
-      return new Response(buildPage("Erreur", `<p style="color:#f85149;text-align:center">Erreur serveur: ${ticketResp.status}</p>`), { headers: { "Content-Type": "text/html" } });
+      return new Response(buildPage("Erreur", `<p style="color:#f85149;text-align:center">Erreur serveur: ${ticketResp.status}</p>`), { headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-cache" } });
     }
 
     const tickets = await ticketResp.json();
     if (!tickets || tickets.length === 0) {
-      return new Response(buildPage("Ticket introuvable", '<p style="color:#f85149;text-align:center">Aucun ticket trouvé avec ce code QR.</p>'), { headers: { "Content-Type": "text/html" } });
+      return new Response(buildPage("Ticket introuvable", '<p style="color:#f85149;text-align:center">Aucun ticket trouvé avec ce code QR.</p>'), { headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-cache" } });
     }
 
     const t = tickets[0];
@@ -84,7 +84,7 @@ Deno.serve(async (req: Request) => {
     }
 
     if (!enabled) {
-      return new Response(buildPage("Page non disponible", '<div style="text-align:center;padding:60px 20px"><div style="font-size:48px;margin-bottom:16px">🔒</div><p style="color:#8b949e">La page de suivi pour ce ticket n\'est pas encore activée.</p><p style="color:#8b949e;font-size:13px">Le magasin activera le suivi prochainement.</p></div>', t.id), { headers: { "Content-Type": "text/html" } });
+      return new Response(buildPage("Page non disponible", '<div style="text-align:center;padding:60px 20px"><div style="font-size:48px;margin-bottom:16px">🔒</div><p style="color:#8b949e">La page de suivi pour ce ticket n\'est pas encore activée.</p><p style="color:#8b949e;font-size:13px">Le magasin activera le suivi prochainement.</p></div>', t.id), { headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-cache" } });
     }
 
     const customer = t.customers;
@@ -195,9 +195,9 @@ Deno.serve(async (req: Request) => {
         </div>
       </div>`;
 
-    return new Response(buildPage("Suivi - " + (customer?.full_name ?? deviceName), body, t.id), { headers: { "Content-Type": "text/html" } });
+    return new Response(buildPage("Suivi - " + (customer?.full_name ?? deviceName), body, t.id), { headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-cache" } });
   } catch (err) {
-    return new Response(buildPage("Erreur", `<p style="color:#f85149;text-align:center">${err}</p>`), { headers: { "Content-Type": "text/html" } });
+    return new Response(buildPage("Erreur", `<p style="color:#f85149;text-align:center">${err}</p>`), { headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-cache" } });
   }
 });
 
