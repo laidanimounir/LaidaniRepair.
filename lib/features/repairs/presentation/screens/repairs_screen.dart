@@ -36,14 +36,16 @@ final _realtimeRepairsTicker = StreamProvider<int>((ref) {
       .map((_) => DateTime.now().millisecondsSinceEpoch);
 });
 
-final _ticketsProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
+const _ticketsPageSize = 30;
+
+final _ticketsProvider = FutureProvider.family<List<Map<String, dynamic>>, int>((ref, offset) async {
   ref.watch(_realtimeRepairsTicker);
   final client = ref.watch(supabaseClientProvider);
   return await client
       .from('repair_tickets')
       .select('*, customers(full_name, phone_number), profiles!repair_tickets_assigned_technician_id_fkey(full_name)')
       .order('created_at', ascending: false)
-      .limit(100);
+      .range(offset, offset + _ticketsPageSize - 1);
 });
 
 final _statusFilter = StateProvider<String?>((ref) => null);
@@ -242,7 +244,7 @@ class _RepairsScreenState extends ConsumerState<RepairsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final ticketsAsync = ref.watch(_ticketsProvider);
+    final ticketsAsync = ref.watch(_ticketsProvider(0));
     final searchQuery = ref.watch(_searchQueryProvider);
     final searchAsync = ref.watch(_searchResultsProvider);
     final statusF = ref.watch(_statusFilter);
@@ -396,7 +398,7 @@ class _RepairsScreenState extends ConsumerState<RepairsScreen> {
                         IconButton(
                           icon: const Icon(Icons.refresh, color: _textMuted, size: 20),
                           onPressed: () {
-                            ref.invalidate(_ticketsProvider);
+                            ref.invalidate(_ticketsProvider(0));
                             ref.invalidate(_searchResultsProvider);
                           },
                           tooltip: 'Rafraîchir',
@@ -730,7 +732,7 @@ class _CyberTableRow extends StatelessWidget {
                         _addLoyaltyPointsForRepair(client, ticket);
                       }
                       await client.from('repair_tickets').update(updates).eq('id', ticket['id']);
-                      ref.invalidate(_ticketsProvider);
+                      ref.invalidate(_ticketsProvider(0));
                     },
                   ),
                 ],
@@ -895,7 +897,7 @@ class _MobileTicketCard extends StatelessWidget {
                         _addLoyaltyPointsForRepair(client, ticket);
                       }
                       await client.from('repair_tickets').update(updates).eq('id', ticket['id']);
-                      ref.invalidate(_ticketsProvider);
+                      ref.invalidate(_ticketsProvider(0));
                     },
                   ),
                 ]
@@ -1119,7 +1121,7 @@ Future<void> _showBulkStatusDialog(WidgetRef ref, Set<String> selected) async {
       'notes': 'Changement de statut groupé: → $status',
     });
   }
-  ref.invalidate(_ticketsProvider);
+  ref.invalidate(_ticketsProvider(0));
   ref.read(_selectedTicketsProvider.notifier).state = {};
 }
 
@@ -1148,7 +1150,7 @@ Future<void> _showBulkAssignDialog(WidgetRef ref, Set<String> selected) async {
   for (final id in selected) {
     await client.from('repair_tickets').update({'assigned_technician_id': techId}).eq('id', id);
   }
-  ref.invalidate(_ticketsProvider);
+  ref.invalidate(_ticketsProvider(0));
   ref.read(_selectedTicketsProvider.notifier).state = {};
 }
 
@@ -2351,7 +2353,7 @@ class _NewTicketFormState extends State<_NewTicketForm> {
   }
 }
       
-      widget.ref.invalidate(_ticketsProvider);
+      widget.ref.invalidate(_ticketsProvider(0));
       if (mounted) {
         Navigator.pop(context);
         _showReceiptDialog(Map<String, dynamic>.from(newTicket), _isAnonymous ? _anonNameCtrl.text.trim() : null, _isAnonymous ? _anonPhoneCtrl.text.trim() : null);
