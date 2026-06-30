@@ -1075,7 +1075,19 @@ class _MobileTicketCard extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text('Problème: $issue', style: const TextStyle(color: _textMuted, fontSize: 12), maxLines: 2, overflow: TextOverflow.ellipsis),
-          const SizedBox(height: 16),
+          if (ticket['profiles'] != null) ...[
+            const SizedBox(height: 4),
+            Text('👤 ${ticket['profiles']?['full_name'] ?? ''}', style: const TextStyle(color: _neonCyan, fontSize: 11)),
+          ],
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              _CyberTableRow._buildPaymentBadge(ticket),
+              const SizedBox(width: 8),
+              Text(_CyberTableRow._billingTypeLabel(ticket), style: const TextStyle(color: _textMuted, fontSize: 10)),
+            ],
+          ),
+          const SizedBox(height: 12),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(color: Colors.black12, borderRadius: BorderRadius.circular(8)),
