@@ -19,6 +19,7 @@ import 'package:laidani_repair/core/services/groq_service.dart';
 import 'package:laidani_repair/core/utils/csv_export.dart';
 import 'package:laidani_repair/constants/repair_status.dart';
 import 'package:laidani_repair/core/utils/ticket_event_logger.dart';
+import 'package:laidani_repair/services/print_service.dart';
 
 // --- Cyber Glass Theme Constants ---
 const Color _bgCarbon = Color(0xFF050914);
@@ -2696,6 +2697,11 @@ class _NewTicketFormState extends State<_NewTicketForm> {
             _printOption(ctx, Icons.label_outline, 'Étiquette appareil seule (50mm)', 'Autocollant à coller au dos du téléphone', () {
               Navigator.pop(ctx);
               _printDocument(ticket, anonName, anonPhone, includeSticker: true, stickerOnly: true);
+            }),
+            const SizedBox(height: 8),
+            _printOption(ctx, Icons.badge_outlined, 'Étiquette d\'identification', 'Client, propriétaire, problème — à coller sur l\'appareil', () async {
+              Navigator.pop(ctx);
+              await PrintService.printDeviceIdentificationLabel(ticket: ticket, context: context);
             }),
             const SizedBox(height: 8),
             _printOption(ctx, Icons.copy_all, 'Imprimer les deux (A4 + Étiquette)', 'Bon client + étiquette appareil', () {

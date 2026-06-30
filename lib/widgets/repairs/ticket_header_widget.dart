@@ -83,12 +83,18 @@ class TicketHeaderWidget extends StatelessWidget {
       itemBuilder: (_) => const [
         PopupMenuItem(value: 'duplicate', child: Text('Dupliquer le ticket', style: TextStyle(color: Color(0xFF00E5FF)))),
         PopupMenuItem(value: 'cancel', child: Text('Annuler le dossier (Retour Stock)', style: TextStyle(color: Colors.redAccent))),
+        PopupMenuItem(value: 'id_label', child: Text('Étiquette d\'identification', style: TextStyle(color: Color(0xFF00E5FF), fontSize: 12))),
       ],
       onSelected: (val) {
         if (val == 'cancel') onCancel();
         if (val == 'duplicate') onDuplicate();
+        if (val == 'id_label') _printIdLabel();
       },
     );
+  }
+
+  void _printIdLabel() {
+    PrintService.printDeviceIdentificationLabel(ticket: ticket);
   }
 
   String? _lastPrintedText() {

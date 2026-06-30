@@ -15,6 +15,15 @@ class PrintService {
     await _printAndLog(pdf, ticket, 'customer_ticket_printed_at', context: context);
   }
 
+  static Future<void> printDeviceIdentificationLabel({
+    required Map<String, dynamic> ticket,
+    BuildContext? context,
+  }) async {
+    final pdf = pw.Document();
+    pdf.addPage(_buildIdentificationSticker(ticket));
+    await _printAndLog(pdf, ticket, 'device_label_printed_at', context: context);
+  }
+
   static Future<void> printDeviceLabel({
     required Map<String, dynamic> ticket,
     BuildContext? context,
@@ -142,6 +151,31 @@ class PrintService {
               pw.Text('⚠ Conserver ce ticket pour le suivi.', style: pw.TextStyle(fontSize: 5)),
             ])),
           ]),
+        ],
+      ),
+    );
+  }
+
+  static pw.Page _buildIdentificationSticker(Map<String, dynamic> ticket) {
+    final clientName = _clientName(ticket);
+    final deviceOwner = ticket['device_owner'] as String?;
+    final issue = ticket['issue_description'] ?? '';
+    final ticketId = (ticket['qr_code_hash']?.toString() ?? '').substring(0, 8);
+
+    return pw.Page(
+      pageFormat: PdfPageFormat(113.4, 70.9),
+      margin: pw.EdgeInsets.all(3),
+      build: (_) => pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        mainAxisSize: pw.MainAxisSize.min,
+        children: [
+          pw.Text('N° #$ticketId', style: pw.TextStyle(fontSize: 6, font: pw.Font.courier())),
+          pw.SizedBox(height: 2),
+          pw.Text('Client: $clientName', style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold)),
+          if (deviceOwner != null && deviceOwner.isNotEmpty && deviceOwner != clientName)
+            pw.Text('Propriétaire: $deviceOwner', style: pw.TextStyle(fontSize: 6)),
+          pw.SizedBox(height: 2),
+          pw.Text('Problème: $issue', style: pw.TextStyle(fontSize: 6), maxLines: 3),
         ],
       ),
     );
