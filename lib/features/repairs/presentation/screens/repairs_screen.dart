@@ -792,6 +792,10 @@ class _CyberTableRow extends StatelessWidget {
                 Text(device, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
                 const SizedBox(height: 4),
                 Text(issue, style: const TextStyle(color: _textMuted, fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis),
+                if (ticket['profiles'] != null) ...[
+                  const SizedBox(height: 2),
+                  Text('👤 ${ticket['profiles']?['full_name'] ?? ''}', style: const TextStyle(color: _neonCyan, fontSize: 10)),
+                ],
               ],
             ),
           ),
