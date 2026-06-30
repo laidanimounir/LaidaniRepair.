@@ -621,6 +621,11 @@ class _RepairsScreenState extends ConsumerState<RepairsScreen> {
             },
           ),
         ),
+        if (_isLoadingMore)
+          const SizedBox(
+            height: 40,
+            child: Center(child: CircularProgressIndicator(color: _neonCyan, strokeWidth: 2)),
+          ),
       ],
     );
   }
