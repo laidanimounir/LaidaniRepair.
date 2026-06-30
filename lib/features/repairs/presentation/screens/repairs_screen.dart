@@ -1783,8 +1783,17 @@ class _NewTicketFormState extends State<_NewTicketForm> {
     final parts = double.tryParse(_costCtrl.text) ?? 0;
     final labor = double.tryParse(_laborCtrl.text) ?? 0;
     if (_billingType == 'parts_and_labor') return parts + labor;
-    if (_billingType == 'labor_only') return parts;
+    if (_billingType == 'labor_only') return labor;
     return parts;
+  }
+
+  String get _totalLabel {
+    switch (_billingType) {
+      case 'parts_and_labor': return 'Total (Pièces + M.O)';
+      case 'labor_only': return 'Total (M.O)';
+      case 'parts_only': return 'Total (Pièces)';
+      default: return 'Total estimé';
+    }
   }
 
   void _showPartsPickerDialog() {
@@ -2110,7 +2119,7 @@ class _NewTicketFormState extends State<_NewTicketForm> {
         ),
         const SizedBox(height: 12),
         _buildPriceEstimatorButton(),
-        if (_billingType == 'parts_and_labor' && _grandTotal > 0) ...[
+        if (_grandTotal > 0 || _laborCtrl.text.isNotEmpty || _costCtrl.text.isNotEmpty) ...[
           const SizedBox(height: 12),
           Container(
             padding: const EdgeInsets.all(10),
@@ -2118,7 +2127,7 @@ class _NewTicketFormState extends State<_NewTicketForm> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text('Total (Pièces + M.O)', style: TextStyle(color: _neonCyan, fontWeight: FontWeight.w600, fontSize: 13)),
+                Text(_totalLabel, style: const TextStyle(color: _neonCyan, fontWeight: FontWeight.w600, fontSize: 13)),
                 Text('${_grandTotal.toStringAsFixed(0)} DA', style: const TextStyle(color: _neonCyan, fontWeight: FontWeight.w900, fontSize: 16)),
               ],
             ),
