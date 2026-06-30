@@ -186,7 +186,7 @@ async function load() {
 
     if (usedParts.length) {
       html += `<div class="card"><h2 class="card-title">Pieces remplacees</h2>${
-        usedParts.map(p => `<div class="info-row"><span>${p.products?.product_name ?? "Piece"} x${p.quantity ?? 1}</span>${showPrices ? `<span style="color:#00bcd4">${p.charged_price ?? 0} DA</span>` : ""}</div>`).join("")
+        usedParts.map(p => `<div class="info-row"><span>${p.products?.product_name ?? "Piece"} x${p.quantity ?? 1}</span></div>`).join("")
       }</div>`;
     }
 
