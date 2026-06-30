@@ -94,6 +94,7 @@ class _RepairsScreenState extends ConsumerState<RepairsScreen> {
   bool _isLoadingMore = false;
   bool _hasMore = true;
   bool _initialLoadDone = false;
+  bool _realtimeReady = false;
 
   List<Map<String, dynamic>> _searchTickets = [];
   int _searchPage = 0;
@@ -130,6 +131,7 @@ class _RepairsScreenState extends ConsumerState<RepairsScreen> {
         _hasMore = data.length >= _ticketsPageSize;
         _currentPage = 1;
         _initialLoadDone = true;
+        _realtimeReady = true;
       });
     }
   }
@@ -372,6 +374,7 @@ class _RepairsScreenState extends ConsumerState<RepairsScreen> {
       if (prev != next && next.trim().isNotEmpty) _performSearch(next);
     });
     ref.listen(_listResetTrigger, (prev, next) { if (prev != next) _resetAndReload(); });
+    ref.listen(_realtimeRepairsTicker, (_, __) { if (_realtimeReady) _resetAndReload(); });
     final statusF = ref.watch(_statusFilter);
     final slaF = ref.watch(_slaFilter);
     final bulkMode = ref.watch(_bulkModeProvider);
