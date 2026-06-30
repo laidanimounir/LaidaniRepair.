@@ -140,6 +140,8 @@ class _RefundsScreenState extends ConsumerState<RefundsScreen> with SingleTicker
 
     if (result == null) return;
     try {
+      // Refund is based on actual repair_payments amounts (which already include
+      // labor since labor is embedded in final_cost). No separate labor handling needed.
       final client = ref.read(supabaseClientProvider);
       await client.from('repair_payments').update({
         'is_refunded': true,
