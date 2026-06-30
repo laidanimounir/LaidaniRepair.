@@ -154,6 +154,10 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
         final tech = await client.from('profiles').select('full_name').eq('id', ticketData['worker_id']).maybeSingle();
         if (tech != null) ticketData['profiles'] = tech;
       }
+      if (ticketData != null && ticketData['qc_done_by'] != null) {
+        final qcProfile = await client.from('profiles').select('full_name').eq('id', ticketData['qc_done_by']).maybeSingle();
+        if (qcProfile != null) ticketData['qc_done_by_name'] = qcProfile['full_name'];
+      }
       final partsData = await client.from('repair_parts').select('*, products(product_name, reference_price)').eq('ticket_id', widget.ticketId);
       final paymentsData = await client.from('repair_payments').select('*').eq('ticket_id', widget.ticketId).order('paid_at', ascending: false);
       final eventsData = await client.from('repair_ticket_events').select('*').eq('ticket_id', widget.ticketId).order('created_at', ascending: true);
@@ -2761,6 +2765,8 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
               children: [
                 const Text('CONTRÔLE QUALITÉ', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
                 Text('QC: $qcStatus • Testé: ${deviceTested ? 'Oui' : 'Non'}', style: TextStyle(color: qcColor, fontSize: 11)),
+                if (_ticket?['qc_done_at'] != null)
+                  Padding(padding: const EdgeInsets.only(top: 2), child: Text('Effectué ${_ticket?['qc_done_by_name'] != null ? 'par ${_ticket!['qc_done_by_name']} ' : ''}le ${_formatDt(_ticket?['qc_done_at'])}', style: const TextStyle(color: _textMuted, fontSize: 10))),
                 if (qcStatus == 'Échoué' && _ticket?['qc_notes'] != null)
                   Padding(padding: const EdgeInsets.only(top: 4), child: Text('Note: ${_ticket!['qc_notes']}', style: const TextStyle(color: Colors.redAccent, fontSize: 11))),
               ],
