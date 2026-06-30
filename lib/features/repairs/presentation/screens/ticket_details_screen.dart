@@ -17,6 +17,7 @@ import 'package:laidani_repair/core/utils/warranty_pdf.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:laidani_repair/constants/repair_status.dart';
 import 'package:laidani_repair/services/print_service.dart';
+import 'package:laidani_repair/core/utils/ticket_event_logger.dart';
 import 'package:laidani_repair/widgets/repairs/ticket_header_widget.dart';
 import 'package:laidani_repair/widgets/repairs/device_info_sidebar.dart';
 import 'package:laidani_repair/widgets/repairs/repair_parts_widget.dart';
@@ -1574,14 +1575,13 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
       'warranty_days': int.tryParse(warrantyCtrl.text.trim()) ?? 0,
       'warranty_expires_at': DateTime.now().add(Duration(days: int.tryParse(warrantyCtrl.text.trim()) ?? 0)).toIso8601String(),
     }).eq('id', widget.ticketId);
-    await client.from('repair_ticket_events').insert({
-      'ticket_id': widget.ticketId,
-      'event_type': 'handover_confirmed',
-      'old_value': null,
-      'new_value': selectedCondition,
-      'created_by': user?.id,
-      'notes': 'Remise confirmée. État: $selectedCondition',
-    });
+    TicketEventLogger.log(
+      ticketId: widget.ticketId,
+      eventType: 'handover_confirmed',
+      oldValue: _ticket?['status'] as String? ?? '',
+      newValue: 'Livré',
+      notes: 'Remise confirmée. État: $selectedCondition',
+    );
     _fetchFullData();
     _scheduleMaintenanceReminder(client);
     try {
