@@ -1418,6 +1418,7 @@ class _NewTicketFormState extends State<_NewTicketForm> {
   final _totalCtrl = TextEditingController();
   bool _syncingTotal = false;
   bool _syncingFromTotal = false;
+  bool _advanceExceedsTotal = false;
   DateTime? _estimatedCompletionDate;
 
   bool _warrantyEnabled = false;
@@ -1447,6 +1448,15 @@ class _NewTicketFormState extends State<_NewTicketForm> {
     _laborCtrl.addListener(_syncTotalFromParts);
     _totalCtrl.addListener(_syncPartsFromTotal);
     _laborCtrl.addListener(() { if (mounted) setState(() {}); });
+    _advanceCtrl.addListener(_validateAdvance);
+  }
+
+  void _validateAdvance() {
+    final advance = double.tryParse(_advanceCtrl.text) ?? 0;
+    final exceeds = advance > _grandTotal && _grandTotal > 0;
+    if (_advanceExceedsTotal != exceeds) {
+      setState(() => _advanceExceedsTotal = exceeds);
+    }
   }
 
   @override
@@ -1684,7 +1694,7 @@ class _NewTicketFormState extends State<_NewTicketForm> {
                   ),
                   const SizedBox(width: 16),
                   ElevatedButton(
-                    onPressed: _isLoading ? null : _submit,
+                    onPressed: (_isLoading || _advanceExceedsTotal) ? null : _submit,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: _neonCyan,
                       foregroundColor: _bgCarbon,
@@ -2144,7 +2154,19 @@ class _NewTicketFormState extends State<_NewTicketForm> {
         const SizedBox(height: 16),
         Row(
           children: [
-            Expanded(child: _buildTextField(_advanceCtrl, 'Acompte (Avance)', icon: Icons.payments_outlined, isNumber: true, suffix: 'DA', errorKey: 'advance')),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildTextField(_advanceCtrl, 'Acompte (Avance)', icon: Icons.payments_outlined, isNumber: true, suffix: 'DA', errorKey: _advanceExceedsTotal ? 'advance' : null),
+                  if (_advanceExceedsTotal)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4, left: 12),
+                      child: Text("L'acompte ne peut pas dépasser le total (${_grandTotal.toStringAsFixed(0)} DA)", style: const TextStyle(color: Colors.redAccent, fontSize: 11)),
+                    ),
+                ],
+              ),
+            ),
             if (_billingType != 'parts_only') ...[
               const SizedBox(width: 16),
               Expanded(child: _buildTextField(_laborCtrl, 'Main d\'œuvre (M.O)', icon: Icons.handyman_outlined, isNumber: true, suffix: 'DA')),
