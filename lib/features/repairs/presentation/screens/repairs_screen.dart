@@ -1418,6 +1418,8 @@ class _NewTicketFormState extends State<_NewTicketForm> {
   final _totalCtrl = TextEditingController();
   bool _syncingTotal = false;
   bool _syncingFromTotal = false;
+  bool _manualTotalOverride = false;
+  bool _totalBelowPartsWarning = false;
   bool _advanceExceedsTotal = false;
   DateTime? _estimatedCompletionDate;
 
@@ -1733,7 +1735,7 @@ class _NewTicketFormState extends State<_NewTicketForm> {
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 4),
                 child: InkWell(
-                  onTap: () => setState(() { _billingType = opt['value'] as String; if (_billingType == 'labor_only') _costCtrl.clear(); _recalculateCostFromParts(); }),
+                  onTap: () => setState(() { _billingType = opt['value'] as String; if (_billingType == 'labor_only') _costCtrl.clear(); _manualTotalOverride = false; _totalBelowPartsWarning = false; _recalculateCostFromParts(); }),
                   borderRadius: BorderRadius.circular(8),
                   child: Container(
                     padding: const EdgeInsets.symmetric(vertical: 10),
@@ -1817,6 +1819,20 @@ class _NewTicketFormState extends State<_NewTicketForm> {
 
   void _syncTotalFromParts() {
     if (_syncingFromTotal || _billingType != 'parts_and_labor') return;
+    if (_manualTotalOverride) {
+      // In manual override mode, recalculate M.O from the manually-set total
+      _syncingFromTotal = true;
+      final parts = double.tryParse(_costCtrl.text) ?? 0;
+      final total = double.tryParse(_totalCtrl.text) ?? 0;
+      final labor = (total - parts).clamp(0, double.infinity);
+      if ((double.tryParse(_laborCtrl.text) ?? 0) != labor) {
+        _laborCtrl.text = labor > 0 ? labor.toStringAsFixed(0) : '';
+      }
+      _totalBelowPartsWarning = total < parts && parts > 0;
+      if (_totalBelowPartsWarning) setState(() {});
+      _syncingFromTotal = false;
+      return;
+    }
     _syncingTotal = true;
     final parts = double.tryParse(_costCtrl.text) ?? 0;
     final labor = double.tryParse(_laborCtrl.text) ?? 0;
@@ -1824,18 +1840,22 @@ class _NewTicketFormState extends State<_NewTicketForm> {
     if ((double.tryParse(_totalCtrl.text) ?? 0) != newTotal) {
       _totalCtrl.text = newTotal > 0 ? newTotal.toStringAsFixed(0) : '';
     }
+    _totalBelowPartsWarning = false;
     _syncingTotal = false;
   }
 
   void _syncPartsFromTotal() {
     if (_syncingTotal || _billingType != 'parts_and_labor') return;
     _syncingFromTotal = true;
+    _manualTotalOverride = true;
     final parts = double.tryParse(_costCtrl.text) ?? 0;
     final total = double.tryParse(_totalCtrl.text) ?? 0;
     final labor = (total - parts).clamp(0, double.infinity);
     if ((double.tryParse(_laborCtrl.text) ?? 0) != labor) {
       _laborCtrl.text = labor > 0 ? labor.toStringAsFixed(0) : '';
     }
+    _totalBelowPartsWarning = total < parts && parts > 0;
+    if (_totalBelowPartsWarning) setState(() {});
     _syncingFromTotal = false;
   }
 
@@ -2181,27 +2201,51 @@ class _NewTicketFormState extends State<_NewTicketForm> {
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(color: _neonCyan.withOpacity(0.1), borderRadius: BorderRadius.circular(8), border: Border.all(color: _neonCyan.withOpacity(0.3))),
             child: _billingType == 'parts_and_labor'
-                ? Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(_totalLabel, style: const TextStyle(color: _neonCyan, fontWeight: FontWeight.w600, fontSize: 13)),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: TextField(
-                          controller: _totalCtrl,
-                          keyboardType: TextInputType.number,
-                          style: const TextStyle(color: _neonCyan, fontWeight: FontWeight.w900, fontSize: 16),
-                          decoration: const InputDecoration(
-                            isDense: true,
-                            contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            border: OutlineInputBorder(),
-                            enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: _neonCyan)),
-                            focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: _neonCyan, width: 2)),
-                            suffixText: 'DA',
-                            suffixStyle: TextStyle(color: _neonCyan, fontSize: 14),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Text(_totalLabel, style: const TextStyle(color: _neonCyan, fontWeight: FontWeight.w600, fontSize: 13)),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: TextField(
+                              controller: _totalCtrl,
+                              keyboardType: TextInputType.number,
+                              style: const TextStyle(color: _neonCyan, fontWeight: FontWeight.w900, fontSize: 16),
+                              decoration: const InputDecoration(
+                                isDense: true,
+                                contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                border: OutlineInputBorder(),
+                                enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: _neonCyan)),
+                                focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: _neonCyan, width: 2)),
+                                suffixText: 'DA',
+                                suffixStyle: TextStyle(color: _neonCyan, fontSize: 14),
+                              ),
+                            ),
                           ),
-                        ),
+                          if (_manualTotalOverride)
+                            IconButton(
+                              icon: const Icon(Icons.refresh, color: _neonCyan, size: 18),
+                              tooltip: 'Réinitialiser en mode automatique',
+                              onPressed: () {
+                                setState(() {
+                                  _manualTotalOverride = false;
+                                  _totalBelowPartsWarning = false;
+                                });
+                                _syncTotalFromParts();
+                              },
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                            ),
+                        ],
                       ),
+                      if (_totalBelowPartsWarning)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4, left: 12),
+                          child: Text("Le total ne peut pas être inférieur au coût des pièces (${(double.tryParse(_costCtrl.text) ?? 0).toStringAsFixed(0)} DA)", style: const TextStyle(color: Colors.redAccent, fontSize: 11)),
+                        ),
                     ],
                   )
                 : Row(
