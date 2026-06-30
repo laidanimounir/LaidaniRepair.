@@ -180,6 +180,20 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
       final notifData = await client.from('repair_notifications').select('*').eq('ticket_id', widget.ticketId).order('sent_at', ascending: false);
       final feedbackRow = await client.from('customer_feedback').select('*').eq('ticket_id', widget.ticketId).maybeSingle();
 
+      // Batch-resolve event creator names
+      final creatorIds = eventsData.map((e) => e['created_by'] as String?).where((id) => id != null).toSet();
+      final creatorNames = <String, String>{};
+      if (creatorIds.isNotEmpty) {
+        final profiles = await client.from('profiles').select('id, full_name').inFilter('id', creatorIds.toList());
+        for (final p in profiles) {
+          creatorNames[p['id'] as String] = (p['full_name'] as String?) ?? '';
+        }
+      }
+      for (final e in eventsData) {
+        final cid = e['created_by'] as String?;
+        if (cid != null) e['_creator_name'] = creatorNames[cid] ?? '';
+      }
+
       if (!mounted) return;
       setState(() {
         _ticket = ticketData;
@@ -2589,10 +2603,17 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
                       children: [
                         Row(children: [
                           Expanded(child: Text(eventLabels[type] ?? type, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600))),
+                          const SizedBox(width: 4),
                           Text(timeStr, style: const TextStyle(color: _textMuted, fontSize: 10)),
                         ]),
-                        if (notes != null && notes.isNotEmpty)
-                          Padding(padding: const EdgeInsets.only(top: 2), child: Text(notes, style: const TextStyle(color: _textMuted, fontSize: 11))),
+                        Row(children: [
+                          if (m['_creator_name'] != null && (m['_creator_name'] as String).isNotEmpty)
+                            Text('par ${m['_creator_name']}', style: const TextStyle(color: _textMuted, fontSize: 10)),
+                          if (notes != null && notes.isNotEmpty) ...[
+                            if (m['_creator_name'] != null && (m['_creator_name'] as String).isNotEmpty) const SizedBox(width: 8),
+                            Expanded(child: Text(notes, style: const TextStyle(color: _textMuted, fontSize: 11), maxLines: 2, overflow: TextOverflow.ellipsis)),
+                          ],
+                        ]),
                       ],
                     ),
                   ),
