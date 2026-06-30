@@ -1515,7 +1515,7 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
     final returnedNotifier = ValueNotifier<Set<String>>({});
     final notesCtrl = TextEditingController(text: _ticket?['handover_notes'] as String? ?? '');
     final notifiedCtrl = TextEditingController(text: _ticket?['last_notification_method'] as String? ?? '');
-    final warrantyCtrl = TextEditingController(text: (_ticket?['warranty_days'] as num?)?.toInt().toString() ?? '30');
+    final warrantyCtrl = TextEditingController(text: ((_ticket?['warranty_days'] as num?)?.toInt() ?? 30).toString());
     String? selectedCondition = _ticket?['device_condition_at_handover'] as String? ?? 'Bon';
 
     await showDialog(
