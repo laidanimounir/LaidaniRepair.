@@ -190,6 +190,11 @@ async function load() {
       }</div>`;
     }
 
+    if (showPrices && data.final_cost > 0) {
+      const isFullyPaid = data.payment_status === "Payé";
+      html += `<div class="card" style="border-left:3px solid #00bcd4"><h2 class="card-title" style="color:#00bcd4">${isFullyPaid ? "Total payé" : "Total à payer"}</h2><p style="color:#00bcd4;font-weight:bold;font-size:22px">${data.final_cost} DA</p></div>`;
+    }
+
     if (s === "Livré" && wd > 0) {
       html += `<div class="card" style="border-left:3px solid #3fb950"><h2 class="card-title" style="color:#3fb950">Garantie</h2><p style="color:#3fb950;font-weight:bold;font-size:18px">${wd} jours</p>${data.warranty_expires_at ? `<p style="color:#8b949e;font-size:13px">Expire le ${fd(data.warranty_expires_at, true)}</p>` : ""}</div>`;
     }
