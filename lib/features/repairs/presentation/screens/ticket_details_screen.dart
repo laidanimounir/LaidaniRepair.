@@ -1863,7 +1863,7 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
 
   double get _netProfit {
     final finalCost = (_ticket?['final_cost'] as num?)?.toDouble() ?? 0;
-    return finalCost - _totalPartsCostForProfit - _effectiveLabor;
+    return finalCost - _totalPartsCostForProfit;
   }
 
   double get _profitMarginPercent {
