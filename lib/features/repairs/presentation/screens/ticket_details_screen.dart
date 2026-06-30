@@ -1019,6 +1019,64 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
     _showToast('Réclamation enregistrée', Colors.orangeAccent);
   }
 
+  Future<void> _editWarranty() async {
+    final currentDays = (_ticket?['warranty_days'] as num?)?.toInt() ?? 0;
+    final ctrl = TextEditingController(text: currentDays.toString());
+    final toggle = ValueNotifier<bool>(currentDays > 0);
+
+    final result = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          backgroundColor: _panelDark,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text('Modifier la garantie', style: TextStyle(color: Colors.white)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(children: [
+                ValueListenableBuilder<bool>(
+                  valueListenable: toggle,
+                  builder: (_, v, __) => Switch(value: v, activeColor: _neonCyan, onChanged: (val) { toggle.value = val; setDialogState(() {}); }),
+                ),
+                const Text('Activer la garantie', style: TextStyle(color: Colors.white)),
+              ]),
+              const SizedBox(height: 12),
+              ValueListenableBuilder<bool>(
+                valueListenable: toggle,
+                builder: (_, v, __) => v ? SizedBox(width: 120, child: TextField(
+                  controller: ctrl,
+                  keyboardType: TextInputType.number,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: const InputDecoration(labelText: 'Durée (jours)', labelStyle: TextStyle(color: _textMuted), border: OutlineInputBorder()),
+                )) : const SizedBox.shrink(),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Annuler')),
+            ElevatedButton(onPressed: () => Navigator.pop(ctx, {'days': int.tryParse(ctrl.text) ?? 0, 'enabled': toggle.value}), child: const Text('Enregistrer')),
+          ],
+        ),
+      ),
+    );
+    if (result == null) return;
+    final days = result['enabled'] == true ? (result['days'] as int) : 0;
+    final client = ref.read(supabaseClientProvider);
+    await client.from('repair_tickets').update({
+      'warranty_days': days,
+      'warranty_expires_at': days > 0 ? DateTime.now().add(Duration(days: days)).toIso8601String() : null,
+    }).eq('id', widget.ticketId);
+    TicketEventLogger.log(
+      ticketId: widget.ticketId,
+      eventType: 'warranty_claim_status',
+      oldValue: currentDays.toString(),
+      newValue: days.toString(),
+      notes: 'Garantie modifiée: $currentDays → $days jours',
+    );
+    _fetchFullData();
+  }
+
   Future<void> _showWarrantyClaimsListDialog(Color color) async {
     final claims = List<Map<String, dynamic>>.from(_warrantyClaims);
     if (claims.isEmpty) return;
@@ -3039,6 +3097,11 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
               ],
             ),
           ),
+          if (!isCanceled)
+            Padding(
+              padding: const EdgeInsets.only(left: 8),
+              child: _buildActionChip('Éditer garantie', Icons.edit, _neonCyan, () => _editWarranty()),
+            ),
           if (!isCanceled && hasWarranty && !isExpired)
             Row(
               mainAxisSize: MainAxisSize.min,
