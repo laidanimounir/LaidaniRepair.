@@ -18,6 +18,7 @@ import 'package:laidani_repair/core/providers/shortcuts_provider.dart';
 import 'package:laidani_repair/core/services/groq_service.dart';
 import 'package:laidani_repair/core/utils/csv_export.dart';
 import 'package:laidani_repair/constants/repair_status.dart';
+import 'package:laidani_repair/core/utils/ticket_event_logger.dart';
 
 // --- Cyber Glass Theme Constants ---
 const Color _bgCarbon = Color(0xFF050914);
@@ -860,16 +861,14 @@ class _CyberTableRow extends StatelessWidget {
                         .toList(),
                     onSelected: (newStatus) async {
                       final client = ref.read(supabaseClientProvider);
-                      final user = Supabase.instance.client.auth.currentUser;
                       final oldStatus = ticket['status'] as String? ?? 'En attente';
-                      await client.from('repair_ticket_events').insert({
-                        'ticket_id': ticket['id'],
-                        'event_type': 'status_change',
-                        'old_value': oldStatus,
-                        'new_value': newStatus,
-                        'created_by': user?.id,
-                        'notes': 'Changement de statut: $oldStatus → $newStatus',
-                      });
+                      TicketEventLogger.log(
+                        ticketId: ticket['id'],
+                        eventType: 'status_change',
+                        oldValue: oldStatus,
+                        newValue: newStatus,
+                        notes: 'Changement de statut: $oldStatus → $newStatus',
+                      );
                       final updates = <String, dynamic>{'status': newStatus};
                       if (newStatus == 'Livré') {
                         updates['delivered_at'] = DateTime.now().toIso8601String();
@@ -1049,16 +1048,14 @@ class _MobileTicketCard extends StatelessWidget {
                         .toList(),
                     onSelected: (newStatus) async {
                       final client = ref.read(supabaseClientProvider);
-                      final user = Supabase.instance.client.auth.currentUser;
                       final oldStatus = ticket['status'] as String? ?? 'En attente';
-                      await client.from('repair_ticket_events').insert({
-                        'ticket_id': ticket['id'],
-                        'event_type': 'status_change',
-                        'old_value': oldStatus,
-                        'new_value': newStatus,
-                        'created_by': user?.id,
-                        'notes': 'Changement de statut: $oldStatus → $newStatus',
-                      });
+                      TicketEventLogger.log(
+                        ticketId: ticket['id'],
+                        eventType: 'status_change',
+                        oldValue: oldStatus,
+                        newValue: newStatus,
+                        notes: 'Changement de statut: $oldStatus → $newStatus',
+                      );
                       final updates = <String, dynamic>{'status': newStatus};
                       if (newStatus == 'Livré') {
                         updates['delivered_at'] = DateTime.now().toIso8601String();
@@ -1294,13 +1291,13 @@ Future<void> _showBulkStatusDialog(WidgetRef ref, Set<String> selected) async {
   final user = Supabase.instance.client.auth.currentUser;
   for (final id in selected) {
     await client.from('repair_tickets').update({'status': status}).eq('id', id);
-    await client.from('repair_ticket_events').insert({
-      'ticket_id': id,
-      'event_type': 'status_change',
-      'new_value': status,
-      'created_by': user?.id,
-      'notes': 'Changement de statut groupé: → $status',
-    });
+    TicketEventLogger.log(
+      ticketId: id,
+      eventType: 'status_change',
+      oldValue: '',
+      newValue: status,
+      notes: 'Changement de statut groupé: → $status',
+    );
   }
   ref.read(_listResetTrigger.notifier).state++;
   ref.read(_selectedTicketsProvider.notifier).state = {};

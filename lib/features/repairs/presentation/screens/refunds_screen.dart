@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:laidani_repair/core/providers/supabase_provider.dart';
 import 'package:laidani_repair/features/auth/presentation/providers/auth_provider.dart';
 import 'package:laidani_repair/constants/repair_status.dart';
+import 'package:laidani_repair/core/utils/ticket_event_logger.dart';
 
 const Color _bgCarbon = Color(0xFF050914);
 const Color _panelDark = Color(0xFF0A0F1A);
@@ -140,7 +141,6 @@ class _RefundsScreenState extends ConsumerState<RefundsScreen> with SingleTicker
     if (result == null) return;
     try {
       final client = ref.read(supabaseClientProvider);
-      final user = Supabase.instance.client.auth.currentUser;
       await client.from('repair_payments').update({
         'is_refunded': true,
         'refund_amount': amount,
@@ -149,13 +149,13 @@ class _RefundsScreenState extends ConsumerState<RefundsScreen> with SingleTicker
         'refund_reason': result,
       }).eq('id', paymentId);
       await client.from('repair_tickets').update({'payment_status': 'Remboursé'}).eq('id', _ticket!['id']);
-      await client.from('repair_ticket_events').insert({
-        'ticket_id': _ticket!['id'],
-        'event_type': 'refund_processed',
-        'new_value': amount.toString(),
-        'created_by': user?.id,
-        'notes': 'Remboursement complet: $result',
-      });
+      TicketEventLogger.log(
+        ticketId: _ticket!['id'],
+        eventType: 'refund_processed',
+        oldValue: '',
+        newValue: amount.toString(),
+        notes: 'Remboursement complet: $result',
+      );
       await _refreshTicket(client);
       await _loadHistory();
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Remboursement effectué'), backgroundColor: _neonEmerald));
@@ -224,7 +224,6 @@ class _RefundsScreenState extends ConsumerState<RefundsScreen> with SingleTicker
     if (refundAmt <= 0) return;
     try {
       final client = ref.read(supabaseClientProvider);
-      final user = Supabase.instance.client.auth.currentUser;
       await client.from('repair_payments').update({
         'is_refunded': true,
         'refund_amount': refundAmt,
@@ -235,13 +234,13 @@ class _RefundsScreenState extends ConsumerState<RefundsScreen> with SingleTicker
       if (refundAmt >= paidAmount) {
         await client.from('repair_tickets').update({'payment_status': 'Remboursé'}).eq('id', _ticket!['id']);
       }
-      await client.from('repair_ticket_events').insert({
-        'ticket_id': _ticket!['id'],
-        'event_type': 'refund_partial',
-        'new_value': '$refundAmt ($refundType)',
-        'created_by': user?.id,
-        'notes': 'Remboursement partiel: ${reasonCtrl.text.trim()}',
-      });
+      TicketEventLogger.log(
+        ticketId: _ticket!['id'],
+        eventType: 'refund_partial',
+        oldValue: '',
+        newValue: '$refundAmt ($refundType)',
+        notes: 'Remboursement partiel: ${reasonCtrl.text.trim()}',
+      );
       await _refreshTicket(client);
       await _loadHistory();
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Remboursement partiel effectué'), backgroundColor: Colors.orangeAccent));

@@ -689,15 +689,13 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
       'estimated_cost': amount,
       'quote_generated_at': DateTime.now().toIso8601String(),
     }).eq('id', widget.ticketId);
-    final user = Supabase.instance.client.auth.currentUser;
-    await client.from('repair_ticket_events').insert({
-      'ticket_id': widget.ticketId,
-      'event_type': 'quote_generated',
-      'old_value': null,
-      'new_value': amount.toString(),
-      'created_by': user?.id,
-      'notes': 'Devis généré: $amount DA',
-    });
+    TicketEventLogger.log(
+      ticketId: widget.ticketId,
+      eventType: 'quote_generated',
+      oldValue: '',
+      newValue: amount.toString(),
+      notes: 'Devis généré: $amount DA',
+    );
     _fetchFullData();
     _showToast('Devis généré', Colors.green);
 
@@ -731,15 +729,13 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
       'quote_sent_at': DateTime.now().toIso8601String(),
       'quote_sent_method': method,
     }).eq('id', widget.ticketId);
-    final user = Supabase.instance.client.auth.currentUser;
-    await client.from('repair_ticket_events').insert({
-      'ticket_id': widget.ticketId,
-      'event_type': 'quote_sent',
-      'old_value': null,
-      'new_value': method,
-      'created_by': user?.id,
-      'notes': 'Devis envoyé par $method',
-    });
+    TicketEventLogger.log(
+      ticketId: widget.ticketId,
+      eventType: 'quote_sent',
+      oldValue: '',
+      newValue: method,
+      notes: 'Devis envoyé par $method',
+    );
     _fetchFullData();
     _showToast('Devis marqué comme envoyé', Colors.green);
   }
@@ -831,15 +827,13 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
       updates['rejection_reason'] = result['reason'] ?? '';
     }
     await client.from('repair_tickets').update(updates).eq('id', widget.ticketId);
-    final user = Supabase.instance.client.auth.currentUser;
-    await client.from('repair_ticket_events').insert({
-      'ticket_id': widget.ticketId,
-      'event_type': isApproved ? 'quote_approved' : 'quote_rejected',
-      'old_value': null,
-      'new_value': isApproved ? result['amount'] : result['reason'],
-      'created_by': user?.id,
-      'notes': isApproved ? 'Client a approuvé le devis' : 'Client a refusé le devis',
-    });
+    TicketEventLogger.log(
+      ticketId: widget.ticketId,
+      eventType: isApproved ? 'quote_approved' : 'quote_rejected',
+      oldValue: '',
+      newValue: isApproved ? result['amount'] : result['reason'],
+      notes: isApproved ? 'Client a approuvé le devis' : 'Client a refusé le devis',
+    );
     _fetchFullData();
     _showToast(isApproved ? 'Approbation enregistrée' : 'Refus enregistré', isApproved ? Colors.green : Colors.redAccent);
   }
@@ -936,21 +930,19 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
       'qc_done_at': DateTime.now().toIso8601String(),
       'device_tested': result['tested'],
     }).eq('id', widget.ticketId);
-    await client.from('repair_ticket_events').insert({
-      'ticket_id': widget.ticketId,
-      'event_type': 'qc_result',
-      'old_value': _ticket?['qc_status'] as String? ?? 'En attente',
-      'new_value': result['status'] as String,
-      'created_by': user?.id,
-      'notes': 'CQ: ${result['status']} - ${(result['notes'] as String).trim()}',
-    });
+    TicketEventLogger.log(
+      ticketId: widget.ticketId,
+      eventType: 'qc_result',
+      oldValue: _ticket?['qc_status'] as String? ?? 'En attente',
+      newValue: result['status'] as String,
+      notes: 'CQ: ${result['status']} - ${(result['notes'] as String).trim()}',
+    );
     _fetchFullData();
     _showToast('CQ enregistré: ${result['status']}', Colors.green);
   }
 
   Future<void> _resetQC() async {
     final client = ref.read(supabaseClientProvider);
-    final user = Supabase.instance.client.auth.currentUser;
     await client.from('repair_tickets').update({
       'qc_status': 'En attente',
       'qc_notes': null,
@@ -958,14 +950,13 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
       'qc_done_at': null,
       'device_tested': false,
     }).eq('id', widget.ticketId);
-    await client.from('repair_ticket_events').insert({
-      'ticket_id': widget.ticketId,
-      'event_type': 'qc_reset',
-      'old_value': _ticket?['qc_status'] as String? ?? 'En attente',
-      'new_value': 'En attente',
-      'created_by': user?.id,
-      'notes': 'CQ réinitialisé',
-    });
+    TicketEventLogger.log(
+      ticketId: widget.ticketId,
+      eventType: 'qc_reset',
+      oldValue: _ticket?['qc_status'] as String? ?? 'En attente',
+      newValue: 'En attente',
+      notes: 'CQ réinitialisé',
+    );
     _fetchFullData();
     _showToast('CQ réinitialisé', Colors.orangeAccent);
   }
@@ -1618,14 +1609,13 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
           'status': 'Livré',
           'delivered_at': DateTime.now().toIso8601String(),
         }).eq('id', ticketId);
-        await client.from('repair_ticket_events').insert({
-          'ticket_id': ticketId,
-          'event_type': 'status_change',
-          'old_value': _ticket?['status'],
-          'new_value': 'Livré',
-          'created_by': user?.id,
-          'notes': 'Livré automatiquement après remise confirmée',
-        });
+        TicketEventLogger.log(
+          ticketId: ticketId,
+          eventType: 'status_change',
+          oldValue: _ticket?['status'] ?? '',
+          newValue: 'Livré',
+          notes: 'Livré automatiquement après remise confirmée',
+        );
         await _syncPaymentStatus();
         _fetchFullData();
       }
@@ -1727,14 +1717,13 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
       // تسجيل الحدث
       final user = Supabase.instance.client.auth.currentUser;
       final oldStatus = _ticket?['status'] as String? ?? 'En attente';
-      await client.from('repair_ticket_events').insert({
-        'ticket_id': widget.ticketId,
-        'event_type': 'status_change',
-        'old_value': oldStatus,
-        'new_value': 'Annulé',
-        'created_by': user?.id,
-        'notes': 'Annulation du dossier',
-      });
+      TicketEventLogger.log(
+        ticketId: widget.ticketId,
+        eventType: 'status_change',
+        oldValue: oldStatus,
+        newValue: 'Annulé',
+        notes: 'Annulation du dossier',
+      );
 
       // تغيير حالة التذكرة
       await client.from('repair_tickets').update({'status': 'Annulé'}).eq('id', widget.ticketId);
@@ -1782,15 +1771,13 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
     final oldValue = _ticket?['assigned_technician_id'] as String?;
 
     await client.from('repair_tickets').update({'assigned_technician_id': newValue}).eq('id', widget.ticketId);
-    final user = Supabase.instance.client.auth.currentUser;
-    await client.from('repair_ticket_events').insert({
-      'ticket_id': widget.ticketId,
-      'event_type': 'technician_assignment',
-      'old_value': oldValue,
-      'new_value': newValue,
-      'created_by': user?.id,
-      'notes': newValue == null ? 'Technicien désaffecté' : 'Technicien affecté',
-    });
+    TicketEventLogger.log(
+      ticketId: widget.ticketId,
+      eventType: 'technician_assignment',
+      oldValue: oldValue ?? '',
+      newValue: newValue ?? '',
+      notes: newValue == null ? 'Technicien désaffecté' : 'Technicien affecté',
+    );
     _fetchFullData();
     _showToast(newValue == null ? 'Technicien désaffecté' : 'Technicien affecté', Colors.green);
   }
@@ -2985,7 +2972,13 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
       final client = ref.read(supabaseClientProvider);
       final user = Supabase.instance.client.auth.currentUser;
       await client.from('repair_tickets').update({'status': newStatus, if (newStatus == 'Livré') 'delivered_at': DateTime.now().toIso8601String(), if (newStatus == 'Terminé') 'completed_at': DateTime.now().toIso8601String()}).eq('id', widget.ticketId);
-      await client.from('repair_ticket_events').insert({'ticket_id': widget.ticketId, 'event_type': 'status_change', 'old_value': oldStatus, 'new_value': newStatus, 'created_by': user?.id, 'notes': 'Changement de statut: $oldStatus → $newStatus'});
+      TicketEventLogger.log(
+        ticketId: widget.ticketId,
+        eventType: 'status_change',
+        oldValue: oldStatus,
+        newValue: newStatus,
+        notes: 'Changement de statut: $oldStatus → $newStatus',
+      );
       _fetchFullData();
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur: $e'), backgroundColor: Colors.redAccent));
