@@ -173,17 +173,17 @@ class _ProfitDashboardScreenState extends ConsumerState<ProfitDashboardScreen> {
         techMap[techName]!['revenue'] = techMap[techName]!['revenue']! + revenue;
         techMap[techName]!['parts'] = techMap[techName]!['parts']! + partsCost;
         techMap[techName]!['labor'] = techMap[techName]!['labor']! + labor;
-        techMap[techName]!['profit'] = techMap[techName]!['profit']! + revenue - partsCost - labor;
+        techMap[techName]!['profit'] = techMap[techName]!['profit']! + revenue - partsCost;
 
         final deviceName = '${tMap['device_brand'] ?? ''} ${tMap['device_name'] ?? ''}'.trim();
         final deviceKey = deviceName.isNotEmpty ? deviceName : 'Non spécifié';
         deviceMap.putIfAbsent(deviceKey, () => {'tickets': 0, 'revenue': 0, 'profit': 0});
         deviceMap[deviceKey]!['tickets'] = deviceMap[deviceKey]!['tickets'] + 1;
         deviceMap[deviceKey]!['revenue'] = deviceMap[deviceKey]!['revenue'] + revenue;
-        deviceMap[deviceKey]!['profit'] = deviceMap[deviceKey]!['profit'] + revenue - partsCost - labor;
+        deviceMap[deviceKey]!['profit'] = deviceMap[deviceKey]!['profit'] + revenue - partsCost;
       }
 
-      final totalNetProfit = totalRevenue + posRevenue - totalPartsCost - posCost - totalLaborCost;
+      final totalNetProfit = totalRevenue + posRevenue - totalPartsCost - posCost;
 
       final byTech = techMap.entries.map((e) => {
         'name': e.key,
@@ -255,7 +255,7 @@ class _ProfitDashboardScreenState extends ConsumerState<ProfitDashboardScreen> {
         final crossCount = wide ? 4 : 2;
         final items = [
           {'label': "Chiffre d'affaires", 'value': '${_totalRevenue.toStringAsFixed(0)} DA', 'sub': _posRevenue > 0 ? 'Réparations: ${(_totalRevenue - _posRevenue).toStringAsFixed(0)} DA + Ventes: ${_posRevenue.toStringAsFixed(0)} DA' : null, 'color': _neonCyan},
-          {'label': 'Coût total', 'value': '${(_totalPartsCost + _totalLaborCost).toStringAsFixed(0)} DA', 'sub': _posCost > 0 ? 'Réparations: ${(_totalPartsCost - _posCost + _totalLaborCost).toStringAsFixed(0)} DA + POS: ${_posCost.toStringAsFixed(0)} DA' : null, 'color': Colors.orangeAccent},
+          {'label': 'Coût total', 'value': '${(_totalPartsCost).toStringAsFixed(0)} DA', 'sub': _posCost > 0 ? 'Réparations: ${(_totalPartsCost - _posCost).toStringAsFixed(0)} DA + POS: ${_posCost.toStringAsFixed(0)} DA' : null, 'color': Colors.orangeAccent},
           {'label': 'Bénéfice net', 'value': '${_totalNetProfit.toStringAsFixed(0)} DA', 'color': _totalNetProfit >= 0 ? _neonEmerald : Colors.redAccent},
           {'label': 'Marge moyenne', 'value': '${_avgProfitPerTicket.toStringAsFixed(0)} DA/ticket', 'color': Colors.purpleAccent},
         ];
