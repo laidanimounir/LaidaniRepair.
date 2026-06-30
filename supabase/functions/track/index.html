@@ -158,7 +158,7 @@ async function load() {
           return `<div class="step${done?" done":""}${active?" active":""}"><div class="step-icon">${done?"✓":i+1}</div><div class="step-label">${l}</div></div>`;
         }).join("");
 
-    const usedParts = parts.filter(p => p.part_status === "Utilisé");
+    const allParts = parts.length ? parts : [];
     const showPrices = showP;
 
     let html = `<div class="container">
@@ -200,9 +200,9 @@ async function load() {
       }</div></div>`;
     }
 
-    if (usedParts.length) {
+    if (allParts.length) {
       html += `<div class="card"><h2 class="card-title">Pieces remplacees</h2>${
-        usedParts.map(p => `<div class="info-row"><span>${p.products?.product_name ?? "Piece"}</span></div>`).join("")
+        allParts.map(p => `<div class="info-row"><span>${p.products?.product_name ?? "Piece"}</span></div>`).join("")
       }</div>`;
     }
 
