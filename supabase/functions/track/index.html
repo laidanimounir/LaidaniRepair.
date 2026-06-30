@@ -174,7 +174,7 @@ async function load() {
         <div class="info-row"><span class="info-label">Modele</span><span>${dev}</span></div>
         <div class="info-row"><span class="info-label">Probleme</span><span>${data.issue_description ?? data.pre_diagnostic ?? "Non specifie"}</span></div>
         ${!hideTech ? `<div class="info-row"><span class="info-label">Technicien</span><span>${tech?.full_name ?? "En cours d'assignation"}</span></div>` : ""}
-        <div class="info-row"><span class="info-label">Depose le</span><span>${fd(data.created_at, true)}</span></div>
+        <div class="info-row"><span class="info-label">Depose le</span><span>${fd(data.created_at)}</span></div>
         ${data.estimated_completion_date ? `<div class="info-row"><span class="info-label">Livraison prevue</span><span>${fd(data.estimated_completion_date, true)}</span></div>` : ""}
         ${data.final_cost > 0 ? (() => {
           const ps = data.payment_status ?? "Non payé";
