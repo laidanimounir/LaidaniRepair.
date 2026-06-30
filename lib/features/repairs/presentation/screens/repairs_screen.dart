@@ -1417,6 +1417,9 @@ class _NewTicketFormState extends State<_NewTicketForm> {
   final _laborCtrl = TextEditingController();
   DateTime? _estimatedCompletionDate;
 
+  bool _warrantyEnabled = false;
+  final _warrantyCtrl = TextEditingController(text: '0');
+
   String _deviceLockType = 'Aucun';
   final _lockCodeCtrl = TextEditingController();
   bool _lockCodeVisible = false;
@@ -2133,6 +2136,23 @@ class _NewTicketFormState extends State<_NewTicketForm> {
             ),
           ),
         ],
+        const SizedBox(height: 12),
+        Row(children: [
+          Switch(value: _warrantyEnabled, activeColor: _neonCyan, onChanged: (v) => setState(() => _warrantyEnabled = v)),
+          const SizedBox(width: 8),
+          const Text('Activer la garantie', style: TextStyle(color: Colors.white, fontSize: 13)),
+          if (_warrantyEnabled) ...[
+            const SizedBox(width: 12),
+            SizedBox(width: 60, child: TextField(
+              controller: _warrantyCtrl,
+              keyboardType: TextInputType.number,
+              style: const TextStyle(color: Colors.white, fontSize: 13),
+              decoration: const InputDecoration(isDense: true, contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 6), border: OutlineInputBorder(), hintText: 'Jours', hintStyle: TextStyle(color: _textMuted, fontSize: 12)),
+            )),
+            const SizedBox(width: 4),
+            const Text('jours', style: TextStyle(color: _textMuted, fontSize: 12)),
+          ],
+        ]),
         const SizedBox(height: 16),
         InkWell(
           onTap: () async {
@@ -2547,6 +2567,8 @@ class _NewTicketFormState extends State<_NewTicketForm> {
         'status': 'En attente',
         'payment_status': 'Non payé',
         'paid_amount': 0,
+        'warranty_days': _warrantyEnabled ? (int.tryParse(_warrantyCtrl.text) ?? 0) : 0,
+        'warranty_expires_at': _warrantyEnabled ? DateTime.now().add(Duration(days: int.tryParse(_warrantyCtrl.text) ?? 0)).toIso8601String() : null,
         'estimated_completion_date': _estimatedCompletionDate?.toIso8601String().substring(0, 10),
       }).select().single();
 
