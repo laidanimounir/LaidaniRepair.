@@ -832,6 +832,7 @@ class _CyberTableRow extends StatelessWidget {
                 Text('Est: ${estimated.toStringAsFixed(0)} DA', style: const TextStyle(color: Colors.white, fontSize: 12)),
                 if (advance > 0)
                   Text('Avance: ${advance.toStringAsFixed(0)} DA', style: const TextStyle(color: Colors.greenAccent, fontSize: 11)),
+                Text(_billingTypeLabel(ticket), style: const TextStyle(color: _textMuted, fontSize: 10)),
               ],
             ),
           ),
@@ -896,6 +897,16 @@ class _CyberTableRow extends StatelessWidget {
       ),
       child: Text(paymentStatus, style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w600)),
     );
+  }
+
+  static String _billingTypeLabel(Map<String, dynamic> ticket) {
+    final bt = ticket['billing_type'] as String? ?? '';
+    switch (bt) {
+      case 'parts_and_labor': return 'Pièces + M.O';
+      case 'parts_only': return 'Pièces uniquement';
+      case 'labor_only': return 'M.O uniquement';
+      default: return bt;
+    }
   }
 }
 
