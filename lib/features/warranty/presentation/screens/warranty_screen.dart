@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:laidani_repair/core/providers/supabase_provider.dart';
 import 'package:laidani_repair/constants/repair_status.dart';
 import 'package:laidani_repair/core/utils/warranty_pdf.dart';
+import 'package:laidani_repair/core/utils/ticket_event_logger.dart';
 
 const Color _bgCarbon = Color(0xFF050914);
 const Color _panelDark = Color(0xFF0A0F1A);
@@ -165,13 +166,13 @@ class _WarrantyScreenState extends ConsumerState<WarrantyScreen> {
         'claim_status': 'Ouvert',
         'created_by': user?.id,
       });
-      await client.from('repair_ticket_events').insert({
-        'ticket_id': _ticket!['id'],
-        'event_type': 'warranty_claim_opened',
-        'new_value': result['reason'],
-        'created_by': user?.id,
-        'notes': 'Réclamation garantie: ${result['reason']}',
-      });
+      TicketEventLogger.log(
+        ticketId: _ticket!['id'],
+        eventType: 'warranty_claim_opened',
+        oldValue: '',
+        newValue: result['reason'],
+        notes: 'Réclamation garantie: ${result['reason']}',
+      );
       final claimsResp = await client.from('warranty_claims')
           .select('*')
           .eq('original_ticket_id', _ticket!['id'])

@@ -1017,14 +1017,13 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
       'claim_status': 'Ouvert',
       'created_by': user?.id,
     });
-    await client.from('repair_ticket_events').insert({
-      'ticket_id': widget.ticketId,
-      'event_type': 'warranty_claim_opened',
-      'old_value': null,
-      'new_value': result['reason'],
-      'created_by': user?.id,
-      'notes': 'Réclamation garantie: ${result['reason']}',
-    });
+    TicketEventLogger.log(
+      ticketId: widget.ticketId,
+      eventType: 'warranty_claim_opened',
+      oldValue: '',
+      newValue: result['reason'],
+      notes: 'Réclamation garantie: ${result['reason']}',
+    );
     _fetchFullData();
     _showToast('Réclamation enregistrée', Colors.orangeAccent);
   }
@@ -1072,14 +1071,13 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
                               final updates = <String, dynamic>{'claim_status': v};
                               if (v == 'Résolu' || v == 'Refusé') updates['resolved_at'] = DateTime.now().toIso8601String();
                               await client.from('warranty_claims').update(updates).eq('id', c['id']);
-                              await client.from('repair_ticket_events').insert({
-                                'ticket_id': widget.ticketId,
-                                'event_type': 'warranty_claim_status',
-                                'old_value': status,
-                                'new_value': v,
-                                'created_by': user?.id,
-                                'notes': 'Statut réclamation: $status → $v',
-                              });
+                              TicketEventLogger.log(
+                                ticketId: widget.ticketId,
+                                eventType: 'warranty_claim_status',
+                                oldValue: status,
+                                newValue: v,
+                                notes: 'Statut réclamation: $status → $v',
+                              );
                               setDialogState(() => c['claim_status'] = v);
                               _fetchFullData();
                               _showToast('Statut mis à jour: $v', Colors.green);
