@@ -2486,6 +2486,14 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
             _buildInfoChip('Créé', _ticket?['created_at']?.toString().substring(0, 10) ?? '', Icons.calendar_today),
             const SizedBox(width: 12),
             _buildInfoChip('Prévu', _ticket?['estimated_completion_date']?.toString() ?? '', Icons.schedule),
+            if (_ticket?['completed_at'] != null) ...[
+              const SizedBox(width: 12),
+              _buildInfoChip('Terminé', _formatDt(_ticket?['completed_at']), Icons.check),
+            ],
+            if (_ticket?['delivered_at'] != null) ...[
+              const SizedBox(width: 12),
+              _buildInfoChip('Livré', _formatDt(_ticket?['delivered_at']), Icons.local_shipping),
+            ],
             const Spacer(),
             if (_isNotCanceled && (_ticket?['status'] as String?) != 'Terminé')
               TextButton.icon(
@@ -2873,6 +2881,12 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
         if (message != null) { _publicPageMessage = message; _messageCtrl.text = message; }
       });
     } catch (_) {}
+  }
+
+  String _formatDt(dynamic dt) {
+    final d = DateTime.tryParse(dt?.toString() ?? '');
+    if (d == null) return '';
+    return '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year} ${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
   }
 
   Widget _buildInfoChip(String label, String value, IconData icon) {
