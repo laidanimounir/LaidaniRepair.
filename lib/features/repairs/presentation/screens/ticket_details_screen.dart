@@ -2398,6 +2398,8 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
         const SizedBox(height: 16),
         _buildHandoverSection(color),
         const SizedBox(height: 16),
+        _buildNotificationInfo(color),
+        const SizedBox(height: 16),
         _buildFeedbackSection(color),
         if (isOwner && _isNotCanceled) ...[
           const SizedBox(height: 16),
@@ -2686,6 +2688,10 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
               children: [
                 const Text('REMISE AU CLIENT', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
                 Text(handoverConfirmed ? 'Remise confirmée: $condition' : 'En attente de remise', style: TextStyle(color: sectionColor, fontSize: 11)),
+                if (_ticket?['accessories_included'] != null)
+                  Padding(padding: const EdgeInsets.only(top: 2), child: Text('Accessoires inclus: ${_fmtAccessories(_ticket?['accessories_included'])}', style: const TextStyle(color: _textMuted, fontSize: 10))),
+                if (_ticket?['accessories_returned'] != null)
+                  Padding(padding: const EdgeInsets.only(top: 2), child: Text('Accessoires retournés: ${_fmtAccessories(_ticket?['accessories_returned'])}', style: const TextStyle(color: _neonEmerald, fontSize: 10))),
                 if (_ticket?['handover_notes'] != null && handoverConfirmed)
                   Padding(padding: const EdgeInsets.only(top: 4), child: Text('Note: ${_ticket!['handover_notes']}', style: const TextStyle(color: _textMuted, fontSize: 11))),
               ],
@@ -2693,6 +2699,28 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
           ),
           if (!isCanceled && !handoverConfirmed)
             _buildActionChip('Confirmer remise', Icons.check_circle, _neonEmerald, () => _showHandoverDialog(color)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNotificationInfo(Color color) {
+    final approvedAt = _ticket?['approved_at'] as String?;
+    final lastNotifAt = _ticket?['last_notification_at'] as String?;
+    final lastNotifMethod = _ticket?['last_notification_method'] as String?;
+    if (approvedAt == null && lastNotifAt == null) return const SizedBox.shrink();
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(color: _panelDark, borderRadius: BorderRadius.circular(16), border: Border.all(color: _glassBorder)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('NOTIFICATIONS & SUIVI', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+          const SizedBox(height: 8),
+          if (approvedAt != null)
+            Text('Devis accepté le ${_formatDt(approvedAt)}', style: const TextStyle(color: _textMuted, fontSize: 11)),
+          if (lastNotifAt != null)
+            Text('Dernière notification: ${_formatDt(lastNotifAt)}${lastNotifMethod != null ? ' ($lastNotifMethod)' : ''}', style: const TextStyle(color: _textMuted, fontSize: 11)),
         ],
       ),
     );
@@ -2887,6 +2915,11 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
         if (message != null) { _publicPageMessage = message; _messageCtrl.text = message; }
       });
     } catch (_) {}
+  }
+
+  String _fmtAccessories(dynamic val) {
+    if (val is List) return val.map((e) => e.toString()).join(', ');
+    return val.toString();
   }
 
   String _formatDt(dynamic dt) {
