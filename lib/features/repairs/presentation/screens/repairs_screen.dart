@@ -1717,7 +1717,7 @@ class _NewTicketFormState extends State<_NewTicketForm> {
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 4),
                 child: InkWell(
-                  onTap: () => setState(() { _billingType = opt['value'] as String; _recalculateCostFromParts(); }),
+                  onTap: () => setState(() { _billingType = opt['value'] as String; if (_billingType == 'labor_only') _costCtrl.clear(); _recalculateCostFromParts(); }),
                   borderRadius: BorderRadius.circular(8),
                   child: Container(
                     padding: const EdgeInsets.symmetric(vertical: 10),
@@ -2109,7 +2109,8 @@ class _NewTicketFormState extends State<_NewTicketForm> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _buildSectionTitle('6. Finances', Icons.attach_money),
-        _buildTextField(_costCtrl, 'Coût estimé (Pièces incluses)', icon: Icons.calculate, isNumber: true, suffix: 'DA'),
+        if (_billingType != 'labor_only')
+          _buildTextField(_costCtrl, 'Coût estimé (Pièces incluses)', icon: Icons.calculate, isNumber: true, suffix: 'DA'),
         const SizedBox(height: 16),
         Row(
           children: [
