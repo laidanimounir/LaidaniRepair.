@@ -34,7 +34,7 @@ class TicketFinancialsWidget extends StatelessWidget {
     final discount = (ticket['discount'] as num?)?.toDouble() ?? 0;
     final estimatedCost = (ticket['estimated_cost'] as num?)?.toDouble() ?? 0;
     final finalCost = (ticket['final_cost'] as num?)?.toDouble() ?? 0;
-    final remaining = (partsCost + (billingType == 'parts_only' ? 0 : labor) - discount) - totalPayments;
+    final remaining = ((billingType == 'labor_only' ? 0 : partsCost) + (billingType == 'parts_only' ? 0 : labor) - discount) - totalPayments;
     final isCanceled = ticket['status'] == 'Annulé';
     final paymentStatus = ticket['payment_status'] as String? ?? 'Non payé';
     final isRefunded = paymentStatus == 'Remboursé';
@@ -71,7 +71,7 @@ class TicketFinancialsWidget extends StatelessWidget {
             _row('M.O', '${labor.toStringAsFixed(0)} DA', onTap: isCanceled ? null : onEditLabor),
           if (discount > 0) _row('Remise', '-${discount.toStringAsFixed(0)} DA', color: Colors.redAccent, onTap: isCanceled ? null : onEditDiscount),
           const Divider(color: _glassBorder),
-          _row('Total dû', '${(partsCost + (billingType == 'parts_only' ? 0 : labor) - discount).toStringAsFixed(0)} DA', bold: true),
+          _row('Total dû', '${((billingType == 'labor_only' ? 0 : partsCost) + (billingType == 'parts_only' ? 0 : labor) - discount).toStringAsFixed(0)} DA', bold: true),
           _row('Payé', '${totalPayments.toStringAsFixed(0)} DA', color: _neonEmerald),
           if (remaining > 0)
             _row('Reste à payer', '${remaining.toStringAsFixed(0)} DA', color: Colors.orangeAccent, bold: true),
