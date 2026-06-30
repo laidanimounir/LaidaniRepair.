@@ -925,9 +925,10 @@ Future<void> _syncFinalCostBeforeDelivery(SupabaseClient client, String ticketId
     final qty = (p['quantity'] as num?)?.toDouble() ?? 1;
     return sum + (price * qty);
   });
-  final labor = (ticket['labor_cost'] as num?)?.toDouble() ?? 0;
+  final billingType = ticket['billing_type'] as String? ?? 'parts_and_labor';
+  final labor = billingType == 'parts_only' ? 0 : ((ticket['labor_cost'] as num?)?.toDouble() ?? 0);
   final discount = (ticket['discount'] as num?)?.toDouble() ?? 0;
-  final computed = partsTotal + labor - discount;
+  final computed = billingType == 'labor_only' ? labor - discount : partsTotal + labor - discount;
   await client.from('repair_tickets').update({'final_cost': computed}).eq('id', ticketId);
   ticket['final_cost'] = computed;
 }
