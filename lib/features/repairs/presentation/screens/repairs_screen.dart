@@ -2573,9 +2573,9 @@ class _NewTicketFormState extends State<_NewTicketForm> {
     final isAnon = ticket['customer_id'] == null;
     final clientName = isAnon ? (anonName?.isNotEmpty == true ? anonName! : 'Client Anonyme') : 'Client';
     final qrData = 'https://laidaniphone.vercel.app?qr=${ticket['qr_code_hash'] ?? ''}';
-    final estimatedCost = (ticket['estimated_cost'] as num?)?.toDouble() ?? 0;
+    final finalCost = (ticket['final_cost'] as num?)?.toDouble() ?? 0;
     final advance = (ticket['advance_payment'] as num?)?.toDouble() ?? 0;
-    final remaining = estimatedCost - advance - ((ticket['discount'] as num?)?.toDouble() ?? 0);
+    final remaining = finalCost - advance - ((ticket['discount'] as num?)?.toDouble() ?? 0);
     final createdAt = ticket['created_at']?.toString().substring(0, 16) ?? '';
     final estimatedDate = ticket['estimated_completion_date']?.toString() ?? '';
     final deviceName = ticket['device_name'] ?? '';
@@ -2638,7 +2638,7 @@ class _NewTicketFormState extends State<_NewTicketForm> {
                 if (imei.isNotEmpty) _receiptRow('IMEI', imei),
                 if (issue.isNotEmpty) _receiptRow('Problème', issue),
                 const Divider(color: _glassBorder, height: 24),
-                _receiptRow('Coût estimé', '${estimatedCost.toStringAsFixed(0)} DA'),
+                _receiptRow('Coût estimé', '${finalCost.toStringAsFixed(0)} DA'),
                 if (advance > 0) _receiptRow('Avance', '${advance.toStringAsFixed(0)} DA'),
                 _receiptRow('Reste à payer', '${remaining.toStringAsFixed(0)} DA'),
                 if (estimatedDate.isNotEmpty) _receiptRow('Délai estimé', estimatedDate),
