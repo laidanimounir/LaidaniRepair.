@@ -58,6 +58,8 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
   bool _hideHistoryOnPublic = false;
   String _publicPageMessage = '';
   final TextEditingController _messageCtrl = TextEditingController();
+  int _eventsDisplayCount = 15;
+  static const int _eventsPageSize = 15;
 
   @override
   void initState() {
@@ -146,6 +148,7 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
     if (now.difference(_lastFetch).inMilliseconds < 500) return;
     _lastFetch = now;
     setState(() => _isLoading = true);
+    _eventsDisplayCount = _eventsPageSize;
     try {
       final client = ref.read(supabaseClientProvider);
       final ticketData = await client.from('repair_tickets').select('*, customers(full_name, phone_number)').eq('id', widget.ticketId).maybeSingle();
@@ -2562,7 +2565,7 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
             Spacer(),
           ]),
           const SizedBox(height: 12),
-          ...events.take(10).map((e) {
+          ...events.take(_eventsDisplayCount).map((e) {
             final m = e as Map<String, dynamic>;
             final type = m['event_type'] as String? ?? '';
             final notes = m['notes'] as String?;
@@ -2597,6 +2600,13 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
               ),
             );
           }),
+          if (events.length > _eventsDisplayCount)
+            TextButton.icon(
+              onPressed: () => setState(() => _eventsDisplayCount += _eventsPageSize),
+              icon: const Icon(Icons.expand_more, size: 16),
+              label: Text('Afficher plus (${events.length - _eventsDisplayCount} restants)', style: const TextStyle(fontSize: 11)),
+              style: TextButton.styleFrom(foregroundColor: _neonCyan),
+            ),
         ],
       ),
     );
