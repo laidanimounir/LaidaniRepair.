@@ -95,6 +95,12 @@ class _RepairsScreenState extends ConsumerState<RepairsScreen> {
   bool _hasMore = true;
   bool _initialLoadDone = false;
 
+  List<Map<String, dynamic>> _searchTickets = [];
+  int _searchPage = 0;
+  bool _searchHasMore = true;
+  bool _searchIsLoadingMore = false;
+  bool _searchInitialLoadDone = false;
+
   @override
   void initState() {
     super.initState();
@@ -149,11 +155,12 @@ class _RepairsScreenState extends ConsumerState<RepairsScreen> {
   }
 
   void _onScroll() {
-    if (_scrollCtrl.hasClients &&
-        _scrollCtrl.position.pixels >= _scrollCtrl.position.maxScrollExtent - 200 &&
-        !_isLoadingMore &&
-        _hasMore) {
-      _loadNextPage();
+    if (!_scrollCtrl.hasClients || _scrollCtrl.position.pixels < _scrollCtrl.position.maxScrollExtent - 200) return;
+    final isSearching = ref.read(_searchQueryProvider).trim().isNotEmpty;
+    if (isSearching) {
+      if (!_searchIsLoadingMore && _searchHasMore) _loadNextSearchPage();
+    } else {
+      if (!_isLoadingMore && _hasMore) _loadNextPage();
     }
   }
 
@@ -165,6 +172,54 @@ class _RepairsScreenState extends ConsumerState<RepairsScreen> {
       _initialLoadDone = false;
     });
     _loadInitialPage();
+  }
+
+  Future<void> _performSearch(String query) async {
+    if (query.trim().isEmpty) return;
+    _searchInitialLoadDone = false;
+    _searchPage = 0;
+    _searchHasMore = true;
+    _searchIsLoadingMore = false;
+    final search = '%$query%';
+    final client = ref.read(supabaseClientProvider);
+    final data = await client
+        .from('repair_tickets')
+        .select('*, customers(full_name, phone_number), profiles!repair_tickets_assigned_technician_id_fkey(full_name)')
+        .or('client_name_temp.ilike.$search,device_name.ilike.$search,qr_code_hash.ilike.$search')
+        .order('created_at', ascending: false)
+        .range(0, _ticketsPageSize - 1);
+    if (mounted) {
+      setState(() {
+        _searchTickets = List<Map<String, dynamic>>.from(data);
+        _searchHasMore = data.length >= _ticketsPageSize;
+        _searchPage = 1;
+        _searchInitialLoadDone = true;
+      });
+    }
+  }
+
+  Future<void> _loadNextSearchPage() async {
+    if (_searchIsLoadingMore || !_searchHasMore) return;
+    _searchIsLoadingMore = true;
+    final query = ref.read(_searchQueryProvider);
+    if (query.trim().isEmpty) return;
+    final offset = _searchPage * _ticketsPageSize;
+    final search = '%$query%';
+    final client = ref.read(supabaseClientProvider);
+    final data = await client
+        .from('repair_tickets')
+        .select('*, customers(full_name, phone_number), profiles!repair_tickets_assigned_technician_id_fkey(full_name)')
+        .or('client_name_temp.ilike.$search,device_name.ilike.$search,qr_code_hash.ilike.$search')
+        .order('created_at', ascending: false)
+        .range(offset, offset + _ticketsPageSize - 1);
+    if (mounted) {
+      setState(() {
+        if (data.isEmpty || data.length < _ticketsPageSize) _searchHasMore = false;
+        _searchTickets = [..._searchTickets, ...List<Map<String, dynamic>>.from(data)];
+        _searchPage++;
+        _searchIsLoadingMore = false;
+      });
+    }
   }
 
   void _handleScanResult(String raw) {
@@ -313,7 +368,9 @@ class _RepairsScreenState extends ConsumerState<RepairsScreen> {
   @override
   Widget build(BuildContext context) {
     final searchQuery = ref.watch(_searchQueryProvider);
-    final searchAsync = ref.watch(_searchResultsProvider);
+    ref.listen(_searchQueryProvider, (prev, next) {
+      if (prev != next && next.trim().isNotEmpty) _performSearch(next);
+    });
     ref.listen(_listResetTrigger, (prev, next) { if (prev != next) _resetAndReload(); });
     final statusF = ref.watch(_statusFilter);
     final slaF = ref.watch(_slaFilter);
@@ -466,8 +523,12 @@ class _RepairsScreenState extends ConsumerState<RepairsScreen> {
                         IconButton(
                           icon: const Icon(Icons.refresh, color: _textMuted, size: 20),
                           onPressed: () {
-                            _resetAndReload();
-                            ref.invalidate(_searchResultsProvider);
+                            final q = ref.read(_searchQueryProvider);
+                            if (q.trim().isNotEmpty) {
+                              _performSearch(q);
+                            } else {
+                              _resetAndReload();
+                            }
                           },
                           tooltip: 'Rafraîchir',
                         ),
@@ -525,25 +586,20 @@ class _RepairsScreenState extends ConsumerState<RepairsScreen> {
               // Body: search results or normal list
               Expanded(
                 child: isSearching
-                    ? searchAsync.when(
-                        loading: () => const Center(child: CircularProgressIndicator(color: _neonCyan)),
-                        error: (e, _) => Center(child: Text('Erreur: $e', style: const TextStyle(color: Colors.redAccent))),
-                        data: (searchTickets) {
-                          if (searchTickets.isEmpty) {
-                            return Center(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  const Icon(Icons.search_off, size: 48, color: _textMuted),
-                                  const SizedBox(height: 12),
-                                  Text('Aucun résultat pour "$searchQuery"', style: const TextStyle(color: _textMuted)),
-                                ],
-                              ),
-                            );
-                          }
-                          return _buildTicketList(context, ref, searchTickets, statusF, slaF, bulkMode, selectedTickets, isDesktop, false);
-                        },
-                      )
+                    ? !_searchInitialLoadDone
+                        ? const Center(child: CircularProgressIndicator(color: _neonCyan))
+                        : _searchTickets.isEmpty
+                            ? Center(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    const Icon(Icons.search_off, size: 48, color: _textMuted),
+                                    const SizedBox(height: 12),
+                                    Text('Aucun résultat pour "$searchQuery"', style: const TextStyle(color: _textMuted)),
+                                  ],
+                                ),
+                              )
+                            : _buildTicketList(context, ref, _searchTickets, statusF, slaF, bulkMode, selectedTickets, isDesktop, false)
                     : !_initialLoadDone
                         ? const Center(child: CircularProgressIndicator(color: _neonCyan))
                         : _buildTicketList(context, ref, _allTickets, statusF, slaF, bulkMode, selectedTickets, isDesktop, true),
@@ -621,7 +677,7 @@ class _RepairsScreenState extends ConsumerState<RepairsScreen> {
             },
           ),
         ),
-        if (_isLoadingMore)
+        if (_isLoadingMore || _searchIsLoadingMore)
           const SizedBox(
             height: 40,
             child: Center(child: CircularProgressIndicator(color: _neonCyan, strokeWidth: 2)),
