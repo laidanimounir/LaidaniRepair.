@@ -176,7 +176,7 @@ async function load() {
         ${!hideTech ? `<div class="info-row"><span class="info-label">Technicien</span><span>${tech?.full_name ?? "En cours d'assignation"}</span></div>` : ""}
         <div class="info-row"><span class="info-label">Depose le</span><span>${fd(data.created_at, true)}</span></div>
         ${data.estimated_completion_date ? `<div class="info-row"><span class="info-label">Livraison prevue</span><span>${fd(data.estimated_completion_date, true)}</span></div>` : ""}
-        ${showPrices && data.final_cost > 0 ? `
+        ${data.final_cost > 0 ? `
         <h2 class="card-title" style="margin-top:16px">Paiement</h2>
         <div class="info-row"><span class="info-label">Statut</span><span style="color:${data.payment_status === "Payé" ? "#3fb950" : data.payment_status === "Remboursé" ? "#f85149" : data.payment_status === "Avance" ? "#d29922" : "#8b949e"}">${data.payment_status === "Payé" ? "✅ Payé" : data.payment_status === "Remboursé" ? "↩ Remboursé" : data.payment_status === "Avance" ? "⚠ Avance" : "⏳ Non payé"}</span></div>
         <div class="info-row"><span class="info-label">Total</span><span style="color:#00bcd4;font-weight:bold;font-size:18px">${data.final_cost} DA</span></div>
