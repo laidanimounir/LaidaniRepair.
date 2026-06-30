@@ -48,6 +48,8 @@ final _ticketsProvider = FutureProvider.family<List<Map<String, dynamic>>, int>(
       .range(offset, offset + _ticketsPageSize - 1);
 });
 
+final _listResetTrigger = StateProvider<int>((ref) => 0);
+
 final _statusFilter = StateProvider<String?>((ref) => null);
 final _slaFilter = StateProvider<String?>((ref) => null);
 final _bulkModeProvider = StateProvider<bool>((ref) => false);
@@ -86,9 +88,18 @@ class _RepairsScreenState extends ConsumerState<RepairsScreen> {
   Timer? _debounce;
   bool _isScannerActive = true;
 
+  final _scrollCtrl = ScrollController();
+  List<Map<String, dynamic>> _allTickets = [];
+  int _currentPage = 0;
+  bool _isLoadingMore = false;
+  bool _hasMore = true;
+  bool _initialLoadDone = false;
+
   @override
   void initState() {
     super.initState();
+    _scrollCtrl.addListener(_onScroll);
+    _loadInitialPage();
   }
 
   @override
@@ -96,7 +107,64 @@ class _RepairsScreenState extends ConsumerState<RepairsScreen> {
     _scanFocus.dispose();
     _searchCtrl.dispose();
     _debounce?.cancel();
+    _scrollCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadInitialPage() async {
+    final client = ref.read(supabaseClientProvider);
+    final data = await client
+        .from('repair_tickets')
+        .select('*, customers(full_name, phone_number), profiles!repair_tickets_assigned_technician_id_fkey(full_name)')
+        .order('created_at', ascending: false)
+        .range(0, _ticketsPageSize - 1);
+    if (mounted) {
+      setState(() {
+        _allTickets = List<Map<String, dynamic>>.from(data);
+        _hasMore = data.length >= _ticketsPageSize;
+        _currentPage = 1;
+        _initialLoadDone = true;
+      });
+    }
+  }
+
+  Future<void> _loadNextPage() async {
+    if (_isLoadingMore || !_hasMore) return;
+    _isLoadingMore = true;
+    final offset = _currentPage * _ticketsPageSize;
+    final client = ref.read(supabaseClientProvider);
+    final data = await client
+        .from('repair_tickets')
+        .select('*, customers(full_name, phone_number), profiles!repair_tickets_assigned_technician_id_fkey(full_name)')
+        .order('created_at', ascending: false)
+        .range(offset, offset + _ticketsPageSize - 1);
+    if (mounted) {
+      setState(() {
+        if (data.isEmpty || data.length < _ticketsPageSize) _hasMore = false;
+        _allTickets = [..._allTickets, ...List<Map<String, dynamic>>.from(data)];
+        _currentPage++;
+        _isLoadingMore = false;
+      });
+    }
+  }
+
+  void _onScroll() {
+    if (_scrollCtrl.hasClients &&
+        _scrollCtrl.position.pixels >= _scrollCtrl.position.maxScrollExtent - 200 &&
+        !_isLoadingMore &&
+        _hasMore) {
+      _loadNextPage();
+    }
+  }
+
+  void _resetAndReload() {
+    setState(() {
+      _allTickets = [];
+      _currentPage = 0;
+      _hasMore = true;
+      _initialLoadDone = false;
+    });
+    _loadInitialPage();
   }
 
   void _handleScanResult(String raw) {
@@ -244,9 +312,9 @@ class _RepairsScreenState extends ConsumerState<RepairsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final ticketsAsync = ref.watch(_ticketsProvider(0));
     final searchQuery = ref.watch(_searchQueryProvider);
     final searchAsync = ref.watch(_searchResultsProvider);
+    ref.listen(_listResetTrigger, (prev, next) { if (prev != next) _resetAndReload(); });
     final statusF = ref.watch(_statusFilter);
     final slaF = ref.watch(_slaFilter);
     final bulkMode = ref.watch(_bulkModeProvider);
@@ -398,7 +466,7 @@ class _RepairsScreenState extends ConsumerState<RepairsScreen> {
                         IconButton(
                           icon: const Icon(Icons.refresh, color: _textMuted, size: 20),
                           onPressed: () {
-                            ref.invalidate(_ticketsProvider(0));
+                            _resetAndReload();
                             ref.invalidate(_searchResultsProvider);
                           },
                           tooltip: 'Rafraîchir',
@@ -476,11 +544,9 @@ class _RepairsScreenState extends ConsumerState<RepairsScreen> {
                           return _buildTicketList(context, ref, searchTickets, statusF, slaF, bulkMode, selectedTickets, isDesktop, false);
                         },
                       )
-                    : ticketsAsync.when(
-                        loading: () => const Center(child: CircularProgressIndicator(color: _neonCyan)),
-                        error: (e, _) => Center(child: Text('Erreur: $e', style: const TextStyle(color: Colors.redAccent))),
-                        data: (tickets) => _buildTicketList(context, ref, tickets, statusF, slaF, bulkMode, selectedTickets, isDesktop, true),
-                      ),
+                    : !_initialLoadDone
+                        ? const Center(child: CircularProgressIndicator(color: _neonCyan))
+                        : _buildTicketList(context, ref, _allTickets, statusF, slaF, bulkMode, selectedTickets, isDesktop, true),
               ),
             ],
           ),
@@ -530,6 +596,7 @@ class _RepairsScreenState extends ConsumerState<RepairsScreen> {
           ),
         Expanded(
           child: ListView.builder(
+            controller: _scrollCtrl,
             itemCount: slaFiltered.length,
             itemBuilder: (context, index) {
               final ticket = slaFiltered[index];
@@ -732,7 +799,7 @@ class _CyberTableRow extends StatelessWidget {
                         _addLoyaltyPointsForRepair(client, ticket);
                       }
                       await client.from('repair_tickets').update(updates).eq('id', ticket['id']);
-                      ref.invalidate(_ticketsProvider(0));
+                      ref.read(_listResetTrigger.notifier).state++;
                     },
                   ),
                 ],
@@ -897,7 +964,7 @@ class _MobileTicketCard extends StatelessWidget {
                         _addLoyaltyPointsForRepair(client, ticket);
                       }
                       await client.from('repair_tickets').update(updates).eq('id', ticket['id']);
-                      ref.invalidate(_ticketsProvider(0));
+                      ref.read(_listResetTrigger.notifier).state++;
                     },
                   ),
                 ]
@@ -1121,7 +1188,7 @@ Future<void> _showBulkStatusDialog(WidgetRef ref, Set<String> selected) async {
       'notes': 'Changement de statut groupé: → $status',
     });
   }
-  ref.invalidate(_ticketsProvider(0));
+  ref.read(_listResetTrigger.notifier).state++;
   ref.read(_selectedTicketsProvider.notifier).state = {};
 }
 
@@ -1150,7 +1217,7 @@ Future<void> _showBulkAssignDialog(WidgetRef ref, Set<String> selected) async {
   for (final id in selected) {
     await client.from('repair_tickets').update({'assigned_technician_id': techId}).eq('id', id);
   }
-  ref.invalidate(_ticketsProvider(0));
+  ref.read(_listResetTrigger.notifier).state++;
   ref.read(_selectedTicketsProvider.notifier).state = {};
 }
 
@@ -2353,7 +2420,7 @@ class _NewTicketFormState extends State<_NewTicketForm> {
   }
 }
       
-      widget.ref.invalidate(_ticketsProvider(0));
+      widget.ref.read(_listResetTrigger.notifier).state++;
       if (mounted) {
         Navigator.pop(context);
         _showReceiptDialog(Map<String, dynamic>.from(newTicket), _isAnonymous ? _anonNameCtrl.text.trim() : null, _isAnonymous ? _anonPhoneCtrl.text.trim() : null);
