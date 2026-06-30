@@ -1891,7 +1891,7 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
 
       final labor = billingType == 'parts_only' ? 0 : ((_ticket?['labor_cost'] as num?)?.toDouble() ?? 0);
       final discount = (_ticket?['discount'] as num?)?.toDouble() ?? 0;
-      final computed = billingType == 'labor_only' ? 0 : partsTotal + labor - discount;
+      final computed = billingType == 'labor_only' ? labor - discount : partsTotal + labor - discount;
       final currentFinalCost = (_ticket?['final_cost'] as num?)?.toDouble() ?? 0;
 
       if ((computed - currentFinalCost).abs() < 0.01) return;
