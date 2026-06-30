@@ -2114,7 +2114,7 @@ class _NewTicketFormState extends State<_NewTicketForm> {
         const SizedBox(height: 16),
         Row(
           children: [
-            Expanded(child: _buildTextField(_advanceCtrl, 'Acompte (Avance)', icon: Icons.payments_outlined, isNumber: true, suffix: 'DA')),
+            Expanded(child: _buildTextField(_advanceCtrl, 'Acompte (Avance)', icon: Icons.payments_outlined, isNumber: true, suffix: 'DA', errorKey: 'advance')),
             if (_billingType != 'parts_only') ...[
               const SizedBox(width: 16),
               Expanded(child: _buildTextField(_laborCtrl, 'Main d\'œuvre (M.O)', icon: Icons.handyman_outlined, isNumber: true, suffix: 'DA')),
@@ -2522,6 +2522,11 @@ class _NewTicketFormState extends State<_NewTicketForm> {
     }
     if (issue.isEmpty) {
       _fieldErrors['issue_description'] = 'Problème obligatoire';
+    }
+
+    final advance = double.tryParse(_advanceCtrl.text) ?? 0;
+    if (advance > _grandTotal && _grandTotal > 0) {
+      _fieldErrors['advance'] = "L'avance ne peut pas dépasser le total (${_grandTotal.toStringAsFixed(0)} DA)";
     }
 
     if (_fieldErrors.isNotEmpty) {
