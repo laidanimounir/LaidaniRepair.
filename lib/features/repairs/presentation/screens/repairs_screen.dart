@@ -17,6 +17,7 @@ import 'package:laidani_repair/core/providers/supabase_provider.dart';
 import 'package:laidani_repair/core/providers/shortcuts_provider.dart';
 import 'package:laidani_repair/core/services/groq_service.dart';
 import 'package:laidani_repair/core/utils/csv_export.dart';
+import 'package:laidani_repair/constants/repair_status.dart';
 
 // --- Cyber Glass Theme Constants ---
 const Color _bgCarbon = Color(0xFF050914);
@@ -647,7 +648,8 @@ class _RepairsScreenState extends ConsumerState<RepairsScreen> {
                 _buildTableHead('TICKET / DATE', flex: 2),
                 _buildTableHead('CLIENT', flex: 2),
                 _buildTableHead('APPAREIL & PROBLÈME', flex: 3),
-                _buildTableHead('STATUT', flex: 2),
+                _buildTableHead('STATUT', flex: 1),
+                _buildTableHead('PAIEMENT', flex: 1),
                 _buildTableHead('FINANCES', flex: 2),
                 _buildTableHead('ACTIONS', flex: 1, alignRight: true),
               ],
@@ -794,7 +796,7 @@ class _CyberTableRow extends StatelessWidget {
             ),
           ),
           Expanded(
-            flex: 2,
+            flex: 1,
             child: Align(
               alignment: Alignment.centerLeft,
               child: Container(
@@ -813,6 +815,13 @@ class _CyberTableRow extends StatelessWidget {
                   ],
                 ),
               ),
+            ),
+          ),
+          Expanded(
+            flex: 1,
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: _buildPaymentBadge(ticket),
             ),
           ),
           Expanded(
@@ -872,6 +881,20 @@ class _CyberTableRow extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+
+  static Widget _buildPaymentBadge(Map<String, dynamic> ticket) {
+    final paymentStatus = ticket['payment_status'] as String? ?? '';
+    final color = Color(RepairStatus.paymentStatusColor(paymentStatus));
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Text(paymentStatus, style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w600)),
     );
   }
 }
