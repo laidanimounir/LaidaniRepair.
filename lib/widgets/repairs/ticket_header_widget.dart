@@ -10,6 +10,7 @@ class TicketHeaderWidget extends StatelessWidget {
   final VoidCallback onDuplicate;
   final VoidCallback onCancel;
   final VoidCallback? onPrintComplete;
+  final VoidCallback? onDelete;
 
   const TicketHeaderWidget({
     super.key,
@@ -20,6 +21,7 @@ class TicketHeaderWidget extends StatelessWidget {
     required this.onDuplicate,
     required this.onCancel,
     this.onPrintComplete,
+    this.onDelete,
   });
 
   @override
@@ -62,6 +64,8 @@ class TicketHeaderWidget extends StatelessWidget {
           ),
           if (!isCanceled)
             _buildOverflowMenu(),
+          if (isCanceled)
+            _buildDeleteOnlyMenu(),
         ],
       ),
     );
@@ -84,11 +88,26 @@ class TicketHeaderWidget extends StatelessWidget {
         PopupMenuItem(value: 'duplicate', child: Text('Dupliquer le ticket', style: TextStyle(color: Color(0xFF00E5FF)))),
         PopupMenuItem(value: 'cancel', child: Text('Annuler le dossier (Retour Stock)', style: TextStyle(color: Colors.redAccent))),
         PopupMenuItem(value: 'id_label', child: Text('Étiquette d\'identification', style: TextStyle(color: Color(0xFF00E5FF), fontSize: 12))),
+        PopupMenuItem(value: 'delete', child: Text('Supprimer définitivement', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold))),
       ],
       onSelected: (val) {
         if (val == 'cancel') onCancel();
         if (val == 'duplicate') onDuplicate();
         if (val == 'id_label') _printIdLabel();
+        if (val == 'delete') onDelete?.call();
+      },
+    );
+  }
+
+  Widget _buildDeleteOnlyMenu() {
+    return PopupMenuButton<String>(
+      icon: const Icon(Icons.more_vert, color: Colors.white, size: 18),
+      color: const Color(0xFF0A0F1A),
+      itemBuilder: (_) => const [
+        PopupMenuItem(value: 'delete', child: Text('Supprimer définitivement', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold))),
+      ],
+      onSelected: (val) {
+        if (val == 'delete') onDelete?.call();
       },
     );
   }

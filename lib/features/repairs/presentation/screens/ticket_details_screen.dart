@@ -1803,6 +1803,36 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
     }
   }
 
+  Future<void> _deleteTicket() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: _panelDark,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Supprimer le dossier ?', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+        content: const Text('Cette action est IRRÉVERSIBLE. Toutes les données liées à ce ticket seront définitivement perdues (pièces, paiements, historique, photos, garantie...).', style: TextStyle(color: Colors.white)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Annuler', style: TextStyle(color: _textMuted))),
+          ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent, foregroundColor: Colors.white), onPressed: () => Navigator.pop(ctx, true), child: const Text('SUPPRIMER', style: TextStyle(fontWeight: FontWeight.bold))),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+
+    try {
+      final client = ref.read(supabaseClientProvider);
+      // Delete non-cascaded records first
+      await client.from('warranty_claims').delete().or('original_ticket_id.eq.${widget.ticketId},claim_ticket_id.eq.${widget.ticketId}');
+      await client.from('maintenance_reminders').delete().eq('repair_ticket_id', widget.ticketId);
+      // Delete the ticket (CASCADE handles: repair_parts, repair_payments, repair_ticket_events, repair_photos, customer_feedback, repair_notifications)
+      await client.from('repair_tickets').delete().eq('id', widget.ticketId);
+      _showToast('Dossier supprimé définitivement.', Colors.redAccent);
+      if (mounted) context.pop();
+    } catch (e) {
+      _showToast('Erreur: $e', Colors.redAccent);
+    }
+  }
+
   Future<void> _showAssignTechnicianDialog(List<Map<String, dynamic>> profiles, String? currentId, Color color) async {
     final client = ref.read(supabaseClientProvider);
     final selected = await showDialog<String>(
@@ -2317,6 +2347,7 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
           _ticket!['customer_ticket_printed_at'] = DateTime.now().toIso8601String();
         });
       },
+      onDelete: _deleteTicket,
     );
   }
 
