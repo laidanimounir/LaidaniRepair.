@@ -1415,6 +1415,9 @@ class _NewTicketFormState extends State<_NewTicketForm> {
   final _costCtrl = TextEditingController();
   final _advanceCtrl = TextEditingController();
   final _laborCtrl = TextEditingController();
+  final _totalCtrl = TextEditingController();
+  bool _syncingTotal = false;
+  bool _syncingFromTotal = false;
   DateTime? _estimatedCompletionDate;
 
   bool _warrantyEnabled = false;
@@ -1440,6 +1443,9 @@ class _NewTicketFormState extends State<_NewTicketForm> {
   @override
   void initState() {
     super.initState();
+    _costCtrl.addListener(_syncTotalFromParts);
+    _laborCtrl.addListener(_syncTotalFromParts);
+    _totalCtrl.addListener(_syncPartsFromTotal);
     _laborCtrl.addListener(() { if (mounted) setState(() {}); });
   }
 
@@ -1785,7 +1791,7 @@ class _NewTicketFormState extends State<_NewTicketForm> {
   double get _grandTotal {
     final parts = double.tryParse(_costCtrl.text) ?? 0;
     final labor = double.tryParse(_laborCtrl.text) ?? 0;
-    if (_billingType == 'parts_and_labor') return parts + labor;
+    if (_billingType == 'parts_and_labor') return double.tryParse(_totalCtrl.text) ?? (parts + labor);
     if (_billingType == 'labor_only') return labor;
     return parts;
   }
@@ -1797,6 +1803,30 @@ class _NewTicketFormState extends State<_NewTicketForm> {
       case 'parts_only': return 'Total (Pièces)';
       default: return 'Total estimé';
     }
+  }
+
+  void _syncTotalFromParts() {
+    if (_syncingFromTotal || _billingType != 'parts_and_labor') return;
+    _syncingTotal = true;
+    final parts = double.tryParse(_costCtrl.text) ?? 0;
+    final labor = double.tryParse(_laborCtrl.text) ?? 0;
+    final newTotal = parts + labor;
+    if ((double.tryParse(_totalCtrl.text) ?? 0) != newTotal) {
+      _totalCtrl.text = newTotal > 0 ? newTotal.toStringAsFixed(0) : '';
+    }
+    _syncingTotal = false;
+  }
+
+  void _syncPartsFromTotal() {
+    if (_syncingTotal || _billingType != 'parts_and_labor') return;
+    _syncingFromTotal = true;
+    final parts = double.tryParse(_costCtrl.text) ?? 0;
+    final total = double.tryParse(_totalCtrl.text) ?? 0;
+    final labor = (total - parts).clamp(0, double.infinity);
+    if ((double.tryParse(_laborCtrl.text) ?? 0) != labor) {
+      _laborCtrl.text = labor > 0 ? labor.toStringAsFixed(0) : '';
+    }
+    _syncingFromTotal = false;
   }
 
   void _showPartsPickerDialog() {
@@ -2123,18 +2153,42 @@ class _NewTicketFormState extends State<_NewTicketForm> {
         ),
         const SizedBox(height: 12),
         _buildPriceEstimatorButton(),
-        if (_grandTotal > 0 || _laborCtrl.text.isNotEmpty || _costCtrl.text.isNotEmpty) ...[
+        if (_grandTotal > 0 || _laborCtrl.text.isNotEmpty || _costCtrl.text.isNotEmpty || _totalCtrl.text.isNotEmpty) ...[
           const SizedBox(height: 12),
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(color: _neonCyan.withOpacity(0.1), borderRadius: BorderRadius.circular(8), border: Border.all(color: _neonCyan.withOpacity(0.3))),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(_totalLabel, style: const TextStyle(color: _neonCyan, fontWeight: FontWeight.w600, fontSize: 13)),
-                Text('${_grandTotal.toStringAsFixed(0)} DA', style: const TextStyle(color: _neonCyan, fontWeight: FontWeight.w900, fontSize: 16)),
-              ],
-            ),
+            child: _billingType == 'parts_and_labor'
+                ? Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Text(_totalLabel, style: const TextStyle(color: _neonCyan, fontWeight: FontWeight.w600, fontSize: 13)),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: TextField(
+                          controller: _totalCtrl,
+                          keyboardType: TextInputType.number,
+                          style: const TextStyle(color: _neonCyan, fontWeight: FontWeight.w900, fontSize: 16),
+                          decoration: const InputDecoration(
+                            isDense: true,
+                            contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            border: OutlineInputBorder(),
+                            enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: _neonCyan)),
+                            focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: _neonCyan, width: 2)),
+                            suffixText: 'DA',
+                            suffixStyle: TextStyle(color: _neonCyan, fontSize: 14),
+                          ),
+                        ),
+                      ),
+                    ],
+                  )
+                : Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(_totalLabel, style: const TextStyle(color: _neonCyan, fontWeight: FontWeight.w600, fontSize: 13)),
+                      Text('${_grandTotal.toStringAsFixed(0)} DA', style: const TextStyle(color: _neonCyan, fontWeight: FontWeight.w900, fontSize: 16)),
+                    ],
+                  ),
           ),
         ],
         const SizedBox(height: 12),
