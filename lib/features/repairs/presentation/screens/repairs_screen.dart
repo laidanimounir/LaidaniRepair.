@@ -858,6 +858,7 @@ class _CyberTableRow extends StatelessWidget {
                     icon: const Icon(Icons.more_vert, color: _textMuted, size: 20),
                     color: _panelDark,
                     itemBuilder: (_) => ['En attente', 'Terminé', 'Livré']
+                        .where((s) => s == status || RepairStatus.isValidStatusTransition(status, s))
                         .map((s) => PopupMenuItem(value: s, child: Text(s, style: const TextStyle(color: Colors.white))))
                         .toList(),
                     onSelected: (newStatus) async {
@@ -1045,6 +1046,7 @@ class _MobileTicketCard extends StatelessWidget {
                     icon: const Icon(Icons.more_vert, color: _textMuted, size: 20),
                     color: _panelDark,
                     itemBuilder: (_) => ['En attente', 'Terminé', 'Livré']
+                        .where((s) => s == status || RepairStatus.isValidStatusTransition(status, s))
                         .map((s) => PopupMenuItem(value: s, child: Text(s, style: const TextStyle(color: Colors.white))))
                         .toList(),
                     onSelected: (newStatus) async {
@@ -1289,19 +1291,40 @@ Future<void> _showBulkStatusDialog(WidgetRef ref, Set<String> selected) async {
   );
   if (status == null) return;
   final client = ref.read(supabaseClientProvider);
-  final user = Supabase.instance.client.auth.currentUser;
+  // Fetch current statuses for all selected tickets
+  final ticketsResp = await client.from('repair_tickets')
+      .select('id, status')
+      .inFilter('id', selected.toList());
+  final statusMap = <String, String>{};
+  for (final t in ticketsResp) {
+    statusMap[t['id'] as String] = (t['status'] as String? ?? 'En attente');
+  }
+
+  int changed = 0, skipped = 0;
   for (final id in selected) {
+    final current = statusMap[id] ?? 'En attente';
+    if (!RepairStatus.isValidStatusTransition(current, status)) {
+      skipped++;
+      continue;
+    }
     await client.from('repair_tickets').update({'status': status}).eq('id', id);
+    changed++;
     TicketEventLogger.log(
       ticketId: id,
       eventType: 'status_change',
-      oldValue: '',
+      oldValue: current,
       newValue: status,
-      notes: 'Changement de statut groupé: → $status',
+      notes: 'Changement de statut groupé: $current → $status',
     );
   }
   ref.read(_listResetTrigger.notifier).state++;
   ref.read(_selectedTicketsProvider.notifier).state = {};
+  if (ref.context.mounted) {
+    final msg = skipped > 0
+        ? 'Statut modifié pour $changed tickets, $skipped ignorés car transition invalide'
+        : 'Statut modifié pour $changed tickets';
+    ScaffoldMessenger.of(ref.context).showSnackBar(SnackBar(content: Text(msg), backgroundColor: _panelDark));
+  }
 }
 
 Future<void> _showBulkAssignDialog(WidgetRef ref, Set<String> selected) async {

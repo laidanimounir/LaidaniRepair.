@@ -1604,6 +1604,11 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
         ),
       );
       if (confirm == true) {
+        final currentStatus = _ticket?['status'] as String? ?? '';
+        if (!RepairStatus.isValidStatusTransition(currentStatus, 'Livré')) {
+          _showToast('Transition de statut invalide: $currentStatus → Livré', Colors.orangeAccent);
+          return;
+        }
         final ticketId = widget.ticketId;
         await client.from('repair_tickets').update({
           'status': 'Livré',
@@ -1704,6 +1709,11 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
     );
 
     if (confirm != true) return;
+    final cancelFromStatus = _ticket?['status'] as String? ?? 'En attente';
+    if (!RepairStatus.isValidStatusTransition(cancelFromStatus, 'Annulé')) {
+      _showToast('Impossible d\'annuler un dossier avec le statut "$cancelFromStatus"', Colors.orangeAccent);
+      return;
+    }
     setState(() => _isLoading = true);
     try {
       final client = ref.read(supabaseClientProvider);
@@ -2968,6 +2978,10 @@ class _TicketDetailsScreenState extends ConsumerState<TicketDetailsScreen> {
       ),
     );
     if (confirm != true) return;
+    if (!RepairStatus.isValidStatusTransition(oldStatus, newStatus)) {
+      _showToast('Transition de statut invalide: $oldStatus → $newStatus', Colors.orangeAccent);
+      return;
+    }
     try {
       final client = ref.read(supabaseClientProvider);
       final user = Supabase.instance.client.auth.currentUser;

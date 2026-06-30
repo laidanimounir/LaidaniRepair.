@@ -70,4 +70,17 @@ class RepairStatus {
       default:      return 0xFF00E5FF;
     }
   }
+
+  static const Map<String, Set<String>> allowedStatusTransitions = {
+    enAttente: {termine, annule},
+    termine:   {livre, annule, enAttente},
+    livre:     {termine},
+    annule:    {enAttente},
+  };
+
+  static bool isValidStatusTransition(String oldStatus, String newStatus) {
+    if (oldStatus == newStatus) return true;
+    final allowed = allowedStatusTransitions[oldStatus];
+    return allowed != null && allowed.contains(newStatus);
+  }
 }
