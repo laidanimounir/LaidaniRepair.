@@ -438,7 +438,7 @@ class _AttendanceViewsWidgetState extends ConsumerState<AttendanceViewsWidget> {
           mainAxisAlignment: MainAxisAlignment.end,
           children: [
             const Text('Moins', style: TextStyle(color: _textMuted, fontSize: 9)),
-            ...['#0A1F0A', '#144A14', '#1E7A1E', '#32A832', '#3FB950'].map((c) => Container(width: 10, height: 10, margin: const EdgeInsets.symmetric(horizontal: 1), decoration: BoxDecoration(color: Color(int.parse('0xFF$c')), borderRadius: BorderRadius.circular(2)))),
+            ...['0A1F0A', '144A14', '1E7A1E', '32A832', '3FB950'].map((c) => Container(width: 10, height: 10, margin: const EdgeInsets.symmetric(horizontal: 1), decoration: BoxDecoration(color: Color(int.parse('0xFF$c')), borderRadius: BorderRadius.circular(2)))),
             const Text('Plus', style: TextStyle(color: _textMuted, fontSize: 9)),
           ],
         ),
