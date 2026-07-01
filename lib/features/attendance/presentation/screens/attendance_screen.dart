@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:laidani_repair/core/providers/supabase_provider.dart';
+import 'package:laidani_repair/features/attendance/presentation/widgets/attendance_views.dart';
 import 'package:laidani_repair/features/auth/presentation/providers/auth_provider.dart';
 
 const Color _bgCarbon = Color(0xFF050914);
@@ -258,79 +259,21 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen> {
             ),
           ),
           _buildFilters(dateFilter, workerFilter, isOwner),
-          if (_showStats)
-            Expanded(child: _buildStats(statsAsync))
-          else ...[
-            if (isOwner)
-              _buildActiveWorkers(activeWorkersAsync),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
-              child: Row(
-                children: [
-                  const Text('HISTORIQUE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13, letterSpacing: 1)),
-                  const Spacer(),
-                  IconButton(icon: const Icon(Icons.add, size: 18, color: _neonCyan), onPressed: () => _showManualEntryDialog(), tooltip: 'Ajouter manuellement'),
-                  IconButton(icon: const Icon(Icons.file_download, size: 18, color: _textMuted), onPressed: () => _exportCsv(ref), tooltip: 'Exporter CSV'),
-                ],
-              ),
+          if (isOwner)
+            _buildActiveWorkers(activeWorkersAsync),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+            child: Row(
+              children: [
+                const Spacer(),
+                IconButton(icon: const Icon(Icons.add, size: 18, color: _neonCyan), onPressed: () => _showManualEntryDialog(), tooltip: 'Ajouter manuellement'),
+                IconButton(icon: const Icon(Icons.file_download, size: 18, color: _textMuted), onPressed: () => _exportCsv(ref), tooltip: 'Exporter CSV'),
+              ],
             ),
-            Expanded(
-              child: historyAsync.when(
-                loading: () => const Center(child: CircularProgressIndicator(color: _neonCyan)),
-                error: (e, _) => Center(child: Text('Erreur: $e', style: const TextStyle(color: Colors.redAccent))),
-                data: (rows) {
-                  if (rows.isEmpty) return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [const Icon(Icons.hourglass_empty, color: _textMuted, size: 48), const SizedBox(height: 12), const Text('Aucun pointage.', style: TextStyle(color: _textMuted))]));
-                  return ListView.builder(
-                    controller: _scrollCtrl,
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    itemCount: rows.length + (_isLoadingMore ? 1 : 0),
-                    itemBuilder: (context, index) {
-                      if (index >= rows.length) return const SizedBox(height: 40, child: Center(child: CircularProgressIndicator(color: _neonCyan, strokeWidth: 2)));
-                      final r = rows[index];
-                      final cin = DateTime.tryParse(r['check_in']?.toString() ?? '');
-                      final cout = DateTime.tryParse(r['check_out']?.toString() ?? '');
-                      final dur = cin != null && cout != null ? cout.difference(cin) : null;
-                      final wName = r['profiles']?['full_name'] ?? '';
-                      return Dismissible(
-                        key: Key(r['id'].toString()),
-                        direction: isOwner ? DismissDirection.endToStart : DismissDirection.none,
-                        background: Container(alignment: Alignment.centerRight, padding: const EdgeInsets.only(right: 20), color: Colors.redAccent, child: const Icon(Icons.delete, color: Colors.white)),
-                        confirmDismiss: (_) async => await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(backgroundColor: _panelDark, title: const Text('Supprimer ?', style: TextStyle(color: Colors.redAccent)), content: const Text('Supprimer ce pointage définitivement ?', style: TextStyle(color: Colors.white)), actions: [TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Annuler')), ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent), onPressed: () => Navigator.pop(ctx, true), child: const Text('Supprimer'))])),
-                        onDismissed: (_) => _deleteEntry(r['id'] as String),
-                        child: GestureDetector(
-                          onLongPress: isOwner ? () => _showEditEntryDialog(r) : null,
-                          child: Container(
-                            margin: const EdgeInsets.only(bottom: 8),
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(color: _panelDark, borderRadius: BorderRadius.circular(12), border: Border.all(color: _glassBorder)),
-                            child: Row(
-                              children: [
-                                Icon(cout != null ? Icons.check_circle : Icons.access_time, color: cout != null ? _neonEmerald : Colors.orangeAccent, size: 20),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      if (wName.isNotEmpty) Text(wName, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
-                                      Text('Entrée: ${_fmtDt(cin)}', style: const TextStyle(color: _textMuted, fontSize: 11)),
-                                      if (cout != null) Text('Sortie: ${_fmtDt(cout)}', style: const TextStyle(color: _textMuted, fontSize: 11)),
-                                      if (dur != null) Text('Durée: ${dur.inHours}h ${dur.inMinutes % 60}min', style: TextStyle(color: _neonCyan, fontSize: 11, fontWeight: FontWeight.w600)),
-                                      if (r['notes'] != null) Text('Note: ${r['notes']}', style: const TextStyle(color: _textMuted, fontSize: 10, fontStyle: FontStyle.italic)),
-                                    ],
-                                  ),
-                                ),
-                                if (isOwner) IconButton(icon: const Icon(Icons.edit, size: 16, color: _textMuted), onPressed: () => _showEditEntryDialog(r), padding: EdgeInsets.zero, constraints: const BoxConstraints()),
-                              ],
-                            ),
-                          ),
-                        ),
-                      );
-                    },
-                  );
-                },
-              ),
-            ),
-          ],
+          ),
+          Expanded(
+            child: AttendanceViewsWidget(workerFilter: workerFilter, isOwner: isOwner),
+          ),
         ],
       ),
     );
