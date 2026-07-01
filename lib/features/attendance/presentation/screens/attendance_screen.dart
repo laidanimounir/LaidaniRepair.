@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:laidani_repair/core/providers/supabase_provider.dart';
 import 'package:laidani_repair/features/auth/presentation/providers/auth_provider.dart';
 
@@ -506,6 +507,17 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen> {
     final user = ref.read(currentUserProvider);
     if (user == null) return;
     try {
+      // Try to get location
+      double? lat, lng;
+      try {
+        final perm = await Geolocator.checkPermission();
+        if (perm == LocationPermission.whileInUse || perm == LocationPermission.always) {
+          final pos = await Geolocator.getCurrentPosition(timeLimit: const Duration(seconds: 5));
+          lat = pos.latitude;
+          lng = pos.longitude;
+        }
+      } catch (_) {}
+
       if (type == 'check_in') {
         final activeRows = await client.from('attendance')
             .select('id')
@@ -516,7 +528,12 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen> {
           if (mounted) _showSnack('Vous êtes déjà pointé. Terminez d\'abord le pointage actuel.', Colors.orangeAccent);
           return;
         }
-        await client.from('attendance').insert({'worker_id': user.id, 'check_in': DateTime.now().toIso8601String()});
+        await client.from('attendance').insert({
+          'worker_id': user.id,
+          'check_in': DateTime.now().toIso8601String(),
+          if (lat != null) 'check_in_lat': lat,
+          if (lng != null) 'check_in_lng': lng,
+        });
         if (mounted) _showSnack('Pointage entrée enregistré', _neonEmerald);
       } else {
         final rows = await client.from('attendance')
@@ -526,7 +543,11 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen> {
             .order('check_in', ascending: false)
             .limit(1);
         if (rows.isNotEmpty) {
-          await client.from('attendance').update({'check_out': DateTime.now().toIso8601String()}).eq('id', rows.first['id']);
+          await client.from('attendance').update({
+            'check_out': DateTime.now().toIso8601String(),
+            if (lat != null) 'check_out_lat': lat,
+            if (lng != null) 'check_out_lng': lng,
+          }).eq('id', rows.first['id']);
           if (mounted) _showSnack('Pointage sortie enregistré', Colors.redAccent);
         } else {
           if (mounted) _showSnack('Aucun pointage actif trouvé.', Colors.orangeAccent);
