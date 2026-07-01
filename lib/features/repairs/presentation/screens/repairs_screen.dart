@@ -2744,117 +2744,103 @@ class _NewTicketFormState extends State<_NewTicketForm> {
     showDialog(
       context: context,
       barrierDismissible: true,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => Dialog(
         backgroundColor: _panelDark,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: _neonCyan, width: 1.5)),
-        title: Row(
-          children: [
-            const Icon(Icons.receipt_long, color: _neonCyan),
-            const SizedBox(width: 12),
-            const Expanded(child: Text('Bon de dépôt', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
-            IconButton(
-              icon: const Icon(Icons.close, color: _textMuted),
-              onPressed: () => Navigator.pop(ctx),
-            ),
-          ],
-        ),
-        content: SizedBox(
-          width: 380,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        child: Container(
+          width: 300,
+          padding: const EdgeInsets.all(16),
           child: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(color: _bgCarbon, borderRadius: BorderRadius.circular(8), border: Border.all(color: _glassBorder)),
-                  child: Column(
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text('N° Ticket', style: TextStyle(color: _textMuted, fontSize: 11)),
-                          Text('#$ticketId', style: const TextStyle(color: Colors.white, fontFamily: 'monospace', fontWeight: FontWeight.bold, fontSize: 14)),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text('Date', style: TextStyle(color: _textMuted, fontSize: 11)),
-                          Text(createdAt, style: const TextStyle(color: Colors.white, fontSize: 12)),
-                        ],
-                      ),
-                    ],
-                  ),
+                Row(
+                  children: [
+                    const Icon(Icons.receipt_long, color: _neonCyan, size: 20),
+                    const SizedBox(width: 8),
+                    const Expanded(child: Text('Bon de dépôt', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14))),
+                    GestureDetector(
+                      onTap: () => Navigator.pop(ctx),
+                      child: const Icon(Icons.close, color: _textMuted, size: 18),
+                    ),
+                  ],
                 ),
+                const Divider(color: _glassBorder, height: 20),
+                _ticketRow('N°', '#$ticketId', mono: true),
+                _ticketRow('Date', createdAt),
+                _ticketRow('Client', clientName),
+                if (!isAnon && (anonPhone ?? '').isNotEmpty)
+                  _ticketRow('Tél', anonPhone!),
+                _ticketRow('Appareil', deviceName),
+                if (imei.isNotEmpty) _ticketRow('IMEI', imei),
+                if (issue.isNotEmpty) _ticketRow('Problème', issue),
+                const Divider(color: _glassBorder, height: 16),
+                _ticketRow('Total', '${finalCost.toStringAsFixed(0)} DA', bold: true),
+                if (advance > 0) _ticketRow('Avance', '${advance.toStringAsFixed(0)} DA'),
+                _ticketRow('Reste à payer', '${remaining.toStringAsFixed(0)} DA', bold: remaining > 0),
+                if (estimatedDate.isNotEmpty) _ticketRow('Prévu', estimatedDate),
                 const SizedBox(height: 12),
-                _receiptRow('Client', clientName),
-                if (!isAnon) ...[
-                  _receiptRow('Téléphone', anonPhone ?? ''),
-                ],
-                _receiptRow('Appareil', deviceName),
-                if (imei.isNotEmpty) _receiptRow('IMEI', imei),
-                if (issue.isNotEmpty) _receiptRow('Problème', issue),
-                const Divider(color: _glassBorder, height: 24),
-                _receiptRow('Coût estimé', '${finalCost.toStringAsFixed(0)} DA'),
-                if (advance > 0) _receiptRow('Avance', '${advance.toStringAsFixed(0)} DA'),
-                _receiptRow('Reste à payer', '${remaining.toStringAsFixed(0)} DA'),
-                if (estimatedDate.isNotEmpty) _receiptRow('Délai estimé', estimatedDate),
-                const SizedBox(height: 16),
                 Center(
                   child: QrImageView(
                     data: qrData,
                     version: QrVersions.auto,
-                    size: 200,
+                    size: 130,
                     backgroundColor: Colors.white,
                     eyeStyle: const QrEyeStyle(color: _bgCarbon),
                     dataModuleStyle: const QrDataModuleStyle(color: _bgCarbon),
                   ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 6),
+                Text(ticketId, style: const TextStyle(color: _textMuted, fontSize: 9, fontFamily: 'monospace')),
+                const SizedBox(height: 10),
                 Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(color: Colors.orangeAccent.withOpacity(0.1), borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.orangeAccent.withOpacity(0.3))),
-                  child: const Row(
-                    children: [
-                      Icon(Icons.warning_amber_rounded, color: Colors.orangeAccent, size: 14),
-                      SizedBox(width: 8),
-                      Expanded(child: Text('Nous ne sommes pas responsables des données personnelles sur l\'appareil.', style: TextStyle(color: Colors.orangeAccent, fontSize: 10))),
-                    ],
-                  ),
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(color: Colors.orangeAccent.withOpacity(0.08), borderRadius: BorderRadius.circular(4)),
+                  child: const Text('Nous ne sommes pas responsables des données personnelles sur l\'appareil.', style: TextStyle(color: Colors.orangeAccent, fontSize: 8), textAlign: TextAlign.center),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    OutlinedButton.icon(
+                      icon: const Icon(Icons.print, size: 14),
+                      label: const Text('Imprimer', style: TextStyle(fontSize: 11)),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: _neonCyan,
+                        side: const BorderSide(color: _neonCyan),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                        minimumSize: Size.zero,
+                      ),
+                      onPressed: () => _showPrintOptions(ticket, anonName, anonPhone),
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4), minimumSize: Size.zero),
+                      child: const Text('Fermer', style: TextStyle(color: _textMuted, fontSize: 11)),
+                    ),
+                  ],
                 ),
               ],
             ),
           ),
         ),
-        actions: [
-          OutlinedButton.icon(
-            icon: const Icon(Icons.print, size: 16),
-            label: const Text('Imprimer / PDF'),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: _neonCyan,
-              side: const BorderSide(color: _neonCyan),
-            ),
-            onPressed: () => _showPrintOptions(ticket, anonName, anonPhone),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Fermer', style: TextStyle(color: _textMuted)),
-          ),
-        ],
       ),
     );
   }
 
-  Widget _receiptRow(String label, String value) {
+  Widget _ticketRow(String label, String value, {bool bold = false, bool mono = false}) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
+      padding: const EdgeInsets.symmetric(vertical: 2),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: const TextStyle(color: _textMuted, fontSize: 11)),
-          Flexible(child: Text(value, style: const TextStyle(color: Colors.white, fontSize: 12), textAlign: TextAlign.right)),
+          SizedBox(width: 60, child: Text(label, style: const TextStyle(color: _textMuted, fontSize: 10))),
+          Expanded(
+            child: Text(
+              value,
+              style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: bold ? FontWeight.bold : FontWeight.normal, fontFamily: mono ? 'monospace' : null),
+            ),
+          ),
         ],
       ),
     );
